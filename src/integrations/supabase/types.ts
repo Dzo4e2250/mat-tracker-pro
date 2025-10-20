@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      contacts: {
+        Row: {
+          company_name: string
+          contact_email: string | null
+          contact_person: string | null
+          contact_phone: string | null
+          contact_role: string | null
+          created_at: string | null
+          first_contact_date: string | null
+          id: string
+          seller_id: string
+          tax_number: string | null
+        }
+        Insert: {
+          company_name: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string | null
+          first_contact_date?: string | null
+          id?: string
+          seller_id: string
+          tax_number?: string | null
+        }
+        Update: {
+          company_name?: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string | null
+          first_contact_date?: string | null
+          id?: string
+          seller_id?: string
+          tax_number?: string | null
+        }
+        Relationships: []
+      }
+      doormats: {
+        Row: {
+          created_at: string | null
+          id: string
+          qr_code: string
+          seller_id: string | null
+          status: Database["public"]["Enums"]["doormat_status"]
+          type: Database["public"]["Enums"]["doormat_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          qr_code: string
+          seller_id?: string | null
+          status?: Database["public"]["Enums"]["doormat_status"]
+          type: Database["public"]["Enums"]["doormat_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          qr_code?: string
+          seller_id?: string | null
+          status?: Database["public"]["Enums"]["doormat_status"]
+          type?: Database["public"]["Enums"]["doormat_type"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -34,6 +103,65 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      test_placements: {
+        Row: {
+          company_name: string
+          contact_email: string | null
+          contact_person: string | null
+          contact_phone: string | null
+          contact_role: string | null
+          created_at: string | null
+          doormat_id: string
+          expires_at: string
+          extended_count: number | null
+          id: string
+          placed_at: string | null
+          seller_id: string
+          status: string | null
+          tax_number: string | null
+        }
+        Insert: {
+          company_name: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string | null
+          doormat_id: string
+          expires_at: string
+          extended_count?: number | null
+          id?: string
+          placed_at?: string | null
+          seller_id: string
+          status?: string | null
+          tax_number?: string | null
+        }
+        Update: {
+          company_name?: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string | null
+          doormat_id?: string
+          expires_at?: string
+          extended_count?: number | null
+          id?: string
+          placed_at?: string | null
+          seller_id?: string
+          status?: string | null
+          tax_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_placements_doormat_id_fkey"
+            columns: ["doormat_id"]
+            isOneToOne: false
+            referencedRelation: "doormats"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -75,6 +203,13 @@ export type Database = {
     }
     Enums: {
       app_role: "INVENTAR" | "PRODAJALEC"
+      doormat_status:
+        | "sent_by_inventar"
+        | "with_seller"
+        | "on_test"
+        | "dirty"
+        | "collected_by_delivery"
+      doormat_type: "MBW0" | "MBW1" | "MBW2" | "MBW4" | "ERM10R" | "ERM11R"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -203,6 +338,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["INVENTAR", "PRODAJALEC"],
+      doormat_status: [
+        "sent_by_inventar",
+        "with_seller",
+        "on_test",
+        "dirty",
+        "collected_by_delivery",
+      ],
+      doormat_type: ["MBW0", "MBW1", "MBW2", "MBW4", "ERM10R", "ERM11R"],
     },
   },
 } as const
