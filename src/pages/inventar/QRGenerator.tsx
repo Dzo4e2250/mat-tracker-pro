@@ -152,8 +152,9 @@ export default function QRGenerator() {
     try {
       const { data: doormats, error } = await supabase
         .from('doormats')
-        .select('qr_code')
-        .eq('seller_id', sellerId);
+        .select('qr_code, status')
+        .eq('seller_id', sellerId)
+        .neq('status', 'sent_by_inventar');
 
       if (error) throw error;
 
