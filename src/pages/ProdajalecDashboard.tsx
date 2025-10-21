@@ -537,6 +537,15 @@ export default function ProdajalecDashboard() {
       </div>
 
       {/* Dialogs */}
+      <TestPlacementDialog
+        isOpen={showTestDialog}
+        onClose={() => {
+          setShowTestDialog(false);
+          setScannedDoormat(null);
+        }}
+        onSubmit={handleTestPlacement}
+      />
+
       <DoormatActionDialog
         isOpen={showDoormatActionDialog}
         onClose={() => {
