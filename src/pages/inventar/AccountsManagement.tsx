@@ -23,8 +23,10 @@ export default function AccountsManagement() {
   const [newSellerName, setNewSellerName] = useState("");
   const [newSellerPrefix, setNewSellerPrefix] = useState("");
   const [creating, setCreating] = useState(false);
-  const [editingPrefix, setEditingPrefix] = useState<string | null>(null);
-  const [editPrefixValue, setEditPrefixValue] = useState("");
+  const [editingSeller, setEditingSeller] = useState<string | null>(null);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editPrefix, setEditPrefix] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -142,22 +144,35 @@ export default function AccountsManagement() {
     }
   };
 
-  const handleUpdatePrefix = async (sellerId: string) => {
+  const handleUpdateSeller = async (sellerId: string) => {
     try {
-      const { error } = await supabase
+      // Update QR prefix
+      const { error: profileError } = await supabase
         .from("profiles")
-        .update({ qr_prefix: editPrefixValue.toUpperCase() })
+        .update({ qr_prefix: editPrefix.toUpperCase() })
         .eq("id", sellerId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Update password if provided
+      if (editPassword) {
+        const { error: passwordError } = await supabase.auth.admin.updateUserById(
+          sellerId,
+          { password: editPassword }
+        );
+
+        if (passwordError) throw passwordError;
+      }
 
       toast({
         title: "Uspešno posodobljeno",
-        description: "QR predpona je bila posodobljena.",
+        description: "Podatki prodajalca so bili posodobljeni.",
       });
 
-      setEditingPrefix(null);
-      setEditPrefixValue("");
+      setEditingSeller(null);
+      setEditEmail("");
+      setEditPassword("");
+      setEditPrefix("");
       fetchSellers();
     } catch (error: any) {
       toast({
@@ -168,9 +183,18 @@ export default function AccountsManagement() {
     }
   };
 
-  const startEditPrefix = (seller: Seller) => {
-    setEditingPrefix(seller.id);
-    setEditPrefixValue(seller.qr_prefix || "");
+  const startEditSeller = (seller: Seller) => {
+    setEditingSeller(seller.id);
+    setEditEmail(seller.email);
+    setEditPassword("");
+    setEditPrefix(seller.qr_prefix || "");
+  };
+
+  const cancelEdit = () => {
+    setEditingSeller(null);
+    setEditEmail("");
+    setEditPassword("");
+    setEditPrefix("");
   };
 
   if (loading) {
@@ -253,55 +277,80 @@ export default function AccountsManagement() {
           {sellers.length === 0 ? (
             <p className="text-muted-foreground">Ni prodajalcev</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid gap-4 md:grid-cols-2">
               {sellers.map((seller) => (
-                <div
-                  key={seller.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium">{seller.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{seller.email}</p>
-                    {editingPrefix === seller.id ? (
-                      <div className="flex items-center gap-2 mt-2">
-                        <Input
-                          value={editPrefixValue}
-                          onChange={(e) => setEditPrefixValue(e.target.value)}
-                          placeholder="RIST"
-                          maxLength={4}
-                          className="w-24 h-8 text-sm"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handleUpdatePrefix(seller.id)}
-                        >
-                          Shrani
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingPrefix(null)}
-                        >
-                          Prekliči
-                        </Button>
+                <Card key={seller.id}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{seller.full_name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {editingSeller === seller.id ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium">Email (samo za ogled)</label>
+                          <Input
+                            value={editEmail}
+                            disabled
+                            className="bg-muted"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Novo geslo (opcijsko)</label>
+                          <Input
+                            type="password"
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            placeholder="Pusti prazno za ohranitev trenutnega"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">QR Predpona</label>
+                          <Input
+                            value={editPrefix}
+                            onChange={(e) => setEditPrefix(e.target.value.toUpperCase())}
+                            placeholder="RIST"
+                            maxLength={4}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleUpdateSeller(seller.id)}
+                            className="flex-1"
+                          >
+                            Shrani
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={cancelEdit}
+                            className="flex-1"
+                          >
+                            Prekliči
+                          </Button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm font-mono">
-                          QR Predpona: {seller.qr_prefix || "Ni določeno"}
-                        </p>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Email</p>
+                          <p className="font-medium">{seller.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">QR Predpona</p>
+                          <p className="font-mono text-lg font-bold">
+                            {seller.qr_prefix || "Ni določeno"}
+                          </p>
+                        </div>
                         <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => startEditPrefix(seller)}
-                          className="h-6 px-2 text-xs"
+                          onClick={() => startEditSeller(seller)}
+                          className="w-full"
+                          variant="outline"
                         >
-                          Uredi
+                          Uredi podatke
                         </Button>
                       </div>
                     )}
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
