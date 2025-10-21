@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { InventarSidebar } from "@/components/InventarSidebar";
 
 interface Seller {
   id: string;
@@ -133,8 +135,12 @@ export default function AccountsManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Upravljanje računov</h1>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <InventarSidebar />
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6 space-y-6">
+            <h1 className="text-3xl font-bold">Upravljanje računov</h1>
 
       <Card>
         <CardHeader>
@@ -206,6 +212,9 @@ export default function AccountsManagement() {
           )}
         </CardContent>
       </Card>
-    </div>
+          </div>
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }

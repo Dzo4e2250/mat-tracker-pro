@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { InventarSidebar } from "@/components/InventarSidebar";
 
 export default function QRGenerator() {
   const [prefix, setPrefix] = useState("");
@@ -15,8 +17,12 @@ export default function QRGenerator() {
   const [printOption, setPrintOption] = useState("all");
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">QR Kod Generator</h1>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <InventarSidebar />
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6">
+            <h1 className="text-3xl font-bold mb-6">QR Kod Generator</h1>
 
       <Tabs defaultValue="generate" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
@@ -179,6 +185,9 @@ export default function QRGenerator() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+          </div>
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }
