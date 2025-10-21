@@ -1,83 +1,132 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Camera } from 'lucide-react';
 
 interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
 }
 
-const DOORMAT_TYPES = ['MBW0', 'MBW1', 'MBW2', 'MBW4', 'ERM10R', 'ERM11R'];
+const doormatTypes = [
+  { code: 'MBW0', size: '85x75 cm' },
+  { code: 'MBW1', size: '85x150 cm' },
+  { code: 'MBW2', size: '115x200 cm' },
+  { code: 'MBW4', size: '150x300 cm' },
+  { code: 'ERM10R', size: '86x54 cm' },
+  { code: 'ERM11R', size: '86x142 cm' },
+];
 
 export default function QRScanner({ onScan }: QRScannerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [qrCode, setQrCode] = useState('');
-  const [selectedType, setSelectedType] = useState('');
+  const [manualQrCode, setManualQrCode] = useState('');
+  const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
+  const [showTypeDialog, setShowTypeDialog] = useState(false);
 
-  const handleSubmit = () => {
-    if (qrCode && selectedType) {
-      onScan(qrCode, selectedType);
-      setQrCode('');
-      setSelectedType('');
-      setIsOpen(false);
+  // Generate pre-defined QR codes (PRED-001 to PRED-010)
+  const predefinedQrCodes = Array.from({ length: 10 }, (_, i) => 
+    `PRED-${String(i + 1).padStart(3, '0')}`
+  );
+
+  const handleManualSubmit = () => {
+    if (manualQrCode.trim()) {
+      // For manual entry, we still need to select type
+      setSelectedQrCode(manualQrCode.trim());
+      setShowTypeDialog(true);
+    }
+  };
+
+  const handlePredefinedQrClick = (qrCode: string) => {
+    setSelectedQrCode(qrCode);
+    setShowTypeDialog(true);
+  };
+
+  const handleTypeSelect = (type: string) => {
+    if (selectedQrCode) {
+      onScan(selectedQrCode, type);
+      setShowTypeDialog(false);
+      setSelectedQrCode(null);
+      setManualQrCode('');
     }
   };
 
   return (
     <>
-      <Button onClick={() => setIsOpen(true)} size="lg" className="w-full">
-        <QrCode className="mr-2 h-5 w-5" />
-        Skeniraj QR kodo
-      </Button>
+      <div className="space-y-6">
+        {/* Camera Icon and Title */}
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Camera className="h-20 w-20 text-primary" strokeWidth={1.5} />
+          <h2 className="text-xl font-semibold">Skeniraj QR</h2>
+        </div>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent>
+        {/* Manual QR Input */}
+        <div className="space-y-3">
+          <Input
+            value={manualQrCode}
+            onChange={(e) => setManualQrCode(e.target.value)}
+            placeholder="Vnesi QR (npr. PRED-001)"
+            className="h-12 text-center"
+            onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+          />
+          <Button 
+            onClick={handleManualSubmit} 
+            className="w-full h-12"
+            disabled={!manualQrCode.trim()}
+          >
+            Potrdi
+          </Button>
+        </div>
+
+        {/* Pre-defined QR Codes */}
+        <div className="space-y-3">
+          <h3 className="font-semibold">Proste QR:</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {predefinedQrCodes.map((qrCode) => (
+              <Button
+                key={qrCode}
+                variant="outline"
+                onClick={() => handlePredefinedQrClick(qrCode)}
+                className="h-10 text-sm"
+              >
+                {qrCode}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Doormat Type Selection Dialog */}
+      <Dialog open={showTypeDialog} onOpenChange={setShowTypeDialog}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Skeniraj QR kodo</DialogTitle>
-            <DialogDescription>
-              Vnesi QR kodo in izberi vrsto predpražnika
-            </DialogDescription>
+            <DialogTitle className="text-lg">
+              {selectedQrCode} - Izberi tip:
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="qr-code">QR koda</Label>
-              <Input
-                id="qr-code"
-                placeholder="Vnesi QR kodo"
-                value={qrCode}
-                onChange={(e) => setQrCode(e.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="type">Vrsta predpražnika</Label>
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Izberi vrsto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOORMAT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            {doormatTypes.map((type) => (
+              <Button
+                key={type.code}
+                variant="outline"
+                onClick={() => handleTypeSelect(type.code)}
+                className="w-full h-auto py-4 flex flex-col items-start hover:bg-accent"
+              >
+                <span className="font-semibold">{type.code}</span>
+                <span className="text-sm text-muted-foreground">{type.size}</span>
+              </Button>
+            ))}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
-              Prekliči
-            </Button>
-            <Button onClick={handleSubmit} disabled={!qrCode || !selectedType}>
-              Potrdi
-            </Button>
-          </DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowTypeDialog(false);
+              setSelectedQrCode(null);
+            }}
+            className="w-full"
+          >
+            Prekliči
+          </Button>
         </DialogContent>
       </Dialog>
     </>
