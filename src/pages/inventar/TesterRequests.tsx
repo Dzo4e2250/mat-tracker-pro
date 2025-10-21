@@ -392,7 +392,7 @@ export default function TesterRequests() {
                     <Label>Izberi prodajalca</Label>
                     <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="George Smith" />
+                        <SelectValue placeholder="Izberi prodajalca" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
                         {sellers.map((seller) => (
