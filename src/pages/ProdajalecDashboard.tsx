@@ -56,14 +56,12 @@ export default function ProdajalecDashboard() {
   const [selectedDoormatForAction, setSelectedDoormatForAction] = useState<{ doormat: Doormat; testPlacement?: TestPlacement } | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [availableQrCodes, setAvailableQrCodes] = useState<string[]>([]); // Available QR codes from approved requests
 
   useEffect(() => {
     if (user) {
       fetchProfile();
       fetchDoormats();
       fetchTests();
-      fetchAvailableQrCodes();
       checkExpiringTests();
     }
   }, [user]);
@@ -107,24 +105,6 @@ export default function ProdajalecDashboard() {
       setUserProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error);
-    }
-  };
-
-  const fetchAvailableQrCodes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tester_requests')
-        .select('generated_qr_codes')
-        .eq('seller_id', user?.id)
-        .eq('status', 'approved');
-      
-      if (error) throw error;
-      
-      // Flatten all QR codes from approved requests
-      const allQrCodes = data?.flatMap(req => req.generated_qr_codes || []) || [];
-      setAvailableQrCodes(allQrCodes);
-    } catch (error: any) {
-      console.error('Error fetching available QR codes:', error);
     }
   };
 
@@ -263,55 +243,30 @@ export default function ProdajalecDashboard() {
           setScannedDoormat(existingDoormat);
           setShowActionDialog(true);
         } else if (existingDoormat.status === 'sent_by_inventar') {
-          // Activate inactive doormat
+          // Activate inactive doormat with the selected type
+          if (!type) {
+            toast.error('Napaka: tip ni izbran');
+            return;
+          }
+          
           const { error: updateError } = await supabase
             .from('doormats')
-            .update({ status: 'with_seller' })
+            .update({ 
+              status: 'with_seller',
+              type: type as any
+            })
             .eq('id', existingDoormat.id);
 
           if (updateError) throw updateError;
 
           toast.success('Predpražnik aktiviran in dodan na seznam čistih');
           await fetchDoormats();
-          setShowScanner(false); // Close scanner after activation
+          setShowScanner(false);
         } else {
           toast.info('Predpražnik je že v sistemu');
         }
       } else {
-        // Check if QR code is in available codes from approved requests
-        const isAvailable = availableQrCodes.includes(qrCode);
-        
-        if (!isAvailable) {
-          // Check if this QR code belongs to this seller via tester_requests
-          const isValid = await checkIfQrCodeBelongsToSeller(qrCode, user?.id || '');
-          
-          if (!isValid) {
-            toast.error('QR koda ni rezervirana za vas ali ni veljavna');
-            return;
-          }
-        }
-        
-        // Type must be provided for new doormats
-        if (!type) {
-          toast.error('Napaka: tip ni izbran');
-          return;
-        }
-        
-        // Create new doormat entry with 'with_seller' status
-        const { error: insertError } = await supabase
-          .from('doormats')
-          .insert([{
-            qr_code: qrCode,
-            type: type as any,
-            status: 'with_seller',
-            seller_id: user?.id
-          }]);
-
-        if (insertError) throw insertError;
-
-        toast.success('Predpražnik dodan na seznam čistih');
-        await fetchDoormats();
-        setShowScanner(false); // Close scanner after adding
+        toast.error('QR koda ne obstaja v sistemu');
       }
     } catch (error: any) {
       console.error('Error handling QR scan:', error);
@@ -468,12 +423,8 @@ export default function ProdajalecDashboard() {
   const totalDoormats = cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length + waitingForDriverDoormats.length;
   const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats, ...waitingForDriverDoormats];
   
-  // Used QR codes = all doormats EXCEPT sent_by_inventar (inactive ones)
-  // This way, sent_by_inventar doormats will show as "free" in QRScanner
-  const usedQrCodes = allDoormats.map(d => d.qr_code);
-  
-  // Calculate inactive QR codes: available from requests but not yet activated
-  const inactiveQrCodes = availableQrCodes.filter(code => !usedQrCodes.includes(code) && !sentDoormats.find(d => d.qr_code === code));
+  // Used QR codes = all active doormats (not sent_by_inventar)
+  const usedQrCodes = allDoormats.filter(d => d.status !== 'sent_by_inventar').map(d => d.qr_code);
 
   // Filtered doormats based on status and search
   const filteredDoormats = useMemo(() => {
@@ -510,7 +461,7 @@ export default function ProdajalecDashboard() {
             usedQrCodes={usedQrCodes}
             qrPrefix={userProfile?.qr_prefix || "PRED"}
             qrMaxNumber={userProfile?.qr_end_num || 200}
-            sentDoormats={inactiveQrCodes.map(qr => ({ qr_code: qr, type: '' }))}
+            sentDoormats={sentDoormats}
           />
         </div>
 

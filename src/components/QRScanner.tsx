@@ -61,8 +61,7 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
   };
 
   const handlePredefinedQrClick = async (qrCode: string) => {
-    // For inactive QR codes from tester requests, always show type dialog
-    // They don't exist in database yet, so we need to create them with type
+    // For sent_by_inventar doormats, show type dialog to activate them
     setSelectedQrCode(qrCode);
     setWasUsingCamera(false);
     setShowTypeDialog(true);

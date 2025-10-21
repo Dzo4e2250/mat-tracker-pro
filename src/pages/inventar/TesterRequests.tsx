@@ -371,16 +371,35 @@ export default function TesterRequests() {
         nextNumber = Math.max(...allNumbers) + 1;
       }
 
-      // Generate QR codes only - don't create doormats yet
+      // Generate QR codes and create doormat entries
       const qrCodes: string[] = [];
+      const doormatEntries: any[] = [];
       const quantities = request.quantities as Record<string, number>;
 
       Object.entries(quantities).forEach(([type, qty]) => {
         for (let i = 0; i < qty; i++) {
-          qrCodes.push(`${seller.qr_prefix}-${String(nextNumber).padStart(3, '0')}`);
+          const qrCode = `${seller.qr_prefix}-${String(nextNumber).padStart(3, '0')}`;
+          qrCodes.push(qrCode);
+          
+          // Create doormat entry with sent_by_inventar status
+          doormatEntries.push({
+            qr_code: qrCode,
+            type: type,
+            status: 'sent_by_inventar',
+            seller_id: request.seller_id,
+            generation_date: new Date().toISOString().split('T')[0]
+          });
+          
           nextNumber++;
         }
       });
+
+      // Insert all doormat entries
+      const { error: doormatError } = await supabase
+        .from('doormats')
+        .insert(doormatEntries);
+
+      if (doormatError) throw doormatError;
 
       // Update request with generated QR codes
       const { data: { user } } = await supabase.auth.getUser();
@@ -435,7 +454,7 @@ export default function TesterRequests() {
 
       toast({ 
         title: "Uspeh", 
-        description: `Generirano ${qrCodes.length} QR kod - čakajo na skeniranje prodajalca` 
+        description: `Ustvarjenih ${qrCodes.length} neaktivnih predpražnikov - čakajo na aktivacijo prodajalca` 
       });
       fetchRequests();
     } catch (error) {
