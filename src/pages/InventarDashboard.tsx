@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Download, LogOut, ChevronDown } from "lucide-react";
+import { Download, LogOut, ChevronDown, Trash2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -171,7 +171,7 @@ export default function InventarDashboard() {
           'Datum': date,
           'Koda predpražnika': type,
           'Število izdanih': count,
-          'Na zalogi': sellerDoormats.filter(d => d.type === type && d.status === 'clean').length,
+          'Na zalogi': sellerDoormats.filter(d => d.type === type && d.status === 'with_seller').length,
         }))
       );
 
@@ -184,7 +184,7 @@ export default function InventarDashboard() {
       'Datum': '',
       'Koda predpražnika': '',
       'Število izdanih': doormats.length,
-      'Na zalogi': doormats.filter(d => d.status === 'clean').length,
+      'Na zalogi': doormats.filter(d => d.status === 'with_seller').length,
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -193,9 +193,42 @@ export default function InventarDashboard() {
     XLSX.writeFile(wb, `Inventar_${new Date().toLocaleDateString('sl-SI')}.xlsx`);
 
     toast({
-      title: "Uspešno",
-      description: "Excel datoteka je bila prenesena",
+      title: "Izvoženo",
+      description: "Excel datoteka je bila prenesena.",
     });
+  };
+
+  const handleDeleteSellerDoormats = async () => {
+    if (selectedSellerId === "all") return;
+
+    const confirmed = confirm(
+      `Ali ste prepričani, da želite izbrisati VSE predpražnike prodajalca ${sellers.find(s => s.id === selectedSellerId)?.full_name}? To dejanje je nepovratno!`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('doormats')
+        .delete()
+        .eq('seller_id', selectedSellerId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Uspešno izbrisano",
+        description: "Vsi predpražniki prodajalca so bili izbrisani.",
+      });
+
+      fetchDoormats();
+    } catch (error: any) {
+      console.error('Error deleting doormats:', error);
+      toast({
+        title: "Napaka",
+        description: "Napaka pri brisanju predpražnikov.",
+        variant: "destructive",
+      });
+    }
   };
 
   const sellerStats = getSellerStats();
@@ -301,6 +334,23 @@ export default function InventarDashboard() {
 
               <div className="flex gap-4">
                 <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Prodajalec</label>
+                  <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Vsi prodajalci</SelectItem>
+                      {sellers.map((seller) => (
+                        <SelectItem key={seller.id} value={seller.id}>
+                          {seller.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1">
                   <label className="text-sm font-medium mb-2 block">Filtriraj po statusu</label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="bg-card">
@@ -308,9 +358,10 @@ export default function InventarDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Vsi</SelectItem>
-                      <SelectItem value="clean">Čist</SelectItem>
+                      <SelectItem value="with_seller">Čist</SelectItem>
                       <SelectItem value="on_test">Na testu</SelectItem>
                       <SelectItem value="dirty">Umazan</SelectItem>
+                      <SelectItem value="waiting_for_driver">Čaka šoferja</SelectItem>
                       <SelectItem value="sent_by_inventar">Poslano od inventarja</SelectItem>
                     </SelectContent>
                   </Select>
@@ -333,6 +384,24 @@ export default function InventarDashboard() {
                   </Select>
                 </div>
               </div>
+
+              {selectedSellerId !== "all" && (
+                <div className="flex items-center justify-between p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      Izbran prodajalec: {sellers.find(s => s.id === selectedSellerId)?.full_name}
+                    </span>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteSellerDoormats()}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Izbriši vse predpražnike
+                  </Button>
+                </div>
+              )}
 
               <Card>
                 <CardContent className="p-0">
