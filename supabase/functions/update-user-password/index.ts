@@ -41,17 +41,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if the user is an ADMIN
+    // Check if the user is an ADMIN or INVENTAR
     const { data: roleData, error: roleError } = await supabaseClient
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .eq('role', 'ADMIN')
       .maybeSingle();
 
-    if (roleError || !roleData) {
+    if (roleError || !roleData || (roleData.role !== 'ADMIN' && roleData.role !== 'INVENTAR')) {
       return new Response(
-        JSON.stringify({ error: 'Only ADMIN users can update passwords' }),
+        JSON.stringify({ error: 'Only ADMIN and INVENTAR users can update passwords' }),
         { status: 403, headers: { 'Content-Type': 'application/json' } }
       );
     }

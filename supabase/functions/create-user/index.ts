@@ -45,16 +45,16 @@ Deno.serve(async (req) => {
 
     console.log('User authenticated:', user.email);
 
-    // Check if user has ADMIN role
+    // Check if user has ADMIN or INVENTAR role
     const { data: roleData, error: roleError } = await supabaseClient
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || !roleData || roleData.role !== 'ADMIN') {
-      console.error('User does not have ADMIN role:', roleError);
-      return new Response(JSON.stringify({ error: 'Only administrators can create users' }), {
+    if (roleError || !roleData || (roleData.role !== 'ADMIN' && roleData.role !== 'INVENTAR')) {
+      console.error('User does not have ADMIN or INVENTAR role:', roleError);
+      return new Response(JSON.stringify({ error: 'Only administrators and inventory managers can create users' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
