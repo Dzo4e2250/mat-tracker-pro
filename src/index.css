@@ -103,3 +103,14 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes pulse-red {
+  0%, 100% {
+    border-color: rgb(239 68 68 / 0.5);
+    background-color: rgb(239 68 68 / 0.05);
+  }
+  50% {
+    border-color: rgb(239 68 68);
+    background-color: rgb(239 68 68 / 0.15);
+  }
+}

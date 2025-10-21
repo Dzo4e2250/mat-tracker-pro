@@ -10,6 +10,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 import { useToast } from "@/hooks/use-toast";
 import { LogOut, Plus, Trash2, X } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CardDescription } from "@/components/ui/card";
 
 const DOORMAT_TYPES = [
   { value: "MBW0", label: "MBW0 - 85x75 cm" },
@@ -60,6 +62,17 @@ interface TesterRequest {
   seller_name?: string;
 }
 
+interface TransportNotification {
+  id: string;
+  seller_id: string;
+  seller_name: string;
+  dirty_count: number;
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
+  resolution_type: string | null;
+}
+
 export default function TesterRequests() {
   const { signOut } = useAuth();
   const { toast } = useToast();
@@ -70,10 +83,13 @@ export default function TesterRequests() {
   const [shipmentItems, setShipmentItems] = useState<ShipmentItem[]>([]);
   const [requests, setRequests] = useState<TesterRequest[]>([]);
   const [nextQrNumber, setNextQrNumber] = useState<number | null>(null);
+  const [transportNotifications, setTransportNotifications] = useState<TransportNotification[]>([]);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchSellers();
     fetchRequests();
+    fetchTransportNotifications();
   }, []);
 
   useEffect(() => {
@@ -131,6 +147,28 @@ export default function TesterRequests() {
       setRequests(requestsWithSellers);
     } catch (error) {
       console.error('Error fetching requests:', error);
+    }
+  };
+
+  const fetchTransportNotifications = async () => {
+    try {
+      const { data } = await supabase
+        .from("transport_notifications")
+        .select(`
+          *,
+          profiles!transport_notifications_seller_id_fkey(full_name)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        const notificationsWithNames = data.map((notif: any) => ({
+          ...notif,
+          seller_name: notif.profiles?.full_name || "Unknown",
+        }));
+        setTransportNotifications(notificationsWithNames);
+      }
+    } catch (error) {
+      console.error("Error fetching transport notifications:", error);
     }
   };
 
@@ -367,6 +405,61 @@ export default function TesterRequests() {
     return doormat?.label || type;
   };
 
+  const handleResolveTransportNotification = async (
+    notificationId: string,
+    resolutionType: 'carrier_notified' | 'seller_delivers'
+  ) => {
+    const { error } = await supabase
+      .from('transport_notifications')
+      .update({
+        status: resolutionType,
+        resolved_at: new Date().toISOString(),
+        resolution_type: resolutionType
+      })
+      .eq('id', notificationId);
+    
+    if (error) {
+      toast({
+        title: "Napaka",
+        description: "Napaka pri posodabljanju obvestila",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Obvestilo posodobljeno",
+      description: resolutionType === 'carrier_notified' 
+        ? "Prevoznik je bil obveščen" 
+        : "Prodajalec bo sam dostavil"
+    });
+    fetchTransportNotifications();
+  };
+
+  const handleCompleteNotification = async (notificationId: string) => {
+    const { error } = await supabase
+      .from('transport_notifications')
+      .update({
+        status: 'completed'
+      })
+      .eq('id', notificationId);
+    
+    if (error) {
+      toast({
+        title: "Napaka",
+        description: "Napaka pri posodabljanju obvestila",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Opravljeno",
+      description: "Prevoz je bil opravljen"
+    });
+    fetchTransportNotifications();
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -380,6 +473,150 @@ export default function TesterRequests() {
                 Odjava
               </Button>
             </div>
+
+            {/* Transport Notifications - Pending (Pulsing) */}
+            {transportNotifications.filter(n => n.status === 'pending').length > 0 && (
+              <Card className="border-red-500 animate-[pulse-red_2s_cubic-bezier(0.4,0,0.6,1)_infinite]">
+                <CardHeader>
+                  <CardTitle className="text-red-600 flex items-center gap-2">
+                    <span className="text-2xl">⚠️</span>
+                    OBVESTILA O PREVOZU
+                  </CardTitle>
+                  <CardDescription>
+                    Potrebna je organizacija prevoza umazanih predpražnikov
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {transportNotifications
+                    .filter(n => n.status === 'pending')
+                    .map((notification) => (
+                      <div key={notification.id} className="p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-lg">{notification.seller_name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {notification.dirty_count} umazanih predpražnikov
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(notification.created_at).toLocaleDateString('sl-SI')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleResolveTransportNotification(notification.id, 'carrier_notified')}
+                            variant="default"
+                            size="sm"
+                          >
+                            Prevoznik obveščen
+                          </Button>
+                          <Button
+                            onClick={() => handleResolveTransportNotification(notification.id, 'seller_delivers')}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            Prodajalec bo sam dostavil
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transport Notifications - In Progress */}
+            {transportNotifications.filter(n => n.status === 'carrier_notified' || n.status === 'seller_delivers').length > 0 && (
+              <Card className="border-yellow-500">
+                <CardHeader>
+                  <CardTitle className="text-yellow-600 flex items-center gap-2">
+                    <span className="text-2xl">📦</span>
+                    V OBDELAVI
+                  </CardTitle>
+                  <CardDescription>
+                    Potrjena obvestila, ki še niso dokončana
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {transportNotifications
+                    .filter(n => n.status === 'carrier_notified' || n.status === 'seller_delivers')
+                    .map((notification) => (
+                      <div key={notification.id} className="p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-lg">{notification.seller_name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {notification.dirty_count} umazanih predpražnikov
+                            </p>
+                            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                              {notification.resolution_type === 'carrier_notified' 
+                                ? '🚚 Prevoznik obveščen' 
+                                : '👤 Prodajalec bo sam dostavil'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Potrjeno: {notification.resolved_at ? new Date(notification.resolved_at).toLocaleDateString('sl-SI') : '-'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => handleCompleteNotification(notification.id)}
+                          variant="default"
+                          size="sm"
+                        >
+                          Označi kot opravljeno
+                        </Button>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transport Notifications - Completed (Collapsible) */}
+            {transportNotifications.filter(n => n.status === 'completed').length > 0 && (
+              <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
+                <Card className="border-green-500">
+                  <CardHeader>
+                    <CollapsibleTrigger className="w-full">
+                      <CardTitle className="text-green-600 flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <span className="text-2xl">✅</span>
+                          OPRAVLJENO
+                        </span>
+                        <span className="text-sm font-normal">
+                          {showCompleted ? '▲' : '▼'} {transportNotifications.filter(n => n.status === 'completed').length}
+                        </span>
+                      </CardTitle>
+                    </CollapsibleTrigger>
+                    <CardDescription>
+                      Arhiv opravljenih prevozov
+                    </CardDescription>
+                  </CardHeader>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4">
+                      {transportNotifications
+                        .filter(n => n.status === 'completed')
+                        .map((notification) => (
+                          <div key={notification.id} className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                            <div>
+                              <h4 className="font-semibold">{notification.seller_name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {notification.dirty_count} umazanih predpražnikov
+                              </p>
+                              <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                                {notification.resolution_type === 'carrier_notified' 
+                                  ? '🚚 Prevoznik obveščen' 
+                                  : '👤 Prodajalec bo sam dostavil'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Opravljeno: {notification.resolved_at ? new Date(notification.resolved_at).toLocaleDateString('sl-SI') : '-'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left Column - Create Shipment */}
