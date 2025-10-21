@@ -15,11 +15,22 @@ interface Seller {
   id: string;
   full_name: string;
   qr_prefix: string | null;
+  qr_start_num: number | null;
+  qr_end_num: number | null;
+}
+
+interface SellerStats {
+  id: string;
+  full_name: string;
+  total_codes: number;
+  active_codes: number;
 }
 
 export default function QRGenerator() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState("");
+  const [selectedStatsId, setSelectedStatsId] = useState("");
+  const [sellerStats, setSellerStats] = useState<SellerStats[]>([]);
   const [prefix, setPrefix] = useState("");
   const [startNum, setStartNum] = useState(1);
   const [endNum, setEndNum] = useState(200);
@@ -28,6 +39,7 @@ export default function QRGenerator() {
 
   useEffect(() => {
     fetchSellers();
+    fetchSellerStats();
   }, []);
 
   const fetchSellers = async () => {
@@ -42,7 +54,7 @@ export default function QRGenerator() {
       const sellersData = await Promise.all((roles || []).map(async (role) => {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, full_name, qr_prefix')
+          .select('id, full_name, qr_prefix, qr_start_num, qr_end_num')
           .eq('id', role.user_id)
           .single();
         
@@ -52,6 +64,50 @@ export default function QRGenerator() {
       setSellers(sellersData.filter(Boolean) as Seller[]);
     } catch (error: any) {
       console.error('Error fetching sellers:', error);
+    }
+  };
+
+  const fetchSellerStats = async () => {
+    try {
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'PRODAJALEC');
+
+      if (rolesError) throw rolesError;
+
+      const stats = await Promise.all((roles || []).map(async (role) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, qr_start_num, qr_end_num')
+          .eq('id', role.user_id)
+          .single();
+        
+        if (!profile) return null;
+
+        // Count active doormats
+        const { count, error: countError } = await supabase
+          .from('doormats')
+          .select('*', { count: 'exact', head: true })
+          .eq('seller_id', profile.id);
+
+        if (countError) throw countError;
+
+        const totalCodes = profile.qr_end_num && profile.qr_start_num 
+          ? profile.qr_end_num - profile.qr_start_num + 1 
+          : 0;
+
+        return {
+          id: profile.id,
+          full_name: profile.full_name,
+          total_codes: totalCodes,
+          active_codes: count || 0,
+        };
+      }));
+
+      setSellerStats(stats.filter(Boolean) as SellerStats[]);
+    } catch (error: any) {
+      console.error('Error fetching seller stats:', error);
     }
   };
 
@@ -81,6 +137,9 @@ export default function QRGenerator() {
 
       if (error) throw error;
 
+      // Refresh stats after generating
+      await fetchSellerStats();
+      
       alert(`Generirano ${endNum - startNum + 1} QR kod za prodajalca`);
     } catch (error: any) {
       console.error('Error generating QR codes:', error);
@@ -95,6 +154,55 @@ export default function QRGenerator() {
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
             <h1 className="text-3xl font-bold mb-6">QR Kod Generator</h1>
+
+            {/* Statistika prodajalcev */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Statistika QR kod po prodajalcih</CardTitle>
+                <CardDescription>
+                  Pregled generiranih in aktivnih QR kod za vsakega prodajalca
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stats-seller">Izberi prodajalca</Label>
+                  <Select value={selectedStatsId} onValueChange={setSelectedStatsId}>
+                    <SelectTrigger id="stats-seller">
+                      <SelectValue placeholder="Izberi prodajalca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sellerStats.map((seller) => (
+                        <SelectItem key={seller.id} value={seller.id}>
+                          {seller.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedStatsId && (() => {
+                  const stats = sellerStats.find(s => s.id === selectedStatsId);
+                  return stats ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg bg-primary/5">
+                        <p className="text-sm text-muted-foreground mb-1">Generirane kode</p>
+                        <p className="text-3xl font-bold">{stats.total_codes}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg bg-green-500/10">
+                        <p className="text-sm text-muted-foreground mb-1">Aktivne kode</p>
+                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.active_codes}</p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {!selectedStatsId && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Izberite prodajalca za prikaz statistike
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
       <Tabs defaultValue="generate" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
