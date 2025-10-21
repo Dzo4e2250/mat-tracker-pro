@@ -75,7 +75,50 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Delete user using service role (this will cascade to profiles and user_roles)
+    // First, delete all related data to avoid foreign key constraints
+    console.log('Deleting related data for user:', user_id);
+    
+    // Delete contacts
+    const { error: contactsError } = await supabaseClient
+      .from('contacts')
+      .delete()
+      .eq('seller_id', user_id);
+    
+    if (contactsError) {
+      console.error('Error deleting contacts:', contactsError);
+    }
+
+    // Delete test placements (set status to deleted instead of actual deletion)
+    const { error: testPlacementsError } = await supabaseClient
+      .from('test_placements')
+      .update({ status: 'deleted' })
+      .eq('seller_id', user_id);
+    
+    if (testPlacementsError) {
+      console.error('Error updating test placements:', testPlacementsError);
+    }
+
+    // Delete tester requests
+    const { error: testerRequestsError } = await supabaseClient
+      .from('tester_requests')
+      .delete()
+      .eq('seller_id', user_id);
+    
+    if (testerRequestsError) {
+      console.error('Error deleting tester requests:', testerRequestsError);
+    }
+
+    // Update doormats to remove seller_id reference
+    const { error: doormatsError } = await supabaseClient
+      .from('doormats')
+      .update({ seller_id: null })
+      .eq('seller_id', user_id);
+    
+    if (doormatsError) {
+      console.error('Error updating doormats:', doormatsError);
+    }
+
+    // Now delete the user (this will cascade to profiles and user_roles)
     const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(user_id);
 
     if (deleteError) {
