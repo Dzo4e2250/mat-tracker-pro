@@ -26,6 +26,7 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [wasUsingCamera, setWasUsingCamera] = useState(false);
 
   // Generate pre-defined QR codes using seller's prefix and max number (e.g., RIST-001 to RIST-200) and filter out used ones
   const predefinedQrCodes = Array.from({ length: qrMaxNumber }, (_, i) => 
@@ -36,12 +37,14 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
     if (manualQrCode.trim()) {
       // For manual entry, we still need to select type
       setSelectedQrCode(manualQrCode.trim());
+      setWasUsingCamera(false);
       setShowTypeDialog(true);
     }
   };
 
   const handlePredefinedQrClick = (qrCode: string) => {
     setSelectedQrCode(qrCode);
+    setWasUsingCamera(false);
     setShowTypeDialog(true);
   };
 
@@ -51,7 +54,10 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
       setShowTypeDialog(false);
       setSelectedQrCode(null);
       setManualQrCode('');
-      setShowCamera(false);
+      // Keep camera open for continuous scanning only if camera was used
+      if (wasUsingCamera) {
+        setShowCamera(true);
+      }
     }
   };
 
@@ -59,6 +65,7 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
     if (result?.text) {
       setSelectedQrCode(result.text);
       setShowCamera(false);
+      setWasUsingCamera(true);
       setShowTypeDialog(true);
     }
   };
