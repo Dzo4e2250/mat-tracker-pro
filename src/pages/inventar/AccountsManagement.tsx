@@ -5,9 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface User {
   id: string;
@@ -40,6 +50,7 @@ export default function AccountsManagement() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editPrefix, setEditPrefix] = useState("");
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -250,6 +261,34 @@ export default function AccountsManagement() {
     setEditPrefix("");
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: {
+          user_id: userId,
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Napaka pri brisanju uporabnika');
+      }
+
+      toast({
+        title: "Uspešno izbrisano",
+        description: "Uporabnik je bil izbrisan.",
+      });
+
+      setDeletingUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        title: "Napaka pri brisanju",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -356,9 +395,18 @@ export default function AccountsManagement() {
                                   <p className="font-medium">{user.full_name}</p>
                                   <p className="text-sm text-muted-foreground">{user.email}</p>
                                 </div>
-                                <Button variant="outline" onClick={() => startEditUser(user)}>
-                                  Uredi
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button variant="outline" onClick={() => startEditUser(user)}>
+                                    Uredi
+                                  </Button>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="icon"
+                                    onClick={() => setDeletingUser(user)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -475,9 +523,18 @@ export default function AccountsManagement() {
                                     <p className="text-sm text-muted-foreground">QR: {user.qr_prefix}</p>
                                   )}
                                 </div>
-                                <Button variant="outline" onClick={() => startEditUser(user)}>
-                                  Uredi
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button variant="outline" onClick={() => startEditUser(user)}>
+                                    Uredi
+                                  </Button>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="icon"
+                                    onClick={() => setDeletingUser(user)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -491,6 +548,27 @@ export default function AccountsManagement() {
           </div>
         </main>
       </div>
+
+      <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Izbriši uporabnika?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ali ste prepričani, da želite izbrisati uporabnika <strong>{deletingUser?.full_name}</strong> ({deletingUser?.email})?
+              To dejanje je nepovratno in bo izbrisalo vse podatke uporabnika.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Prekliči</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingUser && handleDeleteUser(deletingUser.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Izbriši
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }
