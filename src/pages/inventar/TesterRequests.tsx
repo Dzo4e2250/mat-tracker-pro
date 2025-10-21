@@ -40,6 +40,8 @@ interface Seller {
   id: string;
   full_name: string;
   qr_prefix: string | null;
+  qr_start_num: number | null;
+  qr_end_num: number | null;
 }
 
 interface ShipmentItem {
@@ -94,7 +96,7 @@ export default function TesterRequests() {
       const sellersData = await Promise.all(roles.map(async (role) => {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, full_name, qr_prefix')
+          .select('id, full_name, qr_prefix, qr_start_num, qr_end_num')
           .eq('id', role.user_id)
           .single();
         
@@ -277,6 +279,20 @@ export default function TesterRequests() {
         );
 
       if (insertError) throw insertError;
+
+      // Update seller's profile with the new QR range
+      const highestNumber = nextNumber - 1;
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          qr_start_num: seller.qr_start_num || 1,
+          qr_end_num: highestNumber
+        })
+        .eq('id', request.seller_id);
+
+      if (profileError) {
+        console.error('Error updating seller profile:', profileError);
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
       const { error: updateError } = await supabase
