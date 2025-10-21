@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera } from 'lucide-react';
+import { Camera, X } from 'lucide-react';
+import { QrReader } from 'react-qr-reader';
 
 interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
@@ -21,6 +22,7 @@ export default function QRScanner({ onScan }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
 
   // Generate pre-defined QR codes (PRED-001 to PRED-010)
   const predefinedQrCodes = Array.from({ length: 10 }, (_, i) => 
@@ -46,15 +48,59 @@ export default function QRScanner({ onScan }: QRScannerProps) {
       setShowTypeDialog(false);
       setSelectedQrCode(null);
       setManualQrCode('');
+      setShowCamera(false);
     }
   };
+
+  const handleCameraScan = (result: any) => {
+    if (result?.text) {
+      setSelectedQrCode(result.text);
+      setShowCamera(false);
+      setShowTypeDialog(true);
+    }
+  };
+
+  if (showCamera) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Skeniraj QR kodo</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowCamera(false)}
+          >
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
+        
+        <div className="relative aspect-square w-full max-w-md mx-auto rounded-lg overflow-hidden border-2 border-primary">
+          <QrReader
+            onResult={handleCameraScan}
+            constraints={{ facingMode: 'environment' }}
+            containerStyle={{ width: '100%', height: '100%' }}
+            videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Postavi QR kodo v okvir za skeniranje
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="space-y-6">
         {/* Camera Icon and Title */}
         <div className="flex flex-col items-center gap-4 py-8">
-          <Camera className="h-20 w-20 text-primary" strokeWidth={1.5} />
+          <button
+            onClick={() => setShowCamera(true)}
+            className="flex flex-col items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <Camera className="h-20 w-20 text-primary" strokeWidth={1.5} />
+          </button>
           <h2 className="text-xl font-semibold">Skeniraj QR</h2>
         </div>
 
