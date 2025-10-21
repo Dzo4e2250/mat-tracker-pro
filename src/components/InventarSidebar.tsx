@@ -1,4 +1,4 @@
-import { Home, Users, QrCode, History } from "lucide-react";
+import { Home, Users, QrCode, History, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -16,6 +16,7 @@ const menuItems = [
   { title: "Domov", url: "/inventar", icon: Home },
   { title: "Računi", url: "/inventar/accounts", icon: Users },
   { title: "QR Generator", url: "/inventar/qr-generator", icon: QrCode },
+  { title: "Prošnja za testerje", url: "/inventar/tester-requests", icon: FileText },
   { title: "Zgodovina", url: "/inventar/history", icon: History },
 ];
 

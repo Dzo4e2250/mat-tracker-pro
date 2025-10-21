@@ -95,6 +95,7 @@ export type Database = {
       doormats: {
         Row: {
           created_at: string | null
+          generation_date: string | null
           id: string
           qr_code: string
           seller_id: string | null
@@ -104,6 +105,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          generation_date?: string | null
           id?: string
           qr_code: string
           seller_id?: string | null
@@ -113,6 +115,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          generation_date?: string | null
           id?: string
           qr_code?: string
           seller_id?: string | null
@@ -213,6 +216,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tester_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          generated_qr_codes: string[] | null
+          id: string
+          quantities: Json
+          seller_id: string
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          generated_qr_codes?: string[] | null
+          id?: string
+          quantities: Json
+          seller_id: string
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          generated_qr_codes?: string[] | null
+          id?: string
+          quantities?: Json
+          seller_id?: string
+          status?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

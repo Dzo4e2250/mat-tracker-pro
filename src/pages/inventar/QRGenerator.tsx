@@ -13,6 +13,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { QRCodeCanvas } from "qrcode.react";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, X } from "lucide-react";
+import { format } from "date-fns";
+import { sl } from "date-fns/locale";
 
 interface Seller {
   id: string;
@@ -45,6 +50,7 @@ export default function QRGenerator() {
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(50);
   const [qrSize, setQrSize] = useState(128);
+  const [filterDate, setFilterDate] = useState<Date | undefined>(undefined);
   const qrRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
 
   useEffect(() => {
@@ -62,7 +68,7 @@ export default function QRGenerator() {
     if (selectedPrintId) {
       fetchPrintActiveQrCodes(selectedPrintId);
     }
-  }, [selectedPrintId]);
+  }, [selectedPrintId, filterDate]);
 
   useEffect(() => {
     // Adjust QR size based on qrPerRow
@@ -157,10 +163,17 @@ export default function QRGenerator() {
 
   const fetchPrintActiveQrCodes = async (sellerId: string) => {
     try {
-      const { data: doormats, error } = await supabase
+      let query = supabase
         .from('doormats')
-        .select('qr_code')
+        .select('qr_code, generation_date')
         .eq('seller_id', sellerId);
+
+      if (filterDate) {
+        const dateStr = format(filterDate, 'yyyy-MM-dd');
+        query = query.eq('generation_date', dateStr);
+      }
+
+      const { data: doormats, error } = await query;
 
       if (error) throw error;
 
@@ -190,6 +203,11 @@ export default function QRGenerator() {
     const seller = sellers.find(s => s.id === selectedPrintId);
     if (!seller || !seller.qr_prefix || !seller.qr_start_num || !seller.qr_end_num) {
       return [];
+    }
+
+    // If date filter is active, use only active codes from that date
+    if (filterDate) {
+      return printActiveQrCodes;
     }
 
     let codes: string[] = [];
@@ -509,24 +527,66 @@ export default function QRGenerator() {
               {selectedPrintId && (
                 <>
                   <div className="space-y-2">
-                    <Label>Kaj želite natisniti?</Label>
-                    <RadioGroup value={printOption} onValueChange={setPrintOption}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="all" id="print-all" />
-                        <Label htmlFor="print-all">Vse QR kode</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="unused" id="print-unused" />
-                        <Label htmlFor="print-unused">Samo proste QR kode</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="range" id="print-range" />
-                        <Label htmlFor="print-range">Določen razpon</Label>
-                      </div>
-                    </RadioGroup>
+                    <Label>Filtriraj po datumu</Label>
+                    <div className="flex gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {filterDate ? format(filterDate, "d. MMMM yyyy", { locale: sl }) : "Izberi datum"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={filterDate}
+                            onSelect={setFilterDate}
+                            initialFocus
+                            locale={sl}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {filterDate && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setFilterDate(undefined)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {filterDate && (
+                      <p className="text-sm text-muted-foreground">
+                        Prikazujem samo QR kode generirane {format(filterDate, "d. MMMM yyyy", { locale: sl })}
+                      </p>
+                    )}
                   </div>
 
-                  {printOption === "range" && (
+                  {!filterDate && (
+                    <div className="space-y-2">
+                      <Label>Kaj želite natisniti?</Label>
+                      <RadioGroup value={printOption} onValueChange={setPrintOption}>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="all" id="print-all" />
+                          <Label htmlFor="print-all">Vse QR kode</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="unused" id="print-unused" />
+                          <Label htmlFor="print-unused">Samo proste QR kode</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="range" id="print-range" />
+                          <Label htmlFor="print-range">Določen razpon</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
+                  {!filterDate && printOption === "range" && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="range-start">Od številke</Label>
