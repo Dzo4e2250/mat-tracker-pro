@@ -387,32 +387,6 @@ export default function ProdajalecDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        <DoormatActionDialog
-          isOpen={showDoormatActionDialog}
-          onClose={() => {
-            setShowDoormatActionDialog(false);
-            setSelectedDoormatForAction(null);
-          }}
-          onPlaceTest={handlePlaceTest}
-          doormatCode={selectedDoormatForAction?.doormat.qr_code || ''}
-          doormatType={selectedDoormatForAction?.doormat.type || ''}
-        />
-
-        {selectedDoormatForAction?.testPlacement && (
-          <TestDetailsDialog
-            isOpen={showTestDetailsDialog}
-            onClose={() => {
-              setShowTestDetailsDialog(false);
-              setSelectedDoormatForAction(null);
-            }}
-            onCollect={handleCollectDoormat}
-            onSignContract={handleSignContract}
-            testPlacement={selectedDoormatForAction.testPlacement}
-            doormatCode={selectedDoormatForAction.doormat.qr_code}
-            doormatType={selectedDoormatForAction.doormat.type}
-          />
-        )}
       </div>
     );
   }
@@ -561,6 +535,33 @@ export default function ProdajalecDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <DoormatActionDialog
+        isOpen={showDoormatActionDialog}
+        onClose={() => {
+          setShowDoormatActionDialog(false);
+          setSelectedDoormatForAction(null);
+        }}
+        onPlaceTest={handlePlaceTest}
+        doormatCode={selectedDoormatForAction?.doormat.qr_code || ''}
+        doormatType={selectedDoormatForAction?.doormat.type || ''}
+      />
+
+      {selectedDoormatForAction?.testPlacement && (
+        <TestDetailsDialog
+          isOpen={showTestDetailsDialog}
+          onClose={() => {
+            setShowTestDetailsDialog(false);
+            setSelectedDoormatForAction(null);
+          }}
+          onCollect={handleCollectDoormat}
+          onSignContract={handleSignContract}
+          testPlacement={selectedDoormatForAction.testPlacement}
+          doormatCode={selectedDoormatForAction.doormat.qr_code}
+          doormatType={selectedDoormatForAction.doormat.type}
+        />
+      )}
     </div>
   );
 }
