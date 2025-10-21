@@ -11,6 +11,7 @@ interface QRScannerProps {
   usedQrCodes?: string[];
   qrPrefix?: string;
   qrMaxNumber?: number;
+  sentDoormats?: Array<{ qr_code: string; type: string }>;
 }
 
 const doormatTypes = [
@@ -22,23 +23,20 @@ const doormatTypes = [
   { code: 'ERM11R', size: '86x142 cm' },
 ];
 
-export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrPrefix = "PRED", qrMaxNumber = 200 }: QRScannerProps) {
+export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrPrefix = "PRED", qrMaxNumber = 200, sentDoormats = [] }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [wasUsingCamera, setWasUsingCamera] = useState(false);
 
-  // Generate pre-defined QR codes using seller's prefix and max number (e.g., RIST-001 to RIST-200) and filter out used ones
-  // If qrMaxNumber is 0 or invalid, calculate from used codes
-  const effectiveMaxNumber = qrMaxNumber > 0 ? qrMaxNumber : (usedQrCodes.length > 0 ? Math.max(...usedQrCodes.map(code => {
-    const match = code.match(/-(\d+)$/);
-    return match ? parseInt(match[1]) : 0;
-  })) : 200);
-  
-  const predefinedQrCodes = Array.from({ length: effectiveMaxNumber }, (_, i) => 
-    `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
-  ).filter(code => !usedQrCodes.includes(code));
+  // If sentDoormats are provided, use them as available QR codes (inactive ones from inventar)
+  // Otherwise generate pre-defined QR codes using seller's prefix and max number
+  const predefinedQrCodes = sentDoormats.length > 0 
+    ? sentDoormats.map(d => d.qr_code)
+    : Array.from({ length: qrMaxNumber > 0 ? qrMaxNumber : 200 }, (_, i) => 
+        `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
+      ).filter(code => !usedQrCodes.includes(code));
 
   const handleManualSubmit = async () => {
     if (manualQrCode.trim()) {
@@ -67,6 +65,11 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
     if (checkIfExists) {
       const exists = await checkIfExists(qrCode);
       if (exists) {
+        // For sent_by_inventar doormats, activate them directly without asking for type
+        if (sentDoormats.length > 0) {
+          onScan(qrCode, '');
+          return;
+        }
         // Let parent handle existing doormat
         onScan(qrCode, '');
         return;
@@ -177,7 +180,9 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
 
         {/* Pre-defined QR Codes */}
         <div className="space-y-3">
-          <h3 className="font-semibold">Proste QR:</h3>
+          <h3 className="font-semibold">
+            {sentDoormats.length > 0 ? 'Neaktivne QR kode (od inventarja):' : 'Proste QR:'}
+          </h3>
           {predefinedQrCodes.length > 0 ? (
             <div className="grid grid-cols-4 gap-2">
               {predefinedQrCodes.map((qrCode) => (
@@ -193,7 +198,7 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
             </div>
           ) : (
             <p className="text-center text-sm text-muted-foreground py-4">
-              Vse QR kode so že uporabljene
+              {sentDoormats.length > 0 ? 'Ni neaktivnih QR kod' : 'Vse QR kode so že uporabljene'}
             </p>
           )}
         </div>

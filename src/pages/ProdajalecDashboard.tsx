@@ -440,6 +440,9 @@ export default function ProdajalecDashboard() {
 
   const totalDoormats = cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length + waitingForDriverDoormats.length;
   const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats, ...waitingForDriverDoormats];
+  
+  // Used QR codes = all doormats EXCEPT sent_by_inventar (inactive ones)
+  // This way, sent_by_inventar doormats will show as "free" in QRScanner
   const usedQrCodes = allDoormats.map(d => d.qr_code);
 
   // Filtered doormats based on status and search
@@ -477,6 +480,7 @@ export default function ProdajalecDashboard() {
             usedQrCodes={usedQrCodes}
             qrPrefix={userProfile?.qr_prefix || "PRED"}
             qrMaxNumber={userProfile?.qr_end_num || 200}
+            sentDoormats={sentDoormats}
           />
         </div>
 
