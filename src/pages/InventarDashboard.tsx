@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Download, LogOut, ChevronDown, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -47,6 +48,7 @@ export default function InventarDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [openSellers, setOpenSellers] = useState<Record<string, boolean>>({});
+  const [selectedDoormats, setSelectedDoormats] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -231,6 +233,57 @@ export default function InventarDashboard() {
     }
   };
 
+  const handleDeleteSelectedDoormats = async () => {
+    if (selectedDoormats.length === 0) return;
+
+    const confirmed = confirm(
+      `Ali ste prepričani, da želite izbrisati ${selectedDoormats.length} označenih predpražnikov? To dejanje je nepovratno!`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('doormats')
+        .delete()
+        .in('id', selectedDoormats);
+
+      if (error) throw error;
+
+      toast({
+        title: "Uspešno izbrisano",
+        description: `${selectedDoormats.length} predpražnikov je bilo izbrisanih.`,
+      });
+
+      setSelectedDoormats([]);
+      fetchDoormats();
+    } catch (error: any) {
+      console.error('Error deleting doormats:', error);
+      toast({
+        title: "Napaka",
+        description: "Napaka pri brisanju predpražnikov.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleDoormatSelection = (doormatId: string) => {
+    setSelectedDoormats(prev => 
+      prev.includes(doormatId) 
+        ? prev.filter(id => id !== doormatId)
+        : [...prev, doormatId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const filteredIds = filteredDoormats.map(d => d.id);
+    if (selectedDoormats.length === filteredIds.length) {
+      setSelectedDoormats([]);
+    } else {
+      setSelectedDoormats(filteredIds);
+    }
+  };
+
   const sellerStats = getSellerStats();
   const totalTestDoormats = getTotalTestDoormats();
   const filteredDoormats = getFilteredDoormats();
@@ -399,6 +452,24 @@ export default function InventarDashboard() {
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Izbriši vse predpražnike
+                  </Button>
+                </div>
+              )}
+
+              {selectedDoormats.length > 0 && (
+                <div className="flex items-center justify-between p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      Označeno: {selectedDoormats.length} predpražnikov
+                    </span>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteSelectedDoormats()}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Izbriši označene
                   </Button>
                 </div>
               )}
