@@ -117,11 +117,11 @@ export default function InventarDashboard() {
 
   const getSellerStats = (): SellerStats[] => {
     return sellers.map(seller => {
-      const sellerDoormats = doormats.filter(d => d.seller_id === seller.id);
+      const sellerDoormats = doormats.filter(d => d.seller_id === seller.id && d.status !== 'sent_by_inventar');
       return {
         id: seller.id,
         full_name: seller.full_name,
-        clean: sellerDoormats.filter(d => d.status === 'with_seller' || d.status === 'sent_by_inventar').length,
+        clean: sellerDoormats.filter(d => d.status === 'with_seller').length,
         on_test: sellerDoormats.filter(d => d.status === 'on_test').length,
         dirty: sellerDoormats.filter(d => d.status === 'dirty').length,
         waiting_for_driver: sellerDoormats.filter(d => d.status === 'waiting_for_driver').length,
@@ -131,18 +131,20 @@ export default function InventarDashboard() {
   };
 
   const getTotalTestDoormats = () => {
+    const activeDoormats = doormats.filter(d => d.status !== 'sent_by_inventar');
     if (selectedSellerId === "all") {
-      return doormats.length;
+      return activeDoormats.length;
     }
-    return doormats.filter(d => d.seller_id === selectedSellerId).length;
+    return activeDoormats.filter(d => d.seller_id === selectedSellerId).length;
   };
 
   const getFilteredDoormats = () => {
     return doormats.filter(d => {
+      const notSent = d.status !== 'sent_by_inventar';
       const sellerMatch = selectedSellerId === "all" || d.seller_id === selectedSellerId;
       const statusMatch = statusFilter === "all" || d.status === statusFilter;
       const typeMatch = typeFilter === "all" || d.type === typeFilter;
-      return sellerMatch && statusMatch && typeMatch;
+      return notSent && sellerMatch && statusMatch && typeMatch;
     });
   };
 
