@@ -10,6 +10,9 @@ const Index = () => {
     if (!loading) {
       if (!user) {
         navigate('/auth');
+      } else if (user && role === null) {
+        // User exists but role not loaded yet, keep waiting
+        return;
       } else if (role === ('ADMIN' as any) || role === 'INVENTAR') {
         navigate('/inventar');
       } else if (role === 'PRODAJALEC') {
