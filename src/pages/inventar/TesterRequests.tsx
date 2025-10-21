@@ -67,11 +67,20 @@ export default function TesterRequests() {
   const [quantity, setQuantity] = useState(1);
   const [shipmentItems, setShipmentItems] = useState<ShipmentItem[]>([]);
   const [requests, setRequests] = useState<TesterRequest[]>([]);
+  const [nextQrNumber, setNextQrNumber] = useState<number | null>(null);
 
   useEffect(() => {
     fetchSellers();
     fetchRequests();
   }, []);
+
+  useEffect(() => {
+    if (selectedSellerId) {
+      fetchNextQrNumber(selectedSellerId);
+    } else {
+      setNextQrNumber(null);
+    }
+  }, [selectedSellerId, shipmentItems]);
 
   const fetchSellers = async () => {
     try {
@@ -120,6 +129,34 @@ export default function TesterRequests() {
       setRequests(requestsWithSellers);
     } catch (error) {
       console.error('Error fetching requests:', error);
+    }
+  };
+
+  const fetchNextQrNumber = async (sellerId: string) => {
+    try {
+      const seller = sellers.find(s => s.id === sellerId);
+      if (!seller?.qr_prefix) return;
+
+      const { data: existingDoormats } = await supabase
+        .from('doormats')
+        .select('qr_code')
+        .eq('seller_id', sellerId)
+        .like('qr_code', `${seller.qr_prefix}-%`);
+
+      let nextNumber = 1;
+      if (existingDoormats && existingDoormats.length > 0) {
+        const numbers = existingDoormats.map(d => {
+          const match = d.qr_code.match(/-(\d+)$/);
+          return match ? parseInt(match[1]) : 0;
+        });
+        nextNumber = Math.max(...numbers) + 1;
+      }
+
+      // Account for items already in shipment
+      const totalInShipment = getTotalQuantity();
+      setNextQrNumber(nextNumber + totalInShipment);
+    } catch (error) {
+      console.error('Error fetching next QR number:', error);
     }
   };
 
@@ -269,6 +306,19 @@ export default function TesterRequests() {
     return shipmentItems.reduce((sum, item) => sum + item.quantity, 0);
   };
 
+  const getPreviewQrCodes = () => {
+    if (!selectedSellerId || !nextQrNumber || quantity === 0) return [];
+    
+    const seller = sellers.find(s => s.id === selectedSellerId);
+    if (!seller?.qr_prefix) return [];
+
+    const codes: string[] = [];
+    for (let i = 0; i < quantity; i++) {
+      codes.push(`${seller.qr_prefix}-${String(nextQrNumber + i).padStart(3, '0')}`);
+    }
+    return codes;
+  };
+
   const getTypeLabel = (type: string) => {
     const doormat = DOORMAT_TYPES.find(d => d.value === type);
     return doormat?.label || type;
@@ -358,6 +408,15 @@ export default function TesterRequests() {
                             +
                           </Button>
                         </div>
+                        {selectedSellerId && nextQrNumber !== null && getPreviewQrCodes().length > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-1 pt-1">
+                            {getPreviewQrCodes().map((code, idx) => (
+                              <div key={idx} className="font-mono">
+                                {code}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
