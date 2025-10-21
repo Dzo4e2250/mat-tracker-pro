@@ -385,6 +385,12 @@ export default function QRGenerator() {
     );
   };
 
+  const handleSelectAllInactive = () => {
+    const qrCodes = getReviewQrCodes();
+    const inactiveCodes = qrCodes.filter(item => !item.isActive).map(item => item.code);
+    setSelectedInactiveCodes(inactiveCodes);
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -523,7 +529,14 @@ export default function QRGenerator() {
                     <div className="space-y-4">
                       <p className="font-medium">Prikazanih: {qrCodes.length} QR kod</p>
                       {qrCodes.some(item => !item.isActive) && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSelectAllInactive}
+                          >
+                            Izberi vse neaktivne
+                          </Button>
                           <Button
                             variant="destructive"
                             size="sm"
