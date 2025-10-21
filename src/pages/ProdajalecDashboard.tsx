@@ -65,6 +65,33 @@ export default function ProdajalecDashboard() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    // Real-time subscription for new doormats
+    const channel = supabase
+      .channel('doormats-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'doormats',
+          filter: `seller_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Doormat change detected:', payload);
+          fetchDoormats();
+          fetchTests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchProfile = async () => {
     try {
       const { data, error } = await supabase
@@ -98,6 +125,15 @@ export default function ProdajalecDashboard() {
       setCleanDoormats(clean);
       setDirtyDoormats(dirty);
       setWaitingForDriverDoormats(waitingForDriver);
+
+      // Show toast notification when new doormats arrive
+      const previousTotal = sentDoormats.length + cleanDoormats.length + dirtyDoormats.length + waitingForDriverDoormats.length;
+      const currentTotal = sent.length + clean.length + dirty.length + waitingForDriver.length;
+      
+      if (currentTotal > previousTotal && previousTotal > 0) {
+        const newCount = currentTotal - previousTotal;
+        toast.success(`${newCount} ${newCount === 1 ? 'nov predpražnik' : 'novi predpražniki'} dodani!`);
+      }
 
       if (dirty.length >= 10) {
         toast.warning('Imate 10 ali več umazanih predpražnikov. Kontaktirajte inventar.');
