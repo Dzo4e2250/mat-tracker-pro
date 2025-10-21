@@ -41,7 +41,7 @@ export default function ProdajalecDashboard() {
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [userProfile, setUserProfile] = useState<{ full_name: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ full_name: string; qr_prefix: string | null } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -56,7 +56,7 @@ export default function ProdajalecDashboard() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('full_name, qr_prefix')
         .eq('id', user?.id)
         .single();
       
@@ -266,7 +266,11 @@ export default function ProdajalecDashboard() {
         </div>
         
         <div className="p-4">
-          <QRScanner onScan={handleQRScan} usedQrCodes={usedQrCodes} />
+          <QRScanner 
+            onScan={handleQRScan} 
+            usedQrCodes={usedQrCodes}
+            qrPrefix={userProfile?.qr_prefix || "PRED"}
+          />
         </div>
 
         <TestPlacementDialog

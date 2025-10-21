@@ -8,6 +8,7 @@ import { QrReader } from 'react-qr-reader';
 interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
   usedQrCodes?: string[];
+  qrPrefix?: string;
 }
 
 const doormatTypes = [
@@ -19,15 +20,15 @@ const doormatTypes = [
   { code: 'ERM11R', size: '86x142 cm' },
 ];
 
-export default function QRScanner({ onScan, usedQrCodes = [] }: QRScannerProps) {
+export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED" }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  // Generate pre-defined QR codes (PRED-001 to PRED-010) and filter out used ones
+  // Generate pre-defined QR codes using seller's prefix (e.g., RIST-001 to RIST-010) and filter out used ones
   const predefinedQrCodes = Array.from({ length: 10 }, (_, i) => 
-    `PRED-${String(i + 1).padStart(3, '0')}`
+    `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
   ).filter(code => !usedQrCodes.includes(code));
 
   const handleManualSubmit = () => {
@@ -110,7 +111,7 @@ export default function QRScanner({ onScan, usedQrCodes = [] }: QRScannerProps) 
           <Input
             value={manualQrCode}
             onChange={(e) => setManualQrCode(e.target.value)}
-            placeholder="Vnesi QR (npr. PRED-001)"
+            placeholder={`Vnesi QR (npr. ${qrPrefix}-001)`}
             className="h-12 text-center"
             onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
           />
