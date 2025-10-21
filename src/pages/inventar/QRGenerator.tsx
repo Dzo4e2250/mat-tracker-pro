@@ -29,7 +29,6 @@ interface SellerStats {
 export default function QRGenerator() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState("");
-  const [selectedStatsId, setSelectedStatsId] = useState("");
   const [selectedReviewId, setSelectedReviewId] = useState("");
   const [sellerStats, setSellerStats] = useState<SellerStats[]>([]);
   const [activeQrCodes, setActiveQrCodes] = useState<string[]>([]);
@@ -193,55 +192,6 @@ export default function QRGenerator() {
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
             <h1 className="text-3xl font-bold mb-6">QR Kod Generator</h1>
-
-            {/* Statistika prodajalcev */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Statistika QR kod po prodajalcih</CardTitle>
-                <CardDescription>
-                  Pregled generiranih in aktivnih QR kod za vsakega prodajalca
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="stats-seller">Izberi prodajalca</Label>
-                  <Select value={selectedStatsId} onValueChange={setSelectedStatsId}>
-                    <SelectTrigger id="stats-seller">
-                      <SelectValue placeholder="Izberi prodajalca" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sellerStats.map((seller) => (
-                        <SelectItem key={seller.id} value={seller.id}>
-                          {seller.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedStatsId && (() => {
-                  const stats = sellerStats.find(s => s.id === selectedStatsId);
-                  return stats ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 border rounded-lg bg-primary/5">
-                        <p className="text-sm text-muted-foreground mb-1">Generirane kode</p>
-                        <p className="text-3xl font-bold">{stats.total_codes}</p>
-                      </div>
-                      <div className="p-4 border rounded-lg bg-green-500/10">
-                        <p className="text-sm text-muted-foreground mb-1">Aktivne kode</p>
-                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.active_codes}</p>
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
-                {!selectedStatsId && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Izberite prodajalca za prikaz statistike
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
       <Tabs defaultValue="generate" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
