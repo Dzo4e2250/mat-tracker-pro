@@ -42,6 +42,7 @@ export default function ProdajalecDashboard() {
   const [cleanDoormats, setCleanDoormats] = useState<Doormat[]>([]);
   const [onTestDoormats, setOnTestDoormats] = useState<TestPlacement[]>([]);
   const [dirtyDoormats, setDirtyDoormats] = useState<Doormat[]>([]);
+  const [waitingForDriverDoormats, setWaitingForDriverDoormats] = useState<Doormat[]>([]);
   const [scannedDoormat, setScannedDoormat] = useState<Doormat | null>(null);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [showActionDialog, setShowActionDialog] = useState(false);
@@ -87,10 +88,12 @@ export default function ProdajalecDashboard() {
       const sent = data?.filter(d => d.status === 'sent_by_inventar') || [];
       const clean = data?.filter(d => d.status === 'with_seller') || [];
       const dirty = data?.filter(d => d.status === 'dirty') || [];
+      const waitingForDriver = data?.filter(d => d.status === 'waiting_for_driver') || [];
 
       setSentDoormats(sent);
       setCleanDoormats(clean);
       setDirtyDoormats(dirty);
+      setWaitingForDriverDoormats(waitingForDriver);
 
       if (dirty.length >= 10) {
         toast.warning('Imate 10 ali več umazanih predpražnikov. Kontaktirajte inventar.');
@@ -333,8 +336,8 @@ export default function ProdajalecDashboard() {
   };
 
 
-  const totalDoormats = cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length;
-  const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats];
+  const totalDoormats = cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length + waitingForDriverDoormats.length;
+  const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats, ...waitingForDriverDoormats];
   const usedQrCodes = allDoormats.map(d => d.qr_code);
 
   if (showScanner) {
@@ -449,6 +452,16 @@ export default function ProdajalecDashboard() {
                 <span className="text-sm text-muted-foreground">Umazani</span>
               </div>
               <div className="text-3xl font-bold">{dirtyDoormats.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-purple-50 border-purple-100 col-span-2">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Circle className="h-5 w-5 text-purple-600 fill-purple-600" />
+                <span className="text-sm text-muted-foreground">Čaka šoferja</span>
+              </div>
+              <div className="text-3xl font-bold">{waitingForDriverDoormats.length}</div>
             </CardContent>
           </Card>
         </div>
