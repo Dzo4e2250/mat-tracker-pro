@@ -74,67 +74,6 @@ export default function AccountsManagement() {
     setCreating(true);
 
     try {
-      // First check if user with this email already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('email', newSellerEmail)
-        .maybeSingle();
-
-      if (existingProfile) {
-        // Check if user already has PRODAJALEC role
-        const { data: existingRole } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', existingProfile.id)
-          .eq('role', 'PRODAJALEC')
-          .maybeSingle();
-
-        if (existingRole) {
-          toast({
-            title: "Prodajalec že obstaja",
-            description: `${existingProfile.full_name || existingProfile.email} je že prodajalec v sistemu.`,
-            variant: "destructive",
-          });
-          setCreating(false);
-          return;
-        }
-
-        // User exists but doesn't have PRODAJALEC role - add the role
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: existingProfile.id,
-            role: "PRODAJALEC",
-          });
-
-        if (roleError) throw roleError;
-
-        // Update profile with QR prefix if provided
-        if (newSellerPrefix) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .update({ qr_prefix: newSellerPrefix.toUpperCase() })
-            .eq("id", existingProfile.id);
-
-          if (profileError) throw profileError;
-        }
-
-        toast({
-          title: "Prodajalec dodan",
-          description: `${existingProfile.full_name || existingProfile.email} je bil dodan kot prodajalec.`,
-        });
-
-        setNewSellerEmail("");
-        setNewSellerPassword("");
-        setNewSellerName("");
-        setNewSellerPrefix("");
-        fetchSellers();
-        setCreating(false);
-        return;
-      }
-
-      // User doesn't exist - create new account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newSellerEmail,
         password: newSellerPassword,
@@ -147,10 +86,12 @@ export default function AccountsManagement() {
       });
 
       if (authError) {
-        if (authError.message.includes('User already registered')) {
+        // Handle specific error for existing user
+        if (authError.message.includes('User already registered') || 
+            authError.message.includes('already registered')) {
           toast({
             title: "Email že obstaja",
-            description: "Ta email naslov je že v uporabi. Prosim uporabite drug email naslov.",
+            description: "Uporabnik s tem email naslovom že obstaja v sistemu. Prosim uporabite drug email naslov.",
             variant: "destructive",
           });
           setCreating(false);
