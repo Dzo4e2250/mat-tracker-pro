@@ -15,9 +15,10 @@ import jsPDF from "jspdf";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { sl } from "date-fns/locale";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Seller {
   id: string;
@@ -51,6 +52,7 @@ export default function QRGenerator() {
   const [rangeEnd, setRangeEnd] = useState(50);
   const [qrSize, setQrSize] = useState(128);
   const [filterDate, setFilterDate] = useState<Date | undefined>(undefined);
+  const [selectedInactiveCodes, setSelectedInactiveCodes] = useState<string[]>([]);
   const qrRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
 
   useEffect(() => {
@@ -322,6 +324,67 @@ export default function QRGenerator() {
     }
   };
 
+  const handleDeleteInactiveCodes = async () => {
+    if (selectedInactiveCodes.length === 0) {
+      toast.error('Izberite kode za brisanje');
+      return;
+    }
+
+    try {
+      const seller = sellers.find(s => s.id === selectedReviewId);
+      if (!seller) return;
+
+      // Extract numbers from selected codes and find new range
+      const codeNumbers = selectedInactiveCodes.map(code => {
+        const match = code.match(/-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      }).filter(num => num > 0).sort((a, b) => a - b);
+
+      const minDeleted = Math.min(...codeNumbers);
+      const maxDeleted = Math.max(...codeNumbers);
+
+      // Update seller's QR range
+      let newStartNum = seller.qr_start_num;
+      let newEndNum = seller.qr_end_num;
+
+      // If deleting from the start
+      if (minDeleted === seller.qr_start_num) {
+        newStartNum = maxDeleted + 1;
+      }
+      // If deleting from the end
+      if (maxDeleted === seller.qr_end_num) {
+        newEndNum = minDeleted - 1;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          qr_start_num: newStartNum,
+          qr_end_num: newEndNum 
+        })
+        .eq('id', selectedReviewId);
+
+      if (error) throw error;
+
+      toast.success(`Izbrisano ${selectedInactiveCodes.length} kod`);
+      setSelectedInactiveCodes([]);
+      await fetchSellers();
+      await fetchSellerStats();
+      await fetchActiveQrCodes(selectedReviewId);
+    } catch (error) {
+      console.error('Error deleting codes:', error);
+      toast.error('Napaka pri brisanju kod');
+    }
+  };
+
+  const toggleInactiveCodeSelection = (code: string) => {
+    setSelectedInactiveCodes(prev => 
+      prev.includes(code) 
+        ? prev.filter(c => c !== code)
+        : [...prev, code]
+    );
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -459,6 +522,28 @@ export default function QRGenerator() {
 
                     <div className="space-y-4">
                       <p className="font-medium">Prikazanih: {qrCodes.length} QR kod</p>
+                      {qrCodes.some(item => !item.isActive) && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleDeleteInactiveCodes}
+                            disabled={selectedInactiveCodes.length === 0}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Izbriši izbrane ({selectedInactiveCodes.length})
+                          </Button>
+                          {selectedInactiveCodes.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedInactiveCodes([])}
+                            >
+                              Počisti izbor
+                            </Button>
+                          )}
+                        </div>
+                      )}
                       <div className="grid grid-cols-4 gap-3 max-h-[500px] overflow-auto">
                         {qrCodes.map((item) => (
                           <div 
@@ -466,17 +551,25 @@ export default function QRGenerator() {
                             className={`p-3 border rounded-lg ${
                               item.isActive 
                                 ? 'bg-green-500/10 border-green-500/30' 
-                                : 'bg-muted/50'
+                                : selectedInactiveCodes.includes(item.code)
+                                  ? 'bg-destructive/20 border-destructive'
+                                  : 'bg-muted/50'
                             }`}
                           >
-                            <div className="flex items-center space-x-2">
-                              <div className={`w-2 h-2 rounded-full ${
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className={`w-2 h-2 rounded-full mt-1 ${
                                 item.isActive ? 'bg-green-500' : 'bg-muted-foreground'
                               }`} />
-                              <span className="font-mono text-sm font-medium">
-                                {item.code}
-                              </span>
+                              {!item.isActive && (
+                                <Checkbox
+                                  checked={selectedInactiveCodes.includes(item.code)}
+                                  onCheckedChange={() => toggleInactiveCodeSelection(item.code)}
+                                />
+                              )}
                             </div>
+                            <span className="font-mono text-sm font-medium block">
+                              {item.code}
+                            </span>
                             <p className="text-xs text-muted-foreground mt-1">
                               {item.isActive ? 'Aktivna' : 'Neaktivna'}
                             </p>
