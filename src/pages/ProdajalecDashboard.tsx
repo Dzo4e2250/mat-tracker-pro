@@ -456,12 +456,13 @@ export default function ProdajalecDashboard() {
               <span className="text-xs">Skeniraj</span>
             </button>
             
-            <Button 
-              className="h-12 px-6"
+            <button 
               onClick={() => navigate('/contacts')}
+              className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground"
             >
-              Pls Continue
-            </Button>
+              <Circle className="h-6 w-6" />
+              <span className="text-xs">Kontakti</span>
+            </button>
           </div>
         </div>
       </div>
@@ -643,12 +644,13 @@ export default function ProdajalecDashboard() {
             <span className="text-xs">Skeniraj</span>
           </button>
           
-          <Button 
-            className="h-12 px-6"
+          <button 
             onClick={() => navigate('/contacts')}
+            className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground"
           >
-            Pls Continue
-          </Button>
+            <Circle className="h-6 w-6" />
+            <span className="text-xs">Kontakti</span>
+          </button>
         </div>
       </div>
 
