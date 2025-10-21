@@ -8,10 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,41 +19,19 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        toast({
-          title: 'Prijava uspešna',
-          description: 'Dobrodošli nazaj!',
-        });
-        
-        navigate('/');
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-            emailRedirectTo: `${window.location.origin}/`,
-          },
-        });
-
-        if (error) throw error;
-
-        toast({
-          title: 'Registracija uspešna',
-          description: 'Vaš račun je bil uspešno ustvarjen.',
-        });
-        
-        navigate('/');
-      }
+      toast({
+        title: 'Prijava uspešna',
+        description: 'Dobrodošli nazaj!',
+      });
+      
+      navigate('/');
     } catch (error: any) {
       toast({
         title: 'Napaka',
@@ -71,29 +47,13 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{isLogin ? 'Prijava' : 'Registracija'}</CardTitle>
+          <CardTitle>Prijava</CardTitle>
           <CardDescription>
-            {isLogin 
-              ? 'Prijavite se v svoj račun' 
-              : 'Ustvarite nov račun'}
+            Prijavite se v svoj račun
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Ime in priimek</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  placeholder="Janez Novak"
-                />
-              </div>
-            )}
-            
             <div className="space-y-2">
               <Label htmlFor="email">E-pošta</Label>
               <Input
@@ -120,21 +80,9 @@ export default function Auth() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Nalaganje...' : isLogin ? 'Prijava' : 'Registracija'}
+              {loading ? 'Nalaganje...' : 'Prijava'}
             </Button>
           </form>
-
-          <div className="mt-4 text-center">
-            <Button
-              variant="link"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm"
-            >
-              {isLogin 
-                ? 'Še nimate računa? Registrirajte se' 
-                : 'Že imate račun? Prijavite se'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
