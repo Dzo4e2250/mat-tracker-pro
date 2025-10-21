@@ -7,6 +7,7 @@ import { QrReader } from 'react-qr-reader';
 
 interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
+  checkIfExists?: (qrCode: string) => Promise<boolean>;
   usedQrCodes?: string[];
   qrPrefix?: string;
   qrMaxNumber?: number;
@@ -21,7 +22,7 @@ const doormatTypes = [
   { code: 'ERM11R', size: '86x142 cm' },
 ];
 
-export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED", qrMaxNumber = 200 }: QRScannerProps) {
+export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrPrefix = "PRED", qrMaxNumber = 200 }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
@@ -33,16 +34,39 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
     `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
   ).filter(code => !usedQrCodes.includes(code));
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (manualQrCode.trim()) {
-      // For manual entry, we still need to select type
-      setSelectedQrCode(manualQrCode.trim());
+      const qrCode = manualQrCode.trim();
+      
+      // Check if doormat already exists
+      if (checkIfExists) {
+        const exists = await checkIfExists(qrCode);
+        if (exists) {
+          // Let parent handle existing doormat
+          onScan(qrCode, '');
+          setManualQrCode('');
+          return;
+        }
+      }
+      
+      // For new doormats, we need to select type
+      setSelectedQrCode(qrCode);
       setWasUsingCamera(false);
       setShowTypeDialog(true);
     }
   };
 
-  const handlePredefinedQrClick = (qrCode: string) => {
+  const handlePredefinedQrClick = async (qrCode: string) => {
+    // Check if doormat already exists
+    if (checkIfExists) {
+      const exists = await checkIfExists(qrCode);
+      if (exists) {
+        // Let parent handle existing doormat
+        onScan(qrCode, '');
+        return;
+      }
+    }
+    
     setSelectedQrCode(qrCode);
     setWasUsingCamera(false);
     setShowTypeDialog(true);
@@ -61,10 +85,23 @@ export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED",
     }
   };
 
-  const handleCameraScan = (result: any) => {
+  const handleCameraScan = async (result: any) => {
     if (result?.text) {
-      setSelectedQrCode(result.text);
+      const qrCode = result.text;
       setShowCamera(false);
+      
+      // Check if doormat already exists
+      if (checkIfExists) {
+        const exists = await checkIfExists(qrCode);
+        if (exists) {
+          // Let parent handle existing doormat
+          onScan(qrCode, '');
+          setWasUsingCamera(true);
+          return;
+        }
+      }
+      
+      setSelectedQrCode(qrCode);
       setWasUsingCamera(true);
       setShowTypeDialog(true);
     }

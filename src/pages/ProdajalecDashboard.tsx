@@ -147,6 +147,22 @@ export default function ProdajalecDashboard() {
     }
   };
 
+  const checkIfDoormatExists = async (qrCode: string): Promise<boolean> => {
+    try {
+      const { data } = await supabase
+        .from('doormats')
+        .select('id')
+        .eq('qr_code', qrCode)
+        .eq('seller_id', user?.id)
+        .maybeSingle();
+      
+      return !!data;
+    } catch (error) {
+      console.error('Error checking doormat:', error);
+      return false;
+    }
+  };
+
   const handleQRScan = async (qrCode: string, type: string) => {
     try {
       // Check if this QR code already exists for this user
@@ -168,6 +184,12 @@ export default function ProdajalecDashboard() {
           toast.info('Predpražnik je že v sistemu');
         }
       } else {
+        // Type must be provided for new doormats
+        if (!type) {
+          toast.error('Napaka: tip ni izbran');
+          return;
+        }
+        
         // Create new doormat entry with 'with_seller' status
         const { error: insertError } = await supabase
           .from('doormats')
@@ -356,7 +378,8 @@ export default function ProdajalecDashboard() {
         
         <div className="p-4">
           <QRScanner 
-            onScan={handleQRScan} 
+            onScan={handleQRScan}
+            checkIfExists={checkIfDoormatExists}
             usedQrCodes={usedQrCodes}
             qrPrefix={userProfile?.qr_prefix || "PRED"}
             qrMaxNumber={userProfile?.qr_end_num || 200}
