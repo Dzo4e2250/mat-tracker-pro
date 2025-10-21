@@ -122,11 +122,12 @@ export default function QRGenerator() {
         
         if (!profile) return null;
 
-        // Count active doormats
+        // Count active doormats (exclude sent_by_inventar status)
         const { count, error: countError } = await supabase
           .from('doormats')
           .select('*', { count: 'exact', head: true })
-          .eq('seller_id', profile.id);
+          .eq('seller_id', profile.id)
+          .neq('status', 'sent_by_inventar');
 
         if (countError) throw countError;
 
