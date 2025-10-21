@@ -204,6 +204,27 @@ export default function ProdajalecDashboard() {
     }
   };
 
+  const checkIfQrCodeBelongsToSeller = async (qrCode: string, sellerId: string): Promise<boolean> => {
+    try {
+      // Check if this QR code is in approved requests for this seller
+      const { data: approvedRequests } = await supabase
+        .from('tester_requests')
+        .select('generated_qr_codes')
+        .eq('seller_id', sellerId)
+        .eq('status', 'approved');
+
+      if (!approvedRequests || approvedRequests.length === 0) return false;
+
+      // Check if QR code is in any of the approved requests
+      return approvedRequests.some(req => 
+        req.generated_qr_codes?.includes(qrCode)
+      );
+    } catch (error) {
+      console.error('Error checking QR code ownership:', error);
+      return false;
+    }
+  };
+
   const handleQRScan = async (qrCode: string, type: string) => {
     try {
       // Check if this QR code already exists for this user
@@ -228,6 +249,14 @@ export default function ProdajalecDashboard() {
         // Type must be provided for new doormats
         if (!type) {
           toast.error('Napaka: tip ni izbran');
+          return;
+        }
+        
+        // Check if this QR code belongs to this seller
+        const isValid = await checkIfQrCodeBelongsToSeller(qrCode, user?.id || '');
+        
+        if (!isValid) {
+          toast.error('QR koda ni rezervirana za vas ali ni veljavna');
           return;
         }
         

@@ -329,36 +329,18 @@ export default function TesterRequests() {
         nextNumber = Math.max(...numbers) + 1;
       }
 
-      const qrCodesToGenerate: Array<{ qr_code: string; type: string }> = [];
+      // Generate QR codes only - don't create doormats yet
+      const qrCodes: string[] = [];
       const quantities = request.quantities as Record<string, number>;
 
       Object.entries(quantities).forEach(([type, qty]) => {
         for (let i = 0; i < qty; i++) {
-          qrCodesToGenerate.push({
-            qr_code: `${seller.qr_prefix}-${String(nextNumber).padStart(3, '0')}`,
-            type
-          });
+          qrCodes.push(`${seller.qr_prefix}-${String(nextNumber).padStart(3, '0')}`);
           nextNumber++;
         }
       });
 
-      const { error: insertError } = await supabase
-        .from('doormats')
-        .insert(
-          qrCodesToGenerate.map(item => ({
-            qr_code: item.qr_code,
-            seller_id: request.seller_id,
-            type: item.type as any,
-            status: 'sent_by_inventar' as any,
-            generation_date: new Date().toISOString().split('T')[0]
-          }))
-        );
-
-      if (insertError) throw insertError;
-
-      // Sinhronizacija profila prodajalca z dejanskimi QR kodami v bazi
-      await syncSellerQrRange(request.seller_id, seller.qr_prefix);
-
+      // Update request with generated QR codes
       const { data: { user } } = await supabase.auth.getUser();
       const { error: updateError } = await supabase
         .from('tester_requests')
@@ -366,7 +348,7 @@ export default function TesterRequests() {
           status: 'approved',
           approved_at: new Date().toISOString(),
           approved_by: user?.id,
-          generated_qr_codes: qrCodesToGenerate.map(item => item.qr_code)
+          generated_qr_codes: qrCodes
         })
         .eq('id', request.id);
 
@@ -374,7 +356,7 @@ export default function TesterRequests() {
 
       toast({ 
         title: "Uspeh", 
-        description: `Generirano ${qrCodesToGenerate.length} QR kod` 
+        description: `Generirano ${qrCodes.length} QR kod - čakajo na skeniranje prodajalca` 
       });
       fetchRequests();
     } catch (error) {

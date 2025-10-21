@@ -121,7 +121,7 @@ export default function InventarDashboard() {
       return {
         id: seller.id,
         full_name: seller.full_name,
-        clean: sellerDoormats.filter(d => d.status === 'with_seller').length,
+        clean: sellerDoormats.filter(d => d.status === 'with_seller' || d.status === 'sent_by_inventar').length,
         on_test: sellerDoormats.filter(d => d.status === 'on_test').length,
         dirty: sellerDoormats.filter(d => d.status === 'dirty').length,
         waiting_for_driver: sellerDoormats.filter(d => d.status === 'waiting_for_driver').length,
