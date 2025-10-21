@@ -281,12 +281,17 @@ export default function TesterRequests() {
       if (insertError) throw insertError;
 
       // Update seller's profile with the new QR range
+      // Keep existing start number if set, extend end number if needed
       const highestNumber = nextNumber - 1;
+      const currentStartNum = seller.qr_start_num || 1;
+      const currentEndNum = seller.qr_end_num || 0;
+      const newEndNum = Math.max(currentEndNum, highestNumber);
+      
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          qr_start_num: seller.qr_start_num || 1,
-          qr_end_num: highestNumber
+          qr_start_num: currentStartNum,
+          qr_end_num: newEndNum
         })
         .eq('id', request.seller_id);
 
