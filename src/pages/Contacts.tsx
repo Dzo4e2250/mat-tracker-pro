@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ProdajalecHeader } from '@/components/ProdajalecHeader';
 
 interface Contact {
   id: string;
@@ -180,6 +181,7 @@ export default function Contacts() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <ProdajalecHeader />
       <div className="p-4">
         <div className="mx-auto max-w-4xl">
           <div className="mb-6">

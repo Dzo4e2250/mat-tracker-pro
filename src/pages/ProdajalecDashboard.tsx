@@ -14,6 +14,7 @@ import TestPlacementDialog, { TestPlacementData } from '@/components/TestPlaceme
 import DoormatActionDialog from '@/components/DoormatActionDialog';
 import TestDetailsDialog from '@/components/TestDetailsDialog';
 import { differenceInDays } from 'date-fns';
+import { ProdajalecHeader } from '@/components/ProdajalecHeader';
 
 export interface TestPlacement {
   id: string;
@@ -426,19 +427,10 @@ export default function ProdajalecDashboard() {
   if (showScanner) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="bg-primary text-primary-foreground p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">Skeniranje</h1>
-              <p className="text-sm opacity-90">{userProfile?.full_name || 'Prodajalec'}</p>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => setShowScanner(false)}>
-              Nazaj
-            </Button>
-          </div>
-        </div>
+        <ProdajalecHeader />
         
         <div className="p-4 pb-24">
+          <h2 className="text-xl font-bold mb-4">Skeniranje QR kode</h2>
           <QRScanner 
             onScan={handleQRScan}
             checkIfExists={checkIfDoormatExists}
@@ -508,17 +500,7 @@ export default function ProdajalecDashboard() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-primary text-primary-foreground p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Lindström</h1>
-            <p className="text-sm opacity-90">{userProfile?.full_name || 'George'} (PRODAJALEC)</p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={signOut}>
-            Preklopi
-          </Button>
-        </div>
-      </div>
+      <ProdajalecHeader />
 
       {/* Main Content */}
       <div className="flex-1 p-4 pb-24">

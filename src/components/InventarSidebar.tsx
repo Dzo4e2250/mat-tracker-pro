@@ -1,6 +1,7 @@
 import { Home, Users, QrCode, History, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserProfileMenu } from "@/components/UserProfileMenu";
 import {
   Sidebar,
   SidebarContent,
@@ -34,35 +35,39 @@ export function InventarSidebar() {
   });
 
   return (
-    <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
-      <SidebarTrigger className="m-2 self-end" />
-      
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "hover:bg-accent/50"
-                      }
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+    <>
+      <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
+        <SidebarTrigger />
+        <UserProfileMenu />
+      </header>
+      <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleMenuItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end
+                        className={({ isActive }) =>
+                          isActive
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "hover:bg-accent/50"
+                        }
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {state !== "collapsed" && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    </>
   );
 }
