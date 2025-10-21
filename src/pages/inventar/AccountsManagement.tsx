@@ -52,28 +52,12 @@ export default function AccountsManagement() {
 
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, qr_prefix")
+        .select("id, full_name, qr_prefix, email")
         .in("id", userIds);
 
       if (profilesError) throw profilesError;
 
-      const { data: authResponse, error: usersError } = await supabase.auth.admin.listUsers();
-      
-      if (usersError) throw usersError;
-
-      const users = authResponse?.users || [];
-
-      const sellersWithEmail = (profilesData || []).map((profile) => {
-        const user = users.find((u) => u.id === profile.id);
-        return {
-          id: profile.id,
-          full_name: profile.full_name,
-          email: user?.email || "",
-          qr_prefix: profile.qr_prefix,
-        };
-      });
-
-      setSellers(sellersWithEmail);
+      setSellers(profilesData || []);
     } catch (error: any) {
       toast({
         title: "Napaka pri nalaganju prodajalcev",
