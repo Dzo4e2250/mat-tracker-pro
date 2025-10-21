@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/QRScanner';
 import TestPlacementDialog, { TestPlacementData } from '@/components/TestPlacementDialog';
+import DoormatActionDialog from '@/components/DoormatActionDialog';
 import { differenceInDays } from 'date-fns';
 
 interface Doormat {
@@ -40,8 +41,10 @@ export default function ProdajalecDashboard() {
   const [scannedDoormat, setScannedDoormat] = useState<Doormat | null>(null);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [showActionDialog, setShowActionDialog] = useState(false);
+  const [showDoormatActionDialog, setShowDoormatActionDialog] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [userProfile, setUserProfile] = useState<{ full_name: string; qr_prefix: string | null } | null>(null);
+  const [selectedDoormatForAction, setSelectedDoormatForAction] = useState<{ doormat: Doormat; testPlacement?: TestPlacement } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -219,6 +222,7 @@ export default function ProdajalecDashboard() {
           contact_phone: data.contactPhone,
           contact_email: data.contactEmail,
           tax_number: data.taxNumber,
+          comment: data.comment,
         });
 
       if (contactError) throw contactError;
@@ -243,6 +247,109 @@ export default function ProdajalecDashboard() {
     } else {
       toast.info('Skeniranje preklicano');
       setScannedDoormat(null);
+    }
+  };
+
+  const handleDoormatClick = (doormat: Doormat) => {
+    const testPlacement = onTestDoormats.find(t => t.doormat_id === doormat.id);
+    setSelectedDoormatForAction({ doormat, testPlacement });
+    setShowDoormatActionDialog(true);
+  };
+
+  const handleDoormatAction = (action: 'place_test' | 'collect' | 'sign_contract' | 'extend') => {
+    setShowDoormatActionDialog(false);
+
+    if (action === 'place_test') {
+      setScannedDoormat(selectedDoormatForAction?.doormat || null);
+      setShowTestDialog(true);
+    } else if (action === 'collect') {
+      handleCollectDoormat();
+    } else if (action === 'sign_contract') {
+      handleSignContract();
+    } else if (action === 'extend') {
+      handleExtendTest();
+    }
+  };
+
+  const handleCollectDoormat = async () => {
+    if (!selectedDoormatForAction?.testPlacement) return;
+
+    try {
+      const { error: testError } = await supabase
+        .from('test_placements')
+        .update({ status: 'collected' })
+        .eq('id', selectedDoormatForAction.testPlacement.id);
+
+      if (testError) throw testError;
+
+      const { error: doormatError } = await supabase
+        .from('doormats')
+        .update({ status: 'with_seller' })
+        .eq('id', selectedDoormatForAction.doormat.id);
+
+      if (doormatError) throw doormatError;
+
+      toast.success('Predpražnik pobran');
+      setSelectedDoormatForAction(null);
+      fetchDoormats();
+      fetchTests();
+    } catch (error: any) {
+      console.error('Error collecting doormat:', error);
+      toast.error('Napaka pri pobiranju predpražnika');
+    }
+  };
+
+  const handleSignContract = async () => {
+    if (!selectedDoormatForAction?.testPlacement) return;
+
+    try {
+      const { error: testError } = await supabase
+        .from('test_placements')
+        .update({ status: 'signed' })
+        .eq('id', selectedDoormatForAction.testPlacement.id);
+
+      if (testError) throw testError;
+
+      const { error: doormatError } = await supabase
+        .from('doormats')
+        .update({ status: 'with_seller' })
+        .eq('id', selectedDoormatForAction.doormat.id);
+
+      if (doormatError) throw doormatError;
+
+      toast.success('Pogodba podpisana!');
+      setSelectedDoormatForAction(null);
+      fetchDoormats();
+      fetchTests();
+    } catch (error: any) {
+      console.error('Error signing contract:', error);
+      toast.error('Napaka pri podpisu pogodbe');
+    }
+  };
+
+  const handleExtendTest = async () => {
+    if (!selectedDoormatForAction?.testPlacement) return;
+
+    try {
+      const newExpiresAt = new Date(selectedDoormatForAction.testPlacement.expires_at);
+      newExpiresAt.setDate(newExpiresAt.getDate() + 7);
+
+      const { error } = await supabase
+        .from('test_placements')
+        .update({ 
+          expires_at: newExpiresAt.toISOString(),
+          extended_count: selectedDoormatForAction.testPlacement.extended_count + 1
+        })
+        .eq('id', selectedDoormatForAction.testPlacement.id);
+
+      if (error) throw error;
+
+      toast.success('Test podaljšan za 7 dni');
+      setSelectedDoormatForAction(null);
+      fetchTests();
+    } catch (error: any) {
+      console.error('Error extending test:', error);
+      toast.error('Napaka pri podaljševanju testa');
     }
   };
 
@@ -300,6 +407,22 @@ export default function ProdajalecDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <DoormatActionDialog
+          isOpen={showDoormatActionDialog}
+          onClose={() => {
+            setShowDoormatActionDialog(false);
+            setSelectedDoormatForAction(null);
+          }}
+          onPlaceTest={() => handleDoormatAction('place_test')}
+          onCollect={() => handleDoormatAction('collect')}
+          onSignContract={() => handleDoormatAction('sign_contract')}
+          onExtend={() => handleDoormatAction('extend')}
+          isExpiring={selectedDoormatForAction?.testPlacement ? 
+            differenceInDays(new Date(selectedDoormatForAction.testPlacement.expires_at), new Date()) <= 1 : 
+            false}
+          doormatCode={selectedDoormatForAction?.doormat.qr_code || ''}
+        />
       </div>
     );
   }
@@ -375,19 +498,44 @@ export default function ProdajalecDashboard() {
                 <p className="text-center text-muted-foreground">Ni predpražnikov</p>
               ) : (
                 <div className="space-y-2">
-                  {allDoormats.map((doormat) => (
-                    <div key={doormat.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{doormat.type}</p>
-                        <p className="text-sm text-muted-foreground">{doormat.qr_code}</p>
+                  {allDoormats.map((doormat) => {
+                    const testPlacement = onTestDoormats.find(t => t.doormat_id === doormat.id);
+                    const daysLeft = testPlacement ? differenceInDays(new Date(testPlacement.expires_at), new Date()) : null;
+                    const isExpiring = daysLeft !== null && daysLeft <= 1;
+
+                    return (
+                      <div 
+                        key={doormat.id} 
+                        className={`p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${isExpiring ? 'border-red-500 bg-red-50' : ''}`}
+                        onClick={() => handleDoormatClick(doormat)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium">{doormat.type}</p>
+                            <p className="text-sm text-muted-foreground">{doormat.qr_code}</p>
+                            {testPlacement && (
+                              <div className="mt-2 space-y-1 text-sm">
+                                <p className="font-medium">{testPlacement.company_name}</p>
+                                {testPlacement.contact_person && (
+                                  <p className="text-muted-foreground">{testPlacement.contact_person}</p>
+                                )}
+                                <p className={`font-semibold ${isExpiring ? 'text-red-600' : 'text-primary'}`}>
+                                  {daysLeft !== null && daysLeft >= 0 
+                                    ? `${daysLeft} dni preostalo` 
+                                    : 'Potekel'}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${isExpiring ? 'bg-red-100 text-red-700' : 'bg-secondary'}`}>
+                            {doormat.status === 'with_seller' ? 'Čist' : 
+                             doormat.status === 'on_test' ? 'Na testu' : 
+                             doormat.status === 'dirty' ? 'Umazan' : doormat.status}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded-full bg-secondary">
-                        {doormat.status === 'with_seller' ? 'Čist' : 
-                         doormat.status === 'on_test' ? 'Na testu' : 
-                         doormat.status === 'dirty' ? 'Umazan' : doormat.status}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

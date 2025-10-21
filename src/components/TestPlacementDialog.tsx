@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useState } from 'react';
 
 interface TestPlacementDialogProps {
   isOpen: boolean;
@@ -12,11 +13,12 @@ interface TestPlacementDialogProps {
 
 export interface TestPlacementData {
   companyName: string;
-  contactPerson?: string;
-  contactRole?: string;
-  contactPhone?: string;
-  contactEmail?: string;
-  taxNumber?: string;
+  contactPerson: string;
+  contactRole: string;
+  contactPhone: string;
+  contactEmail: string;
+  taxNumber: string;
+  comment: string;
 }
 
 export default function TestPlacementDialog({ isOpen, onClose, onSubmit }: TestPlacementDialogProps) {
@@ -27,6 +29,7 @@ export default function TestPlacementDialog({ isOpen, onClose, onSubmit }: TestP
     contactPhone: '',
     contactEmail: '',
     taxNumber: '',
+    comment: '',
   });
 
   const handleSubmit = () => {
@@ -39,6 +42,7 @@ export default function TestPlacementDialog({ isOpen, onClose, onSubmit }: TestP
         contactPhone: '',
         contactEmail: '',
         taxNumber: '',
+        comment: '',
       });
       onClose();
     }
@@ -119,6 +123,17 @@ export default function TestPlacementDialog({ isOpen, onClose, onSubmit }: TestP
               placeholder="SI12345678"
               value={formData.taxNumber}
               onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="comment">Komentar</Label>
+            <Textarea
+              id="comment"
+              placeholder="Dodatni komentar..."
+              value={formData.comment}
+              onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+              rows={3}
             />
           </div>
         </div>

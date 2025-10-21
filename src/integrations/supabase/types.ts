@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       contacts: {
         Row: {
+          comment: string | null
           company_name: string
           contact_email: string | null
           contact_person: string | null
@@ -28,6 +29,7 @@ export type Database = {
           tax_number: string | null
         }
         Insert: {
+          comment?: string | null
           company_name: string
           contact_email?: string | null
           contact_person?: string | null
@@ -40,6 +42,7 @@ export type Database = {
           tax_number?: string | null
         }
         Update: {
+          comment?: string | null
           company_name?: string
           contact_email?: string | null
           contact_person?: string | null
