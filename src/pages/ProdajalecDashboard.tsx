@@ -1,16 +1,15 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { LogOut, Clock, Package, Trash2, Users } from 'lucide-react';
+import { Home, Camera, Package, Heart, Circle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/QRScanner';
 import TestPlacementDialog, { TestPlacementData } from '@/components/TestPlacementDialog';
-import { differenceInDays, format } from 'date-fns';
-import { sl } from 'date-fns/locale';
+import { differenceInDays } from 'date-fns';
 
 interface Doormat {
   id: string;
@@ -41,15 +40,32 @@ export default function ProdajalecDashboard() {
   const [scannedDoormat, setScannedDoormat] = useState<Doormat | null>(null);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [showActionDialog, setShowActionDialog] = useState(false);
-  const [selectedAction, setSelectedAction] = useState<'test' | 'cancel' | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ full_name: string } | null>(null);
 
   useEffect(() => {
     if (user) {
+      fetchProfile();
       fetchDoormats();
       fetchTests();
       checkExpiringTests();
     }
   }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user?.id)
+        .single();
+      
+      if (error) throw error;
+      setUserProfile(data);
+    } catch (error: any) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const fetchDoormats = async () => {
     try {
@@ -149,6 +165,7 @@ export default function ProdajalecDashboard() {
           if (updateError) throw updateError;
 
           toast.success('Predpražnik dodan na seznam čistih');
+          setShowScanner(false);
           fetchDoormats();
         } else {
           toast.error('Ta predpražnik vam ni bil poslan');
@@ -206,6 +223,7 @@ export default function ProdajalecDashboard() {
 
       toast.success('Test uspešno ustvarjen');
       setShowTestDialog(false);
+      setShowScanner(false);
       setScannedDoormat(null);
       fetchDoormats();
       fetchTests();
@@ -216,7 +234,6 @@ export default function ProdajalecDashboard() {
   };
 
   const handleActionSelect = (action: 'test' | 'cancel') => {
-    setSelectedAction(action);
     setShowActionDialog(false);
 
     if (action === 'test') {
@@ -227,214 +244,26 @@ export default function ProdajalecDashboard() {
     }
   };
 
-  const handleCollectTest = async (testId: string, doormatId: string) => {
-    try {
-      const { error: testError } = await supabase
-        .from('test_placements')
-        .update({ status: 'collected' })
-        .eq('id', testId);
+  const totalDoormats = sentDoormats.length + cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length;
+  const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats];
 
-      if (testError) throw testError;
-
-      const { error: doormatError } = await supabase
-        .from('doormats')
-        .update({ status: 'dirty' })
-        .eq('id', doormatId);
-
-      if (doormatError) throw doormatError;
-
-      toast.success('Predpražnik označen kot umazan');
-      fetchDoormats();
-      fetchTests();
-    } catch (error: any) {
-      console.error('Error collecting test:', error);
-      toast.error('Napaka pri pobiranju');
-    }
-  };
-
-  const handleExtendTest = async (testId: string) => {
-    try {
-      const test = onTestDoormats.find(t => t.id === testId);
-      if (!test) return;
-
-      const newExpiresAt = new Date(test.expires_at);
-      newExpiresAt.setDate(newExpiresAt.getDate() + 7);
-
-      const { error } = await supabase
-        .from('test_placements')
-        .update({
-          expires_at: newExpiresAt.toISOString(),
-          extended_count: test.extended_count + 1
-        })
-        .eq('id', testId);
-
-      if (error) throw error;
-
-      toast.success('Test podaljšan za 7 dni');
-      fetchTests();
-    } catch (error: any) {
-      console.error('Error extending test:', error);
-      toast.error('Napaka pri podaljšanju');
-    }
-  };
-
-  const getDaysLeft = (expiresAt: string) => {
-    const days = differenceInDays(new Date(expiresAt), new Date());
-    if (days < 0) return <span className="text-destructive">Poteklo</span>;
-    if (days === 0) return <span className="text-destructive">Danes!</span>;
-    if (days === 1) return <span className="text-orange-500">1 dan</span>;
-    return <span>{days} dni</span>;
-  };
-
-  return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Prodajalec Dashboard</h1>
-            <p className="text-muted-foreground">Upravljanje mojih predpražnikov</p>
+  if (showScanner) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="bg-primary text-primary-foreground p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold">Skeniranje</h1>
+              <p className="text-sm opacity-90">{userProfile?.full_name || 'Prodajalec'}</p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setShowScanner(false)}>
+              Nazaj
+            </Button>
           </div>
-          <Button variant="outline" onClick={signOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Odjava
-          </Button>
         </div>
-
-        <div className="mb-6">
+        
+        <div className="p-4">
           <QRScanner onScan={handleQRScan} />
-        </div>
-
-        <div className="grid gap-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Poslano</CardTitle>
-                <CardDescription>Od inventarja</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{sentDoormats.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Čisti</CardTitle>
-                <CardDescription>Pri meni</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{cleanDoormats.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Na testu</CardTitle>
-                <CardDescription>Pri strankah</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{onTestDoormats.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Umazani</CardTitle>
-                <CardDescription>Za čiščenje</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-destructive">{dirtyDoormats.length}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Testi v teku</span>
-                <Button variant="outline" size="sm" onClick={() => navigate('/contacts')}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Kontakti
-                </Button>
-              </CardTitle>
-              <CardDescription>Predpražniki na testiranju pri strankah</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {onTestDoormats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Ni aktivnih testov
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {onTestDoormats.map((test) => (
-                    <div key={test.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="font-semibold">{test.company_name}</h3>
-                          {test.contact_person && (
-                            <p className="text-sm text-muted-foreground">{test.contact_person}</p>
-                          )}
-                          <p className="text-sm text-muted-foreground">
-                            {test.doormats.type} - {test.doormats.qr_code}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Clock className="h-4 w-4" />
-                            {getDaysLeft(test.expires_at)}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(test.expires_at), 'dd. MMM yyyy', { locale: sl })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleExtendTest(test.id)}
-                        >
-                          Podaljšaj za 7 dni
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleCollectTest(test.id, test.doormat_id)}
-                        >
-                          <Package className="mr-2 h-4 w-4" />
-                          Pobral sem
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Umazani predpražniki</CardTitle>
-              <CardDescription>Čakajo na pobiranje inventarja</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dirtyDoormats.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Ni umazanih predpražnikov
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {dirtyDoormats.map((doormat) => (
-                    <div key={doormat.id} className="flex items-center justify-between border rounded-lg p-3">
-                      <div>
-                        <p className="font-medium">{doormat.type}</p>
-                        <p className="text-sm text-muted-foreground">{doormat.qr_code}</p>
-                      </div>
-                      <Trash2 className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         <TestPlacementDialog
@@ -464,6 +293,124 @@ export default function ProdajalecDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <div className="bg-primary text-primary-foreground p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Lindström</h1>
+            <p className="text-sm opacity-90">{userProfile?.full_name || 'George'} (PRODAJALEC)</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={signOut}>
+            Preklopi
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 pb-24">
+        <h2 className="text-xl font-bold mb-4">Moji predpražniki</h2>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card className="bg-red-50 border-red-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-red-700" />
+                <span className="text-sm text-muted-foreground">Skupaj</span>
+              </div>
+              <div className="text-3xl font-bold">{totalDoormats}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-green-50 border-green-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Heart className="h-5 w-5 text-green-600" />
+                <span className="text-sm text-muted-foreground">Čisti</span>
+              </div>
+              <div className="text-3xl font-bold">{cleanDoormats.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-blue-50 border-blue-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Circle className="h-5 w-5 text-blue-600 fill-blue-600" />
+                <span className="text-sm text-muted-foreground">Na testu</span>
+              </div>
+              <div className="text-3xl font-bold">{onTestDoormats.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-orange-50 border-orange-100">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Circle className="h-5 w-5 text-orange-600 fill-orange-600" />
+                <span className="text-sm text-muted-foreground">Umazani</span>
+              </div>
+              <div className="text-3xl font-bold">{dirtyDoormats.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* List Section */}
+        <div>
+          <h3 className="text-lg font-bold mb-3">Seznam</h3>
+          <Card>
+            <CardContent className="p-6">
+              {allDoormats.length === 0 ? (
+                <p className="text-center text-muted-foreground">Ni predpražnikov</p>
+              ) : (
+                <div className="space-y-2">
+                  {allDoormats.map((doormat) => (
+                    <div key={doormat.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">{doormat.type}</p>
+                        <p className="text-sm text-muted-foreground">{doormat.qr_code}</p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-secondary">
+                        {doormat.status === 'with_seller' ? 'Čist' : 
+                         doormat.status === 'on_test' ? 'Na testu' : 
+                         doormat.status === 'dirty' ? 'Umazan' : doormat.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4">
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          <button className="flex flex-col items-center gap-1 text-primary">
+            <Home className="h-6 w-6" />
+            <span className="text-xs">Domov</span>
+          </button>
+          
+          <button 
+            onClick={() => setShowScanner(true)}
+            className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <Camera className="h-6 w-6" />
+            <span className="text-xs">Skeniraj</span>
+          </button>
+          
+          <Button 
+            className="h-12 px-6"
+            onClick={() => navigate('/contacts')}
+          >
+            Pls Continue
+          </Button>
+        </div>
       </div>
     </div>
   );
