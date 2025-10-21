@@ -225,7 +225,31 @@ export default function QRGenerator() {
 
   const getReviewQrCodes = () => {
     const seller = sellers.find(s => s.id === selectedReviewId);
-    if (!seller || !seller.qr_prefix || !seller.qr_start_num || !seller.qr_end_num) {
+    if (!seller || !seller.qr_prefix) {
+      return [];
+    }
+
+    // Preverim ali so vrednosti pravilne
+    if (!seller.qr_start_num || !seller.qr_end_num || seller.qr_start_num > seller.qr_end_num) {
+      // Če so napačne, poskusim izračunati iz aktivnih kod
+      if (activeQrCodes.length > 0) {
+        const numbers = activeQrCodes.map(code => {
+          const match = code.match(/-(\d+)$/);
+          return match ? parseInt(match[1]) : 0;
+        }).filter(n => n > 0);
+        
+        if (numbers.length > 0) {
+          const minNum = Math.min(...numbers);
+          const maxNum = Math.max(...numbers);
+          const allCodes = [];
+          for (let i = minNum; i <= maxNum; i++) {
+            const code = `${seller.qr_prefix}-${String(i).padStart(3, '0')}`;
+            const isActive = activeQrCodes.includes(code);
+            allCodes.push({ code, isActive });
+          }
+          return allCodes;
+        }
+      }
       return [];
     }
 

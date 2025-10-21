@@ -30,7 +30,13 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
   const [wasUsingCamera, setWasUsingCamera] = useState(false);
 
   // Generate pre-defined QR codes using seller's prefix and max number (e.g., RIST-001 to RIST-200) and filter out used ones
-  const predefinedQrCodes = Array.from({ length: qrMaxNumber }, (_, i) => 
+  // If qrMaxNumber is 0 or invalid, calculate from used codes
+  const effectiveMaxNumber = qrMaxNumber > 0 ? qrMaxNumber : (usedQrCodes.length > 0 ? Math.max(...usedQrCodes.map(code => {
+    const match = code.match(/-(\d+)$/);
+    return match ? parseInt(match[1]) : 0;
+  })) : 200);
+  
+  const predefinedQrCodes = Array.from({ length: effectiveMaxNumber }, (_, i) => 
     `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
   ).filter(code => !usedQrCodes.includes(code));
 

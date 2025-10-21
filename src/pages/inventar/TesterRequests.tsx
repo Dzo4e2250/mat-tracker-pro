@@ -411,12 +411,19 @@ export default function TesterRequests() {
         .eq('id', request.seller_id)
         .single();
 
-      const newStartNum = currentProfile?.qr_start_num 
-        ? Math.min(currentProfile.qr_start_num, minQrNum)
-        : minQrNum;
-      const newEndNum = currentProfile?.qr_end_num 
-        ? Math.max(currentProfile.qr_end_num, maxQrNum)
-        : maxQrNum;
+      // If both values are valid (start < end), extend the range
+      // Otherwise, set only new values
+      let newStartNum: number;
+      let newEndNum: number;
+      
+      if (currentProfile?.qr_start_num && currentProfile?.qr_end_num && 
+          currentProfile.qr_start_num < currentProfile.qr_end_num) {
+        newStartNum = Math.min(currentProfile.qr_start_num, minQrNum);
+        newEndNum = Math.max(currentProfile.qr_end_num, maxQrNum);
+      } else {
+        newStartNum = minQrNum;
+        newEndNum = maxQrNum;
+      }
 
       await supabase
         .from('profiles')
