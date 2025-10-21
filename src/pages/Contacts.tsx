@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Mail, Phone, Building2, Home, Camera, Clipboard, Pencil, Trash2, CalendarIcon, X } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Home, Camera, Clipboard, Pencil, Trash2, CalendarIcon, X, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ export default function Contacts() {
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [formData, setFormData] = useState<Partial<Contact>>({});
   const [filterDate, setFilterDate] = useState<Date | undefined>();
+  const [isAddingContact, setIsAddingContact] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -85,6 +86,43 @@ export default function Contacts() {
   const handleEdit = (contact: Contact) => {
     setEditingContact(contact);
     setFormData(contact);
+  };
+
+  const handleAddNew = () => {
+    setIsAddingContact(true);
+    setFormData({});
+  };
+
+  const handleSaveNew = async () => {
+    if (!formData.company_name) {
+      toast.error('Ime podjetja je obvezno');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .insert({
+          seller_id: user?.id,
+          company_name: formData.company_name,
+          contact_person: formData.contact_person,
+          contact_role: formData.contact_role,
+          contact_phone: formData.contact_phone,
+          contact_email: formData.contact_email,
+          tax_number: formData.tax_number,
+          comment: formData.comment,
+        });
+
+      if (error) throw error;
+
+      toast.success('Kontakt uspešno dodan');
+      setIsAddingContact(false);
+      setFormData({});
+      fetchContacts();
+    } catch (error: any) {
+      toast.error('Napaka pri dodajanju kontakta');
+      console.error('Error adding contact:', error);
+    }
   };
 
   const handleDelete = (contact: Contact) => {
@@ -149,8 +187,13 @@ export default function Contacts() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Nazaj
             </Button>
-          <h1 className="text-3xl font-bold">Kontakti</h1>
-          <p className="text-muted-foreground">Pregled vseh strank s testi</p>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-3xl font-bold">Kontakti</h1>
+              <Button onClick={handleAddNew} size="icon" className="rounded-full">
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+            <p className="text-muted-foreground">Pregled vseh strank s testi</p>
           
           {/* Date Filter */}
           <div className="mt-4">
@@ -279,6 +322,84 @@ export default function Contacts() {
         )}
       </div>
     </div>
+
+      {/* Add New Contact Dialog */}
+      <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dodaj nov kontakt</DialogTitle>
+            <DialogDescription>Vnesi podatke o novem kontaktu</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new_company_name">Podjetje *</Label>
+              <Input
+                id="new_company_name"
+                value={formData.company_name || ''}
+                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_contact_person">Kontaktna oseba</Label>
+              <Input
+                id="new_contact_person"
+                value={formData.contact_person || ''}
+                onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_contact_role">Vloga</Label>
+              <Input
+                id="new_contact_role"
+                value={formData.contact_role || ''}
+                onChange={(e) => setFormData({ ...formData, contact_role: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_contact_phone">Telefon</Label>
+              <Input
+                id="new_contact_phone"
+                value={formData.contact_phone || ''}
+                onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_contact_email">E-pošta</Label>
+              <Input
+                id="new_contact_email"
+                type="email"
+                value={formData.contact_email || ''}
+                onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_tax_number">Davčna številka</Label>
+              <Input
+                id="new_tax_number"
+                value={formData.tax_number || ''}
+                onChange={(e) => setFormData({ ...formData, tax_number: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_comment">Opombe</Label>
+              <Textarea
+                id="new_comment"
+                value={formData.comment || ''}
+                onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingContact(false)}>
+              Prekliči
+            </Button>
+            <Button onClick={handleSaveNew}>
+              Dodaj
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingContact} onOpenChange={() => setEditingContact(null)}>
