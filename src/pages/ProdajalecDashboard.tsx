@@ -439,6 +439,31 @@ export default function ProdajalecDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Bottom Navigation */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 z-50">
+          <div className="flex items-center justify-around max-w-md mx-auto">
+            <button 
+              onClick={() => setShowScanner(false)}
+              className="flex flex-col items-center gap-1 text-primary"
+            >
+              <Home className="h-6 w-6" />
+              <span className="text-xs">Domov</span>
+            </button>
+            
+            <button className="flex flex-col items-center gap-1 text-muted-foreground">
+              <Camera className="h-6 w-6" />
+              <span className="text-xs">Skeniraj</span>
+            </button>
+            
+            <Button 
+              className="h-12 px-6"
+              onClick={() => navigate('/contacts')}
+            >
+              Pls Continue
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
