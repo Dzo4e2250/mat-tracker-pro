@@ -215,19 +215,40 @@ export default function TesterRequests() {
       const seller = sellers.find(s => s.id === sellerId);
       if (!seller?.qr_prefix) return;
 
+      // Check both scanned doormats AND reserved QR codes in tester_requests
       const { data: existingDoormats } = await supabase
         .from('doormats')
         .select('qr_code')
         .eq('seller_id', sellerId)
         .like('qr_code', `${seller.qr_prefix}-%`);
 
-      let nextNumber = 1;
-      if (existingDoormats && existingDoormats.length > 0) {
-        const numbers = existingDoormats.map(d => {
+      const { data: reservedRequests } = await supabase
+        .from('tester_requests')
+        .select('generated_qr_codes')
+        .eq('seller_id', sellerId);
+
+      // Collect all QR numbers (both scanned and reserved)
+      const allNumbers: number[] = [];
+      
+      if (existingDoormats) {
+        existingDoormats.forEach(d => {
           const match = d.qr_code.match(/-(\d+)$/);
-          return match ? parseInt(match[1]) : 0;
+          if (match) allNumbers.push(parseInt(match[1]));
         });
-        nextNumber = Math.max(...numbers) + 1;
+      }
+      
+      if (reservedRequests) {
+        reservedRequests.forEach(req => {
+          (req.generated_qr_codes || []).forEach((qr: string) => {
+            const match = qr.match(/-(\d+)$/);
+            if (match) allNumbers.push(parseInt(match[1]));
+          });
+        });
+      }
+
+      let nextNumber = 1;
+      if (allNumbers.length > 0) {
+        nextNumber = Math.max(...allNumbers) + 1;
       }
 
       // Account for items already in shipment
@@ -314,19 +335,40 @@ export default function TesterRequests() {
     }
 
     try {
+      // Check both scanned doormats AND reserved QR codes in tester_requests
       const { data: existingDoormats } = await supabase
         .from('doormats')
         .select('qr_code')
         .eq('seller_id', request.seller_id)
         .like('qr_code', `${seller.qr_prefix}-%`);
 
-      let nextNumber = 1;
-      if (existingDoormats && existingDoormats.length > 0) {
-        const numbers = existingDoormats.map(d => {
+      const { data: reservedRequests } = await supabase
+        .from('tester_requests')
+        .select('generated_qr_codes')
+        .eq('seller_id', request.seller_id);
+
+      // Collect all QR numbers (both scanned and reserved)
+      const allNumbers: number[] = [];
+
+      if (existingDoormats) {
+        existingDoormats.forEach(d => {
           const match = d.qr_code.match(/-(\d+)$/);
-          return match ? parseInt(match[1]) : 0;
+          if (match) allNumbers.push(parseInt(match[1]));
         });
-        nextNumber = Math.max(...numbers) + 1;
+      }
+
+      if (reservedRequests) {
+        reservedRequests.forEach(req => {
+          (req.generated_qr_codes || []).forEach((qr: string) => {
+            const match = qr.match(/-(\d+)$/);
+            if (match) allNumbers.push(parseInt(match[1]));
+          });
+        });
+      }
+
+      let nextNumber = 1;
+      if (allNumbers.length > 0) {
+        nextNumber = Math.max(...allNumbers) + 1;
       }
 
       // Generate QR codes only - don't create doormats yet
