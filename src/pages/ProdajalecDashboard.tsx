@@ -56,12 +56,14 @@ export default function ProdajalecDashboard() {
   const [selectedDoormatForAction, setSelectedDoormatForAction] = useState<{ doormat: Doormat; testPlacement?: TestPlacement } | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [availableQrCodes, setAvailableQrCodes] = useState<string[]>([]); // Available QR codes from approved requests
 
   useEffect(() => {
     if (user) {
       fetchProfile();
       fetchDoormats();
       fetchTests();
+      fetchAvailableQrCodes();
       checkExpiringTests();
     }
   }, [user]);
@@ -105,6 +107,24 @@ export default function ProdajalecDashboard() {
       setUserProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error);
+    }
+  };
+
+  const fetchAvailableQrCodes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tester_requests')
+        .select('generated_qr_codes')
+        .eq('seller_id', user?.id)
+        .eq('status', 'approved');
+      
+      if (error) throw error;
+      
+      // Flatten all QR codes from approved requests
+      const allQrCodes = data?.flatMap(req => req.generated_qr_codes || []) || [];
+      setAvailableQrCodes(allQrCodes);
+    } catch (error: any) {
+      console.error('Error fetching available QR codes:', error);
     }
   };
 
@@ -252,22 +272,28 @@ export default function ProdajalecDashboard() {
           if (updateError) throw updateError;
 
           toast.success('Predpražnik aktiviran in dodan na seznam čistih');
-          fetchDoormats();
+          await fetchDoormats();
+          setShowScanner(false); // Close scanner after activation
         } else {
           toast.info('Predpražnik je že v sistemu');
         }
       } else {
+        // Check if QR code is in available codes from approved requests
+        const isAvailable = availableQrCodes.includes(qrCode);
+        
+        if (!isAvailable) {
+          // Check if this QR code belongs to this seller via tester_requests
+          const isValid = await checkIfQrCodeBelongsToSeller(qrCode, user?.id || '');
+          
+          if (!isValid) {
+            toast.error('QR koda ni rezervirana za vas ali ni veljavna');
+            return;
+          }
+        }
+        
         // Type must be provided for new doormats
         if (!type) {
           toast.error('Napaka: tip ni izbran');
-          return;
-        }
-        
-        // Check if this QR code belongs to this seller
-        const isValid = await checkIfQrCodeBelongsToSeller(qrCode, user?.id || '');
-        
-        if (!isValid) {
-          toast.error('QR koda ni rezervirana za vas ali ni veljavna');
           return;
         }
         
@@ -284,7 +310,8 @@ export default function ProdajalecDashboard() {
         if (insertError) throw insertError;
 
         toast.success('Predpražnik dodan na seznam čistih');
-        fetchDoormats();
+        await fetchDoormats();
+        setShowScanner(false); // Close scanner after adding
       }
     } catch (error: any) {
       console.error('Error handling QR scan:', error);
@@ -444,6 +471,9 @@ export default function ProdajalecDashboard() {
   // Used QR codes = all doormats EXCEPT sent_by_inventar (inactive ones)
   // This way, sent_by_inventar doormats will show as "free" in QRScanner
   const usedQrCodes = allDoormats.map(d => d.qr_code);
+  
+  // Calculate inactive QR codes: available from requests but not yet activated
+  const inactiveQrCodes = availableQrCodes.filter(code => !usedQrCodes.includes(code) && !sentDoormats.find(d => d.qr_code === code));
 
   // Filtered doormats based on status and search
   const filteredDoormats = useMemo(() => {
@@ -480,7 +510,7 @@ export default function ProdajalecDashboard() {
             usedQrCodes={usedQrCodes}
             qrPrefix={userProfile?.qr_prefix || "PRED"}
             qrMaxNumber={userProfile?.qr_end_num || 200}
-            sentDoormats={sentDoormats}
+            sentDoormats={inactiveQrCodes.map(qr => ({ qr_code: qr, type: '' }))}
           />
         </div>
 

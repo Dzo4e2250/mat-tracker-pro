@@ -61,21 +61,8 @@ export default function QRScanner({ onScan, checkIfExists, usedQrCodes = [], qrP
   };
 
   const handlePredefinedQrClick = async (qrCode: string) => {
-    // Check if doormat already exists
-    if (checkIfExists) {
-      const exists = await checkIfExists(qrCode);
-      if (exists) {
-        // For sent_by_inventar doormats, activate them directly without asking for type
-        if (sentDoormats.length > 0) {
-          onScan(qrCode, '');
-          return;
-        }
-        // Let parent handle existing doormat
-        onScan(qrCode, '');
-        return;
-      }
-    }
-    
+    // For inactive QR codes from tester requests, always show type dialog
+    // They don't exist in database yet, so we need to create them with type
     setSelectedQrCode(qrCode);
     setWasUsingCamera(false);
     setShowTypeDialog(true);
