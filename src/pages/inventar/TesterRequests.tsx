@@ -396,6 +396,36 @@ export default function TesterRequests() {
 
       if (updateError) throw updateError;
 
+      // Update seller's profile with new QR range
+      const qrNumbers = qrCodes.map(code => {
+        const match = code.match(/-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      });
+      const minQrNum = Math.min(...qrNumbers);
+      const maxQrNum = Math.max(...qrNumbers);
+
+      // Get current profile range to extend it
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('qr_start_num, qr_end_num')
+        .eq('id', request.seller_id)
+        .single();
+
+      const newStartNum = currentProfile?.qr_start_num 
+        ? Math.min(currentProfile.qr_start_num, minQrNum)
+        : minQrNum;
+      const newEndNum = currentProfile?.qr_end_num 
+        ? Math.max(currentProfile.qr_end_num, maxQrNum)
+        : maxQrNum;
+
+      await supabase
+        .from('profiles')
+        .update({
+          qr_start_num: newStartNum,
+          qr_end_num: newEndNum
+        })
+        .eq('id', request.seller_id);
+
       toast({ 
         title: "Uspeh", 
         description: `Generirano ${qrCodes.length} QR kod - čakajo na skeniranje prodajalca` 
