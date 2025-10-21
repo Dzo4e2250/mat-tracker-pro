@@ -205,12 +205,37 @@ export default function AccountsManagement() {
       }
 
       if (editPassword) {
-        const { error: passwordError } = await supabase.auth.admin.updateUserById(
-          userId,
-          { password: editPassword }
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          toast({
+            title: "Napaka",
+            description: "Niste prijavljeni",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user-password`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: userId,
+              password: editPassword,
+            }),
+          }
         );
 
-        if (passwordError) throw passwordError;
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Napaka pri posodabljanju gesla');
+        }
       }
 
       toast({
