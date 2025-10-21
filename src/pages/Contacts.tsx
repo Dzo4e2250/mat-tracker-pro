@@ -6,13 +6,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Mail, Phone, Building2, Home, Camera, Clipboard, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Home, Camera, Clipboard, Pencil, Trash2, CalendarIcon, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sl } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface Contact {
   id: string;
@@ -34,6 +37,7 @@ export default function Contacts() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [formData, setFormData] = useState<Partial<Contact>>({});
+  const [filterDate, setFilterDate] = useState<Date | undefined>();
 
   useEffect(() => {
     if (user) {
@@ -59,14 +63,24 @@ export default function Contacts() {
     }
   };
 
-  const groupedContacts = contacts.reduce((acc, contact) => {
-    const date = format(new Date(contact.first_contact_date), 'MMMM yyyy', { locale: sl });
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(contact);
-    return acc;
-  }, {} as Record<string, Contact[]>);
+  const groupedContacts = contacts
+    .filter(contact => {
+      if (!filterDate) return true;
+      const contactDate = new Date(contact.first_contact_date);
+      return (
+        contactDate.getDate() === filterDate.getDate() &&
+        contactDate.getMonth() === filterDate.getMonth() &&
+        contactDate.getFullYear() === filterDate.getFullYear()
+      );
+    })
+    .reduce((acc, contact) => {
+      const date = format(new Date(contact.first_contact_date), 'd. MMMM yyyy', { locale: sl });
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(contact);
+      return acc;
+    }, {} as Record<string, Contact[]>);
 
   const handleEdit = (contact: Contact) => {
     setEditingContact(contact);
@@ -135,9 +149,48 @@ export default function Contacts() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Nazaj
             </Button>
-            <h1 className="text-3xl font-bold">Kontakti</h1>
-            <p className="text-muted-foreground">Pregled vseh strank s testi</p>
+          <h1 className="text-3xl font-bold">Kontakti</h1>
+          <p className="text-muted-foreground">Pregled vseh strank s testi</p>
+          
+          {/* Date Filter */}
+          <div className="mt-4">
+            <Label className="mb-2 block">Filtriraj po datumu</Label>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !filterDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterDate ? format(filterDate, "d. MMMM yyyy", { locale: sl }) : "Izberi datum"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterDate}
+                    onSelect={setFilterDate}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {filterDate && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setFilterDate(undefined)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
+        </div>
 
           {loading ? (
             <div className="text-center py-8">Nalagam kontakte...</div>
