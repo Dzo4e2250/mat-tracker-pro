@@ -242,6 +242,17 @@ export default function ProdajalecDashboard() {
         if (existingDoormat.status === 'with_seller') {
           setScannedDoormat(existingDoormat);
           setShowActionDialog(true);
+        } else if (existingDoormat.status === 'sent_by_inventar') {
+          // Activate inactive doormat
+          const { error: updateError } = await supabase
+            .from('doormats')
+            .update({ status: 'with_seller' })
+            .eq('id', existingDoormat.id);
+
+          if (updateError) throw updateError;
+
+          toast.success('Predpražnik aktiviran in dodan na seznam čistih');
+          fetchDoormats();
         } else {
           toast.info('Predpražnik je že v sistemu');
         }
