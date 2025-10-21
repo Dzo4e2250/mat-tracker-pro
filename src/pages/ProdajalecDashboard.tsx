@@ -49,7 +49,7 @@ export default function ProdajalecDashboard() {
   const [showDoormatActionDialog, setShowDoormatActionDialog] = useState(false);
   const [showTestDetailsDialog, setShowTestDetailsDialog] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [userProfile, setUserProfile] = useState<{ full_name: string; qr_prefix: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ full_name: string; qr_prefix: string | null; qr_end_num: number | null } | null>(null);
   const [selectedDoormatForAction, setSelectedDoormatForAction] = useState<{ doormat: Doormat; testPlacement?: TestPlacement } | null>(null);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function ProdajalecDashboard() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, qr_prefix')
+        .select('full_name, qr_prefix, qr_end_num')
         .eq('id', user?.id)
         .single();
       
@@ -360,6 +360,7 @@ export default function ProdajalecDashboard() {
             onScan={handleQRScan} 
             usedQrCodes={usedQrCodes}
             qrPrefix={userProfile?.qr_prefix || "PRED"}
+            qrMaxNumber={userProfile?.qr_end_num || 200}
           />
         </div>
 

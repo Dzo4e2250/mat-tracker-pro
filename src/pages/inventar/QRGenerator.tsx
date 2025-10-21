@@ -63,6 +63,31 @@ export default function QRGenerator() {
     }
   };
 
+  const handleGenerateQrCodes = async () => {
+    if (!selectedSellerId || !prefix) {
+      return;
+    }
+
+    try {
+      // Update seller's profile with QR code range
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          qr_prefix: prefix,
+          qr_start_num: startNum,
+          qr_end_num: endNum 
+        })
+        .eq('id', selectedSellerId);
+
+      if (error) throw error;
+
+      alert(`Generirano ${endNum - startNum + 1} QR kod za prodajalca`);
+    } catch (error: any) {
+      console.error('Error generating QR codes:', error);
+      alert('Napaka pri generiranju QR kod');
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -143,7 +168,13 @@ export default function QRGenerator() {
                 </p>
               </div>
 
-              <Button className="w-full">Generiraj QR kode</Button>
+              <Button 
+                className="w-full"
+                onClick={handleGenerateQrCodes}
+                disabled={!selectedSellerId || !prefix}
+              >
+                Generiraj QR kode
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

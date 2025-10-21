@@ -9,6 +9,7 @@ interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
   usedQrCodes?: string[];
   qrPrefix?: string;
+  qrMaxNumber?: number;
 }
 
 const doormatTypes = [
@@ -20,14 +21,14 @@ const doormatTypes = [
   { code: 'ERM11R', size: '86x142 cm' },
 ];
 
-export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED" }: QRScannerProps) {
+export default function QRScanner({ onScan, usedQrCodes = [], qrPrefix = "PRED", qrMaxNumber = 200 }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  // Generate pre-defined QR codes using seller's prefix (e.g., RIST-001 to RIST-010) and filter out used ones
-  const predefinedQrCodes = Array.from({ length: 10 }, (_, i) => 
+  // Generate pre-defined QR codes using seller's prefix and max number (e.g., RIST-001 to RIST-200) and filter out used ones
+  const predefinedQrCodes = Array.from({ length: qrMaxNumber }, (_, i) => 
     `${qrPrefix}-${String(i + 1).padStart(3, '0')}`
   ).filter(code => !usedQrCodes.includes(code));
 

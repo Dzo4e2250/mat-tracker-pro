@@ -92,7 +92,9 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          qr_end_num: number | null
           qr_prefix: string | null
+          qr_start_num: number | null
           updated_at: string
         }
         Insert: {
@@ -100,7 +102,9 @@ export type Database = {
           email?: string | null
           full_name: string
           id: string
+          qr_end_num?: number | null
           qr_prefix?: string | null
+          qr_start_num?: number | null
           updated_at?: string
         }
         Update: {
@@ -108,7 +112,9 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          qr_end_num?: number | null
           qr_prefix?: string | null
+          qr_start_num?: number | null
           updated_at?: string
         }
         Relationships: []
