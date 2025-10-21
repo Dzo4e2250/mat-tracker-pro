@@ -1,5 +1,6 @@
 import { Home, Users, QrCode, History, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +23,15 @@ const menuItems = [
 
 export function InventarSidebar() {
   const { state } = useSidebar();
+  const { role } = useAuth();
+
+  const visibleMenuItems = menuItems.filter(item => {
+    // Only ADMIN can see Accounts page
+    if (item.url === '/inventar/accounts') {
+      return role === ('ADMIN' as any);
+    }
+    return true;
+  });
 
   return (
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
@@ -31,7 +41,7 @@ export function InventarSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

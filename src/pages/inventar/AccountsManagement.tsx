@@ -3,64 +3,97 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 
-interface Seller {
+interface User {
   id: string;
   full_name: string;
   email: string;
   qr_prefix: string | null;
 }
 
+type UserRole = 'INVENTAR' | 'PRODAJALEC';
+
 export default function AccountsManagement() {
-  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [inventarUsers, setInventarUsers] = useState<User[]>([]);
+  const [prodajalecUsers, setProdajalecUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newSellerEmail, setNewSellerEmail] = useState("");
-  const [newSellerPassword, setNewSellerPassword] = useState("");
-  const [newSellerName, setNewSellerName] = useState("");
-  const [newSellerPrefix, setNewSellerPrefix] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [editingSeller, setEditingSeller] = useState<string | null>(null);
+  
+  // Inventar state
+  const [newInventarEmail, setNewInventarEmail] = useState("");
+  const [newInventarPassword, setNewInventarPassword] = useState("");
+  const [newInventarName, setNewInventarName] = useState("");
+  const [creatingInventar, setCreatingInventar] = useState(false);
+  
+  // Prodajalec state
+  const [newProdajalecEmail, setNewProdajalecEmail] = useState("");
+  const [newProdajalecPassword, setNewProdajalecPassword] = useState("");
+  const [newProdajalecName, setNewProdajalecName] = useState("");
+  const [newProdajalecPrefix, setNewProdajalecPrefix] = useState("");
+  const [creatingProdajalec, setCreatingProdajalec] = useState(false);
+  
+  const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editPrefix, setEditPrefix] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchSellers();
+    fetchUsers();
   }, []);
 
-  const fetchSellers = async () => {
+  const fetchUsers = async () => {
     try {
-      const { data: rolesData, error: rolesError } = await supabase
+      // Fetch INVENTAR users
+      const { data: inventarRolesData, error: inventarRolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "INVENTAR");
+
+      if (inventarRolesError) throw inventarRolesError;
+
+      const inventarUserIds = inventarRolesData?.map((r) => r.user_id) || [];
+
+      if (inventarUserIds.length > 0) {
+        const { data: inventarProfilesData, error: inventarProfilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, email, qr_prefix")
+          .in("id", inventarUserIds);
+
+        if (inventarProfilesError) throw inventarProfilesError;
+        setInventarUsers(inventarProfilesData || []);
+      } else {
+        setInventarUsers([]);
+      }
+
+      // Fetch PRODAJALEC users
+      const { data: prodajalecRolesData, error: prodajalecRolesError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "PRODAJALEC");
 
-      if (rolesError) throw rolesError;
+      if (prodajalecRolesError) throw prodajalecRolesError;
 
-      const userIds = rolesData?.map((r) => r.user_id) || [];
+      const prodajalecUserIds = prodajalecRolesData?.map((r) => r.user_id) || [];
 
-      if (userIds.length === 0) {
-        setSellers([]);
-        setLoading(false);
-        return;
+      if (prodajalecUserIds.length > 0) {
+        const { data: prodajalecProfilesData, error: prodajalecProfilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, qr_prefix, email")
+          .in("id", prodajalecUserIds);
+
+        if (prodajalecProfilesError) throw prodajalecProfilesError;
+        setProdajalecUsers(prodajalecProfilesData || []);
+      } else {
+        setProdajalecUsers([]);
       }
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name, qr_prefix, email")
-        .in("id", userIds);
-
-      if (profilesError) throw profilesError;
-
-      setSellers(profilesData || []);
     } catch (error: any) {
       toast({
-        title: "Napaka pri nalaganju prodajalcev",
+        title: "Napaka pri nalaganju uporabnikov",
         description: error.message,
         variant: "destructive",
       });
@@ -69,12 +102,19 @@ export default function AccountsManagement() {
     }
   };
 
-  const handleCreateSeller = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent, role: UserRole) => {
     e.preventDefault();
+    
+    const isInventar = role === 'INVENTAR';
+    const setCreating = isInventar ? setCreatingInventar : setCreatingProdajalec;
+    const email = isInventar ? newInventarEmail : newProdajalecEmail;
+    const password = isInventar ? newInventarPassword : newProdajalecPassword;
+    const fullName = isInventar ? newInventarName : newProdajalecName;
+    const qrPrefix = isInventar ? undefined : newProdajalecPrefix;
+    
     setCreating(true);
 
     try {
-      // Get the current session token
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -87,9 +127,8 @@ export default function AccountsManagement() {
         return;
       }
 
-      // Call the edge function to create the seller
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-seller`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
         {
           method: 'POST',
           headers: {
@@ -97,10 +136,11 @@ export default function AccountsManagement() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: newSellerEmail,
-            password: newSellerPassword,
-            full_name: newSellerName,
-            qr_prefix: newSellerPrefix,
+            email,
+            password,
+            full_name: fullName,
+            qr_prefix: qrPrefix,
+            role,
           }),
         }
       );
@@ -122,13 +162,21 @@ export default function AccountsManagement() {
         description: result.message,
       });
 
-      setNewSellerEmail("");
-      setNewSellerPassword("");
-      setNewSellerName("");
-      setNewSellerPrefix("");
-      fetchSellers();
+      // Reset form
+      if (isInventar) {
+        setNewInventarEmail("");
+        setNewInventarPassword("");
+        setNewInventarName("");
+      } else {
+        setNewProdajalecEmail("");
+        setNewProdajalecPassword("");
+        setNewProdajalecName("");
+        setNewProdajalecPrefix("");
+      }
+      
+      fetchUsers();
     } catch (error: any) {
-      console.error('Error creating seller:', error);
+      console.error('Error creating user:', error);
       toast({
         title: "Napaka pri ustvarjanju računa",
         description: error.message || "Prišlo je do napake. Prosim poskusite znova.",
@@ -139,20 +187,26 @@ export default function AccountsManagement() {
     }
   };
 
-  const handleUpdateSeller = async (sellerId: string) => {
+  const handleUpdateUser = async (userId: string) => {
     try {
-      // Update QR prefix
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ qr_prefix: editPrefix.toUpperCase() })
-        .eq("id", sellerId);
+      const updateData: any = {};
+      
+      if (editPrefix) {
+        updateData.qr_prefix = editPrefix.toUpperCase();
+      }
 
-      if (profileError) throw profileError;
+      if (Object.keys(updateData).length > 0) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update(updateData)
+          .eq("id", userId);
 
-      // Update password if provided
+        if (profileError) throw profileError;
+      }
+
       if (editPassword) {
         const { error: passwordError } = await supabase.auth.admin.updateUserById(
-          sellerId,
+          userId,
           { password: editPassword }
         );
 
@@ -161,14 +215,14 @@ export default function AccountsManagement() {
 
       toast({
         title: "Uspešno posodobljeno",
-        description: "Podatki prodajalca so bili posodobljeni.",
+        description: "Podatki uporabnika so bili posodobljeni.",
       });
 
-      setEditingSeller(null);
+      setEditingUser(null);
       setEditEmail("");
       setEditPassword("");
       setEditPrefix("");
-      fetchSellers();
+      fetchUsers();
     } catch (error: any) {
       toast({
         title: "Napaka pri posodabljanju",
@@ -178,15 +232,15 @@ export default function AccountsManagement() {
     }
   };
 
-  const startEditSeller = (seller: Seller) => {
-    setEditingSeller(seller.id);
-    setEditEmail(seller.email);
+  const startEditUser = (user: User) => {
+    setEditingUser(user.id);
+    setEditEmail(user.email);
     setEditPassword("");
-    setEditPrefix(seller.qr_prefix || "");
+    setEditPrefix(user.qr_prefix || "");
   };
 
   const cancelEdit = () => {
-    setEditingSeller(null);
+    setEditingUser(null);
     setEditEmail("");
     setEditPassword("");
     setEditPrefix("");
@@ -208,149 +262,228 @@ export default function AccountsManagement() {
           <div className="container mx-auto p-6 space-y-6">
             <h1 className="text-3xl font-bold">Upravljanje računov</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ustvari novega prodajalca</CardTitle>
-          <CardDescription>Dodaj nov račun za prodajalca</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreateSeller} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Ime in priimek</label>
-              <Input
-                type="text"
-                value={newSellerName}
-                onChange={(e) => setNewSellerName(e.target.value)}
-                placeholder="George Ristov"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={newSellerEmail}
-                onChange={(e) => setNewSellerEmail(e.target.value)}
-                placeholder="george@example.com"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Geslo</label>
-              <Input
-                type="password"
-                value={newSellerPassword}
-                onChange={(e) => setNewSellerPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">QR Predpona (npr. RIST)</label>
-              <Input
-                type="text"
-                value={newSellerPrefix}
-                onChange={(e) => setNewSellerPrefix(e.target.value)}
-                placeholder="RIST"
-                maxLength={4}
-              />
-            </div>
-            <Button type="submit" disabled={creating}>
-              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Ustvari račun
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <Tabs defaultValue="inventar" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="inventar">Inventar računi</TabsTrigger>
+                <TabsTrigger value="prodajalec">Prodajalec računi</TabsTrigger>
+              </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Obstoječi prodajalci</CardTitle>
-          <CardDescription>Seznam vseh prodajalcev v sistemu</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {sellers.length === 0 ? (
-            <p className="text-muted-foreground">Ni prodajalcev</p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {sellers.map((seller) => (
-                <Card key={seller.id}>
+              <TabsContent value="inventar" className="space-y-6">
+                <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">{seller.full_name}</CardTitle>
+                    <CardTitle>Ustvari nov INVENTAR račun</CardTitle>
+                    <CardDescription>Dodaj nov račun za inventar osebje</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {editingSeller === seller.id ? (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-sm font-medium">Email (samo za ogled)</label>
-                          <Input
-                            value={editEmail}
-                            disabled
-                            className="bg-muted"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Novo geslo (opcijsko)</label>
-                          <Input
-                            type="password"
-                            value={editPassword}
-                            onChange={(e) => setEditPassword(e.target.value)}
-                            placeholder="Pusti prazno za ohranitev trenutnega"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">QR Predpona</label>
-                          <Input
-                            value={editPrefix}
-                            onChange={(e) => setEditPrefix(e.target.value.toUpperCase())}
-                            placeholder="RIST"
-                            maxLength={4}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleUpdateSeller(seller.id)}
-                            className="flex-1"
-                          >
-                            Shrani
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={cancelEdit}
-                            className="flex-1"
-                          >
-                            Prekliči
-                          </Button>
-                        </div>
+                    <form onSubmit={(e) => handleCreateUser(e, 'INVENTAR')} className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium">Ime in priimek</label>
+                        <Input
+                          type="text"
+                          value={newInventarName}
+                          onChange={(e) => setNewInventarName(e.target.value)}
+                          placeholder="Janez Novak"
+                          required
+                        />
                       </div>
+                      <div>
+                        <label className="text-sm font-medium">Email</label>
+                        <Input
+                          type="email"
+                          value={newInventarEmail}
+                          onChange={(e) => setNewInventarEmail(e.target.value)}
+                          placeholder="janez@example.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Geslo</label>
+                        <Input
+                          type="password"
+                          value={newInventarPassword}
+                          onChange={(e) => setNewInventarPassword(e.target.value)}
+                          placeholder="••••••••"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" disabled={creatingInventar}>
+                        {creatingInventar && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Ustvari INVENTAR račun
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Obstoječi INVENTAR uporabniki</CardTitle>
+                    <CardDescription>Seznam vseh INVENTAR uporabnikov</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {inventarUsers.length === 0 ? (
+                      <p className="text-muted-foreground">Ni INVENTAR uporabnikov</p>
                     ) : (
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Email</p>
-                          <p className="font-medium">{seller.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">QR Predpona</p>
-                          <p className="font-mono text-lg font-bold">
-                            {seller.qr_prefix || "Ni določeno"}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => startEditSeller(seller)}
-                          className="w-full"
-                          variant="outline"
-                        >
-                          Uredi podatke
-                        </Button>
+                      <div className="space-y-4">
+                        {inventarUsers.map((user) => (
+                          <div key={user.id} className="border rounded-lg p-4">
+                            {editingUser === user.id ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="text-sm font-medium">Email (samo za ogled)</label>
+                                  <Input type="email" value={editEmail} disabled />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Novo geslo (pusti prazno, če ne želiš spremeniti)</label>
+                                  <Input
+                                    type="password"
+                                    value={editPassword}
+                                    onChange={(e) => setEditPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button onClick={() => handleUpdateUser(user.id)}>Shrani</Button>
+                                  <Button variant="outline" onClick={cancelEdit}>Prekliči</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium">{user.full_name}</p>
+                                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                                </div>
+                                <Button variant="outline" onClick={() => startEditUser(user)}>
+                                  Uredi
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </TabsContent>
+
+              <TabsContent value="prodajalec" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ustvari nov PRODAJALEC račun</CardTitle>
+                    <CardDescription>Dodaj nov račun za prodajalca</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={(e) => handleCreateUser(e, 'PRODAJALEC')} className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium">Ime in priimek</label>
+                        <Input
+                          type="text"
+                          value={newProdajalecName}
+                          onChange={(e) => setNewProdajalecName(e.target.value)}
+                          placeholder="George Ristov"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Email</label>
+                        <Input
+                          type="email"
+                          value={newProdajalecEmail}
+                          onChange={(e) => setNewProdajalecEmail(e.target.value)}
+                          placeholder="george@example.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Geslo</label>
+                        <Input
+                          type="password"
+                          value={newProdajalecPassword}
+                          onChange={(e) => setNewProdajalecPassword(e.target.value)}
+                          placeholder="••••••••"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">QR Predpona (npr. RIST)</label>
+                        <Input
+                          type="text"
+                          value={newProdajalecPrefix}
+                          onChange={(e) => setNewProdajalecPrefix(e.target.value.toUpperCase())}
+                          placeholder="RIST"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" disabled={creatingProdajalec}>
+                        {creatingProdajalec && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Ustvari PRODAJALEC račun
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Obstoječi PRODAJALEC uporabniki</CardTitle>
+                    <CardDescription>Seznam vseh prodajalcev</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {prodajalecUsers.length === 0 ? (
+                      <p className="text-muted-foreground">Ni PRODAJALEC uporabnikov</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {prodajalecUsers.map((user) => (
+                          <div key={user.id} className="border rounded-lg p-4">
+                            {editingUser === user.id ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="text-sm font-medium">Email (samo za ogled)</label>
+                                  <Input type="email" value={editEmail} disabled />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">QR Predpona</label>
+                                  <Input
+                                    type="text"
+                                    value={editPrefix}
+                                    onChange={(e) => setEditPrefix(e.target.value.toUpperCase())}
+                                    placeholder="RIST"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Novo geslo (pusti prazno, če ne želiš spremeniti)</label>
+                                  <Input
+                                    type="password"
+                                    value={editPassword}
+                                    onChange={(e) => setEditPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button onClick={() => handleUpdateUser(user.id)}>Shrani</Button>
+                                  <Button variant="outline" onClick={cancelEdit}>Prekliči</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium">{user.full_name}</p>
+                                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                                  {user.qr_prefix && (
+                                    <p className="text-sm text-muted-foreground">QR: {user.qr_prefix}</p>
+                                  )}
+                                </div>
+                                <Button variant="outline" onClick={() => startEditUser(user)}>
+                                  Uredi
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
         </main>
       </div>

@@ -10,7 +10,7 @@ const Index = () => {
     if (!loading) {
       if (!user) {
         navigate('/auth');
-      } else if (role === 'INVENTAR') {
+      } else if (role === ('ADMIN' as any) || role === 'INVENTAR') {
         navigate('/inventar');
       } else if (role === 'PRODAJALEC') {
         navigate('/prodajalec');
