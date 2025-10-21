@@ -45,7 +45,7 @@ export default function QRGenerator() {
   const [printActiveQrCodes, setPrintActiveQrCodes] = useState<string[]>([]);
   const [prefix, setPrefix] = useState("");
   const [startNum, setStartNum] = useState(1);
-  const [endNum, setEndNum] = useState(200);
+  const [endNum, setEndNum] = useState(80);
   const [qrPerRow, setQrPerRow] = useState(3);
   const [printOption, setPrintOption] = useState("all");
   const [rangeStart, setRangeStart] = useState(1);
