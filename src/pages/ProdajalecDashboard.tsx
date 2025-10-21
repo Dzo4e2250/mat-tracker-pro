@@ -181,7 +181,6 @@ export default function ProdajalecDashboard() {
         if (insertError) throw insertError;
 
         toast.success('Predpražnik dodan na seznam čistih');
-        setShowScanner(false);
         fetchDoormats();
       }
     } catch (error: any) {
