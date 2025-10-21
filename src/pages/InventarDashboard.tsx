@@ -480,6 +480,12 @@ export default function InventarDashboard() {
                     <Table>
                       <TableHeader className="sticky top-0 bg-card">
                         <TableRow>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={selectedDoormats.length === filteredDoormats.length && filteredDoormats.length > 0}
+                              onCheckedChange={toggleSelectAll}
+                            />
+                          </TableHead>
                           <TableHead>QR Koda</TableHead>
                           <TableHead>Tip</TableHead>
                           <TableHead>Status</TableHead>
@@ -496,6 +502,12 @@ export default function InventarDashboard() {
                         ) : (
                           filteredDoormats.map((doormat) => (
                             <TableRow key={doormat.id}>
+                              <TableCell className="w-12">
+                                <Checkbox
+                                  checked={selectedDoormats.includes(doormat.id)}
+                                  onCheckedChange={() => toggleDoormatSelection(doormat.id)}
+                                />
+                              </TableCell>
                               <TableCell className="font-mono">{doormat.qr_code}</TableCell>
                               <TableCell>{doormat.type}</TableCell>
                               <TableCell>
