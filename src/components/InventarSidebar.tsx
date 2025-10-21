@@ -18,7 +18,7 @@ const menuItems = [
   { title: "Domov", url: "/inventar", icon: Home },
   { title: "Računi", url: "/inventar/accounts", icon: Users },
   { title: "QR Generator", url: "/inventar/qr-generator", icon: QrCode },
-  { title: "Prošnja za testerje", url: "/inventar/tester-requests", icon: FileText },
+  { title: "Naročilo", url: "/inventar/tester-requests", icon: FileText },
   { title: "Zgodovina", url: "/inventar/history", icon: History },
 ];
 
