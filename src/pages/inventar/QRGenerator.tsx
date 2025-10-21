@@ -580,7 +580,10 @@ export default function QRGenerator() {
                       }}
                     >
                       {getPrintQrCodes().map((code) => (
-                        <div key={code} className="flex flex-col items-center gap-2 p-3 bg-background rounded border">
+                        <div 
+                          key={`${code}-${qrPerRow}-${qrSize}`} 
+                          className="flex flex-col items-center gap-2 p-3 bg-background rounded border"
+                        >
                           <QRCodeCanvas
                             value={code}
                             size={qrSize}
