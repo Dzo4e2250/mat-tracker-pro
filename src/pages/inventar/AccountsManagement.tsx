@@ -74,6 +74,81 @@ export default function AccountsManagement() {
     setCreating(true);
 
     try {
+      // First try to find if user already exists by email
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('email', newSellerEmail)
+        .maybeSingle();
+
+      if (existingProfile) {
+        // User exists - check if they have PRODAJALEC role
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', existingProfile.id)
+          .eq('role', 'PRODAJALEC')
+          .maybeSingle();
+
+        if (existingRole) {
+          toast({
+            title: "Prodajalec že obstaja",
+            description: `${existingProfile.full_name} je že prodajalec v sistemu.`,
+            variant: "destructive",
+          });
+          setCreating(false);
+          return;
+        }
+
+        // User exists but doesn't have PRODAJALEC role - add it
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: existingProfile.id,
+            role: "PRODAJALEC",
+          });
+
+        if (roleError) {
+          console.error('Role insertion error:', roleError);
+          toast({
+            title: "Napaka pri dodajanju vloge",
+            description: roleError.message,
+            variant: "destructive",
+          });
+          setCreating(false);
+          return;
+        }
+
+        // Update profile with QR prefix if provided
+        if (newSellerPrefix) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .update({ 
+              qr_prefix: newSellerPrefix.toUpperCase(),
+              full_name: newSellerName  // Update name as well
+            })
+            .eq("id", existingProfile.id);
+
+          if (profileError) {
+            console.error('Profile update error:', profileError);
+          }
+        }
+
+        toast({
+          title: "Prodajalec dodan",
+          description: `${newSellerName} je bil uspešno dodan kot prodajalec.`,
+        });
+
+        setNewSellerEmail("");
+        setNewSellerPassword("");
+        setNewSellerName("");
+        setNewSellerPrefix("");
+        fetchSellers();
+        setCreating(false);
+        return;
+      }
+
+      // User doesn't exist - create new account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newSellerEmail,
         password: newSellerPassword,
@@ -86,21 +161,25 @@ export default function AccountsManagement() {
       });
 
       if (authError) {
-        // Handle specific error for existing user
-        if (authError.message.includes('User already registered') || 
-            authError.message.includes('already registered')) {
-          toast({
-            title: "Email že obstaja",
-            description: "Uporabnik s tem email naslovom že obstaja v sistemu. Prosim uporabite drug email naslov.",
-            variant: "destructive",
-          });
-          setCreating(false);
-          return;
-        }
-        throw authError;
+        console.error('Auth error:', authError);
+        toast({
+          title: "Napaka pri ustvarjanju računa",
+          description: authError.message,
+          variant: "destructive",
+        });
+        setCreating(false);
+        return;
       }
       
-      if (!authData.user) throw new Error("Ni podatkov o uporabniku");
+      if (!authData.user) {
+        toast({
+          title: "Napaka",
+          description: "Ni podatkov o uporabniku",
+          variant: "destructive",
+        });
+        setCreating(false);
+        return;
+      }
 
       // Update profile with QR prefix
       if (newSellerPrefix) {
@@ -109,7 +188,9 @@ export default function AccountsManagement() {
           .update({ qr_prefix: newSellerPrefix.toUpperCase() })
           .eq("id", authData.user.id);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error('Profile update error:', profileError);
+        }
       }
 
       const { error: roleError } = await supabase
@@ -119,7 +200,16 @@ export default function AccountsManagement() {
           role: "PRODAJALEC",
         });
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error('Role insertion error:', roleError);
+        toast({
+          title: "Napaka pri dodajanju vloge",
+          description: roleError.message,
+          variant: "destructive",
+        });
+        setCreating(false);
+        return;
+      }
 
       toast({
         title: "Uspešno ustvarjen račun",
