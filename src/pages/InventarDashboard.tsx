@@ -35,6 +35,7 @@ interface SellerStats {
   clean: number;
   on_test: number;
   dirty: number;
+  waiting_for_driver: number;
   total: number;
 }
 
@@ -118,9 +119,10 @@ export default function InventarDashboard() {
       return {
         id: seller.id,
         full_name: seller.full_name,
-        clean: sellerDoormats.filter(d => d.status === 'clean').length,
+        clean: sellerDoormats.filter(d => d.status === 'with_seller').length,
         on_test: sellerDoormats.filter(d => d.status === 'on_test').length,
         dirty: sellerDoormats.filter(d => d.status === 'dirty').length,
+        waiting_for_driver: sellerDoormats.filter(d => d.status === 'waiting_for_driver').length,
         total: sellerDoormats.length,
       };
     });
@@ -268,18 +270,22 @@ export default function InventarDashboard() {
                     
                     <CollapsibleContent>
                       <CardContent className="pt-0">
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                        <div className="grid grid-cols-4 gap-4">
+                          <div className="text-center p-4 rounded-lg bg-green-50">
                             <div className="text-sm text-muted-foreground mb-1">Čisti</div>
                             <div className="text-4xl font-bold">{seller.clean}</div>
                           </div>
-                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                          <div className="text-center p-4 rounded-lg bg-blue-50">
                             <div className="text-sm text-muted-foreground mb-1">Na testu</div>
                             <div className="text-4xl font-bold">{seller.on_test}</div>
                           </div>
-                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                          <div className="text-center p-4 rounded-lg bg-orange-50">
                             <div className="text-sm text-muted-foreground mb-1">Umazani</div>
                             <div className="text-4xl font-bold">{seller.dirty}</div>
+                          </div>
+                          <div className="text-center p-4 rounded-lg bg-purple-50">
+                            <div className="text-sm text-muted-foreground mb-1">Čaka šoferja</div>
+                            <div className="text-4xl font-bold">{seller.waiting_for_driver}</div>
                           </div>
                         </div>
                       </CardContent>
