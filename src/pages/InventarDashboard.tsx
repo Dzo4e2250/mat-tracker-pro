@@ -59,14 +59,25 @@ export default function InventarDashboard() {
     try {
       const { data, error } = await supabase
         .from('doormats')
-        .select(`
-          *,
-          profiles:seller_id(full_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDoormats(data as any || []);
+      
+      // Manually fetch profiles for each doormat
+      const doormatData = await Promise.all((data || []).map(async (doormat) => {
+        if (doormat.seller_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', doormat.seller_id)
+            .single();
+          return { ...doormat, profiles: profile };
+        }
+        return doormat;
+      }));
+      
+      setDoormats(doormatData as any);
     } catch (error: any) {
       console.error('Error fetching doormats:', error);
     }
@@ -76,17 +87,23 @@ export default function InventarDashboard() {
     try {
       const { data: roles, error } = await supabase
         .from('user_roles')
-        .select(`
-          user_id,
-          profiles:user_id(full_name)
-        `)
+        .select('user_id')
         .eq('role', 'PRODAJALEC');
 
       if (error) throw error;
 
-      const sellersData = (roles || []).map((role: any) => ({
-        id: role.user_id,
-        full_name: role.profiles?.full_name || 'Unknown',
+      // Manually fetch profiles for each seller
+      const sellersData = await Promise.all((roles || []).map(async (role) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', role.user_id)
+          .single();
+        
+        return {
+          id: role.user_id,
+          full_name: profile?.full_name || 'Unknown',
+        };
       }));
 
       setSellers(sellersData);
