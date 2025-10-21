@@ -30,7 +30,9 @@ export default function QRGenerator() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState("");
   const [selectedStatsId, setSelectedStatsId] = useState("");
+  const [selectedReviewId, setSelectedReviewId] = useState("");
   const [sellerStats, setSellerStats] = useState<SellerStats[]>([]);
+  const [activeQrCodes, setActiveQrCodes] = useState<string[]>([]);
   const [prefix, setPrefix] = useState("");
   const [startNum, setStartNum] = useState(1);
   const [endNum, setEndNum] = useState(200);
@@ -41,6 +43,12 @@ export default function QRGenerator() {
     fetchSellers();
     fetchSellerStats();
   }, []);
+
+  useEffect(() => {
+    if (selectedReviewId) {
+      fetchActiveQrCodes(selectedReviewId);
+    }
+  }, [selectedReviewId]);
 
   const fetchSellers = async () => {
     try {
@@ -109,6 +117,37 @@ export default function QRGenerator() {
     } catch (error: any) {
       console.error('Error fetching seller stats:', error);
     }
+  };
+
+  const fetchActiveQrCodes = async (sellerId: string) => {
+    try {
+      const { data: doormats, error } = await supabase
+        .from('doormats')
+        .select('qr_code')
+        .eq('seller_id', sellerId);
+
+      if (error) throw error;
+
+      setActiveQrCodes(doormats?.map(d => d.qr_code) || []);
+    } catch (error: any) {
+      console.error('Error fetching active QR codes:', error);
+    }
+  };
+
+  const getReviewQrCodes = () => {
+    const seller = sellers.find(s => s.id === selectedReviewId);
+    if (!seller || !seller.qr_prefix || !seller.qr_start_num || !seller.qr_end_num) {
+      return [];
+    }
+
+    const allCodes = [];
+    for (let i = seller.qr_start_num; i <= seller.qr_end_num; i++) {
+      const code = `${seller.qr_prefix}-${String(i).padStart(3, '0')}`;
+      const isActive = activeQrCodes.includes(code);
+      allCodes.push({ code, isActive });
+    }
+
+    return allCodes;
   };
 
   const handleSellerChange = (sellerId: string) => {
@@ -292,47 +331,85 @@ export default function QRGenerator() {
             <CardHeader>
               <CardTitle>Pregled vseh QR kod</CardTitle>
               <CardDescription>
-                Skupaj QR kod: 61 | Aktivnih: 31
+                Pregled generiranih in aktivnih QR kod po prodajalcih
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label>Prikaži</Label>
-                <RadioGroup defaultValue="all">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="all" id="all" />
-                    <Label htmlFor="all">Vse</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="active" id="active" />
-                    <Label htmlFor="active">Aktivne</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="unused" id="unused" />
-                    <Label htmlFor="unused">Proste</Label>
-                  </div>
-                </RadioGroup>
+                <Label htmlFor="review-seller">Izberi prodajalca</Label>
+                <Select value={selectedReviewId} onValueChange={setSelectedReviewId}>
+                  <SelectTrigger id="review-seller">
+                    <SelectValue placeholder="Izberi prodajalca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sellers.map((seller) => (
+                      <SelectItem key={seller.id} value={seller.id}>
+                        {seller.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-4">
-                <p className="font-medium">Prikazanih: 61</p>
-                <div className="grid grid-cols-5 gap-4">
-                  {Array.from({ length: 15 }, (_, i) => (
-                    <div key={i} className="space-y-2 p-4 border rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full" />
-                        <span className="font-medium">PRED-{String(i + 1).padStart(3, "0")}</span>
+              {selectedReviewId && (() => {
+                const qrCodes = getReviewQrCodes();
+                const stats = sellerStats.find(s => s.id === selectedReviewId);
+                
+                return qrCodes.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg bg-primary/5">
+                        <p className="text-sm text-muted-foreground mb-1">Generirane kode</p>
+                        <p className="text-3xl font-bold">{stats?.total_codes || 0}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Uporabljena: {Math.floor(Math.random() * 3)}x
-                      </p>
-                      <Button variant="outline" size="sm" className="w-full">
-                        Reset
-                      </Button>
+                      <div className="p-4 border rounded-lg bg-green-500/10">
+                        <p className="text-sm text-muted-foreground mb-1">Aktivne kode</p>
+                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                          {stats?.active_codes || 0}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+
+                    <div className="space-y-4">
+                      <p className="font-medium">Prikazanih: {qrCodes.length} QR kod</p>
+                      <div className="grid grid-cols-4 gap-3 max-h-[500px] overflow-auto">
+                        {qrCodes.map((item) => (
+                          <div 
+                            key={item.code} 
+                            className={`p-3 border rounded-lg ${
+                              item.isActive 
+                                ? 'bg-green-500/10 border-green-500/30' 
+                                : 'bg-muted/50'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-2 h-2 rounded-full ${
+                                item.isActive ? 'bg-green-500' : 'bg-muted-foreground'
+                              }`} />
+                              <span className="font-mono text-sm font-medium">
+                                {item.code}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {item.isActive ? 'Aktivna' : 'Neaktivna'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Prodajalec nima generiranih QR kod
+                  </div>
+                );
+              })()}
+
+              {!selectedReviewId && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Izberite prodajalca za prikaz QR kod
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
