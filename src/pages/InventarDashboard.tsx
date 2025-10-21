@@ -1,15 +1,17 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LogOut, UserPlus, Package, Send } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, UserPlus, Package, Send, LogOut } from "lucide-react";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { InventarSidebar } from "@/components/InventarSidebar";
 
 const DOORMAT_TYPES = ['MBW0', 'MBW1', 'MBW2', 'MBW4', 'ERM10R', 'ERM11R'];
 
@@ -43,6 +45,7 @@ export default function InventarDashboard() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [selectedSeller, setSelectedSeller] = useState('');
   const [selectedDoormats, setSelectedDoormats] = useState<string[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -60,7 +63,6 @@ export default function InventarDashboard() {
 
       if (error) throw error;
       
-      // Fetch seller names separately
       const doormatData = await Promise.all((data || []).map(async (doormat) => {
         if (doormat.seller_id) {
           const { data: profile } = await supabase
@@ -135,7 +137,10 @@ export default function InventarDashboard() {
 
       if (roleError) throw roleError;
 
-      toast.success('Prodajalec uspešno ustvarjen');
+      toast({
+        title: "Uspešno",
+        description: "Prodajalec uspešno ustvarjen",
+      });
       setEmail('');
       setPassword('');
       setFullName('');
@@ -143,7 +148,11 @@ export default function InventarDashboard() {
       fetchSellers();
     } catch (error: any) {
       console.error('Error creating prodajalec:', error);
-      toast.error(error.message || 'Napaka pri ustvarjanju prodajalca');
+      toast({
+        title: "Napaka",
+        description: error.message || 'Napaka pri ustvarjanju prodajalca',
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -164,14 +173,21 @@ export default function InventarDashboard() {
 
       if (error) throw error;
 
-      toast.success('Predpražnik dodan');
+      toast({
+        title: "Uspešno",
+        description: "Predpražnik dodan",
+      });
       setQrCode('');
       setDoormatType('');
       setIsDoormatDialogOpen(false);
       fetchDoormats();
     } catch (error: any) {
       console.error('Error adding doormat:', error);
-      toast.error(error.message || 'Napaka pri dodajanju predpražnika');
+      toast({
+        title: "Napaka",
+        description: error.message || 'Napaka pri dodajanju predpražnika',
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -189,14 +205,21 @@ export default function InventarDashboard() {
 
       if (error) throw error;
 
-      toast.success(`${selectedDoormats.length} predpražnikov poslanih`);
+      toast({
+        title: "Uspešno",
+        description: `${selectedDoormats.length} predpražnikov poslanih`,
+      });
       setSelectedDoormats([]);
       setSelectedSeller('');
       setIsSendDialogOpen(false);
       fetchDoormats();
     } catch (error: any) {
       console.error('Error sending doormats:', error);
-      toast.error(error.message || 'Napaka pri pošiljanju predpražnikov');
+      toast({
+        title: "Napaka",
+        description: error.message || 'Napaka pri pošiljanju predpražnikov',
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -205,263 +228,263 @@ export default function InventarDashboard() {
   const availableDoormats = doormats.filter(d => d.status === 'sent_by_inventar' && !d.seller_id);
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Inventar Dashboard</h1>
-            <p className="text-muted-foreground">Upravljanje predpražnikov in prodajalcev</p>
-          </div>
-          <Button variant="outline" onClick={signOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Odjava
-          </Button>
-        </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <InventarSidebar />
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold">Domov - Pregled</h1>
+              <Button variant="outline" onClick={signOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Odjava
+              </Button>
+            </div>
 
-        <div className="grid gap-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Prodajalci</CardTitle>
-                <CardDescription>{sellers.length} aktivnih</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Dodaj prodajalca
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Dodaj novega prodajalca</DialogTitle>
-                      <DialogDescription>
-                        Ustvari nov račun za prodajalca
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="name">Ime in priimek</Label>
-                        <Input
-                          id="name"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Janez Novak"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="janez.novak@primer.si"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="password">Geslo</Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••••••"
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={handleCreateProdajalec} disabled={isLoading}>
-                        {isLoading ? 'Ustvarjam...' : 'Ustvari prodajalca'}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prodajalci</CardTitle>
+                  <CardDescription>{sellers.length} aktivnih</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Dodaj prodajalca
                       </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Predpražniki</CardTitle>
-                <CardDescription>{doormats.length} skupaj</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Dialog open={isDoormatDialogOpen} onOpenChange={setIsDoormatDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <Package className="mr-2 h-4 w-4" />
-                      Dodaj predpražnik
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Dodaj predpražnik</DialogTitle>
-                      <DialogDescription>
-                        Dodaj nov testni predpražnik v sistem
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="qr-code">QR koda</Label>
-                        <Input
-                          id="qr-code"
-                          value={qrCode}
-                          onChange={(e) => setQrCode(e.target.value)}
-                          placeholder="Vnesi QR kodo"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="type">Vrsta</Label>
-                        <Select value={doormatType} onValueChange={setDoormatType}>
-                          <SelectTrigger id="type">
-                            <SelectValue placeholder="Izberi vrsto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DOORMAT_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={handleAddDoormat} disabled={isLoading}>
-                        {isLoading ? 'Dodajam...' : 'Dodaj'}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pošlji testne</CardTitle>
-                <CardDescription>{availableDoormats.length} na voljo</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full" disabled={availableDoormats.length === 0}>
-                      <Send className="mr-2 h-4 w-4" />
-                      Pošlji prodajalcu
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Pošlji testne predpražnike</DialogTitle>
-                      <DialogDescription>
-                        Izberi predpražnike in prodajalca
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label>Prodajalec</Label>
-                        <Select value={selectedSeller} onValueChange={setSelectedSeller}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Izberi prodajalca" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sellers.map((seller) => (
-                              <SelectItem key={seller.id} value={seller.id}>
-                                {seller.full_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Predpražniki ({selectedDoormats.length} izbranih)</Label>
-                        <div className="border rounded-md max-h-60 overflow-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-12"></TableHead>
-                                <TableHead>QR koda</TableHead>
-                                <TableHead>Vrsta</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {availableDoormats.map((doormat) => (
-                                <TableRow key={doormat.id}>
-                                  <TableCell>
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedDoormats.includes(doormat.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedDoormats([...selectedDoormats, doormat.id]);
-                                        } else {
-                                          setSelectedDoormats(selectedDoormats.filter(id => id !== doormat.id));
-                                        }
-                                      }}
-                                    />
-                                  </TableCell>
-                                  <TableCell>{doormat.qr_code}</TableCell>
-                                  <TableCell>{doormat.type}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Dodaj novega prodajalca</DialogTitle>
+                        <DialogDescription>
+                          Ustvari nov račun za prodajalca
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Ime in priimek</Label>
+                          <Input
+                            id="name"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            placeholder="Janez Novak"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="janez.novak@primer.si"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="password">Geslo</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                          />
                         </div>
                       </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={handleSendDoormats} disabled={isLoading || !selectedSeller || selectedDoormats.length === 0}>
-                        {isLoading ? 'Pošiljam...' : 'Pošlji'}
+                      <DialogFooter>
+                        <Button onClick={handleCreateProdajalec} disabled={isLoading}>
+                          {isLoading ? 'Ustvarjam...' : 'Ustvari prodajalca'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Predpražniki</CardTitle>
+                  <CardDescription>{doormats.length} skupaj</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Dialog open={isDoormatDialogOpen} onOpenChange={setIsDoormatDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full">
+                        <Package className="mr-2 h-4 w-4" />
+                        Dodaj predpražnik
                       </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Dodaj predpražnik</DialogTitle>
+                        <DialogDescription>
+                          Dodaj nov testni predpražnik v sistem
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="qr-code">QR koda</Label>
+                          <Input
+                            id="qr-code"
+                            value={qrCode}
+                            onChange={(e) => setQrCode(e.target.value)}
+                            placeholder="Vnesi QR kodo"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="type">Vrsta</Label>
+                          <Select value={doormatType} onValueChange={setDoormatType}>
+                            <SelectTrigger id="type">
+                              <SelectValue placeholder="Izberi vrsto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DOORMAT_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button onClick={handleAddDoormat} disabled={isLoading}>
+                          {isLoading ? 'Dodajam...' : 'Dodaj'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pošlji testne</CardTitle>
+                  <CardDescription>{availableDoormats.length} na voljo</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full" disabled={availableDoormats.length === 0}>
+                        <Send className="mr-2 h-4 w-4" />
+                        Pošlji prodajalcu
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Pošlji testne predpražnike</DialogTitle>
+                        <DialogDescription>
+                          Izberi predpražnike in prodajalca
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label>Prodajalec</Label>
+                          <Select value={selectedSeller} onValueChange={setSelectedSeller}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Izberi prodajalca" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sellers.map((seller) => (
+                                <SelectItem key={seller.id} value={seller.id}>
+                                  {seller.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Predpražniki ({selectedDoormats.length} izbranih)</Label>
+                          <div className="border rounded-md max-h-60 overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-12"></TableHead>
+                                  <TableHead>QR koda</TableHead>
+                                  <TableHead>Vrsta</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {availableDoormats.map((doormat) => (
+                                  <TableRow key={doormat.id}>
+                                    <TableCell>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedDoormats.includes(doormat.id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setSelectedDoormats([...selectedDoormats, doormat.id]);
+                                          } else {
+                                            setSelectedDoormats(selectedDoormats.filter(id => id !== doormat.id));
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell>{doormat.qr_code}</TableCell>
+                                    <TableCell>{doormat.type}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button onClick={handleSendDoormats} disabled={isLoading || !selectedSeller || selectedDoormats.length === 0}>
+                          {isLoading ? 'Pošiljam...' : 'Pošlji'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Vsi predpražniki</CardTitle>
+                <CardDescription>Pregled vseh predpražnikov v sistemu</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>QR koda</TableHead>
+                      <TableHead>Vrsta</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Prodajalec</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {doormats.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Ni predpražnikov
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      doormats.map((doormat) => (
+                        <TableRow key={doormat.id}>
+                          <TableCell className="font-mono">{doormat.qr_code}</TableCell>
+                          <TableCell>{doormat.type}</TableCell>
+                          <TableCell>
+                            <span className="text-xs px-2 py-1 rounded-full bg-secondary">
+                              {doormat.status}
+                            </span>
+                          </TableCell>
+                          <TableCell>{doormat.profiles?.full_name || '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Vsi predpražniki</CardTitle>
-              <CardDescription>Pregled vseh predpražnikov v sistemu</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>QR koda</TableHead>
-                    <TableHead>Vrsta</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Prodajalec</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {doormats.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Ni predpražnikov
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    doormats.map((doormat) => (
-                      <TableRow key={doormat.id}>
-                        <TableCell className="font-mono">{doormat.qr_code}</TableCell>
-                        <TableCell>{doormat.type}</TableCell>
-                        <TableCell>
-                          <span className="text-xs px-2 py-1 rounded-full bg-secondary">
-                            {doormat.status}
-                          </span>
-                        </TableCell>
-                        <TableCell>{doormat.profiles?.full_name || '-'}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

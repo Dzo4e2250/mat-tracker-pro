@@ -7,6 +7,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import InventarDashboard from "./pages/InventarDashboard";
+import AccountsManagement from "./pages/inventar/AccountsManagement";
+import QRGenerator from "./pages/inventar/QRGenerator";
 import ProdajalecDashboard from "./pages/ProdajalecDashboard";
 import Contacts from "./pages/Contacts";
 import NotFound from "./pages/NotFound";
@@ -24,6 +26,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/inventar" element={<InventarDashboard />} />
+            <Route path="/inventar/accounts" element={<AccountsManagement />} />
+            <Route path="/inventar/qr-generator" element={<QRGenerator />} />
             <Route path="/prodajalec" element={<ProdajalecDashboard />} />
             <Route path="/contacts" element={<Contacts />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
