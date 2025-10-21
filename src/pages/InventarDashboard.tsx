@@ -118,9 +118,10 @@ export default function InventarDashboard() {
 
   const getFilteredDoormats = () => {
     return doormats.filter(d => {
+      const sellerMatch = selectedSellerId === "all" || d.seller_id === selectedSellerId;
       const statusMatch = statusFilter === "all" || d.status === statusFilter;
       const typeMatch = typeFilter === "all" || d.type === typeFilter;
-      return statusMatch && typeMatch;
+      return sellerMatch && statusMatch && typeMatch;
     });
   };
 
