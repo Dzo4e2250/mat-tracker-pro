@@ -167,9 +167,9 @@ export default function DeletionHistory() {
     }
   };
 
-  const getTotalQuantity = (quantities: any) => {
+  const getTotalQuantity = (quantities: any): number => {
     if (!quantities || typeof quantities !== 'object') return 0;
-    return Object.values(quantities).reduce((sum: number, qty: any) => sum + (Number(qty) || 0), 0);
+    return Object.values(quantities as Record<string, number>).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
   };
 
   const getDeletionTypeLabel = (type: string) => {
