@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Home, Camera, Package, Heart, Circle, Search } from 'lucide-react';
+import { Home, Camera, Package, Heart, Circle, Search, Clipboard } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -460,7 +460,7 @@ export default function ProdajalecDashboard() {
               onClick={() => navigate('/contacts')}
               className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground"
             >
-              <Circle className="h-6 w-6" />
+              <Clipboard className="h-6 w-6" />
               <span className="text-xs">Kontakti</span>
             </button>
           </div>
@@ -648,7 +648,7 @@ export default function ProdajalecDashboard() {
             onClick={() => navigate('/contacts')}
             className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground"
           >
-            <Circle className="h-6 w-6" />
+            <Clipboard className="h-6 w-6" />
             <span className="text-xs">Kontakti</span>
           </button>
         </div>
