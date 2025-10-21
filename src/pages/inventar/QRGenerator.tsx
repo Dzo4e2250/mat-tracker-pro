@@ -185,6 +185,44 @@ export default function QRGenerator() {
     }
   };
 
+  const syncSellerQrRange = async (sellerId: string, sellerPrefix: string) => {
+    try {
+      // Preberi VSE doormats za tega prodajalca
+      const { data: allDoormats } = await supabase
+        .from('doormats')
+        .select('qr_code')
+        .eq('seller_id', sellerId)
+        .like('qr_code', `${sellerPrefix}-%`);
+
+      if (!allDoormats || allDoormats.length === 0) {
+        return { startNum: null, endNum: null };
+      }
+
+      // Izvleči številke iz QR kod
+      const numbers = allDoormats.map(d => {
+        const match = d.qr_code.match(/-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      }).filter(num => num > 0);
+
+      const minNum = Math.min(...numbers);
+      const maxNum = Math.max(...numbers);
+
+      // Posodobi profil prodajalca z dejanskimi vrednostmi
+      await supabase
+        .from('profiles')
+        .update({
+          qr_start_num: minNum,
+          qr_end_num: maxNum
+        })
+        .eq('id', sellerId);
+
+      return { startNum: minNum, endNum: maxNum };
+    } catch (error) {
+      console.error('Error syncing seller QR range:', error);
+      return { startNum: null, endNum: null };
+    }
+  };
+
   const getReviewQrCodes = () => {
     const seller = sellers.find(s => s.id === selectedReviewId);
     if (!seller || !seller.qr_prefix || !seller.qr_start_num || !seller.qr_end_num) {
@@ -260,8 +298,12 @@ export default function QRGenerator() {
 
       if (error) throw error;
 
+      // Sinhronizacija profila s QR kodami v bazi (če obstajajo)
+      await syncSellerQrRange(selectedSellerId, prefix);
+
       // Refresh stats after generating
       await fetchSellerStats();
+      await fetchSellers();
       
       toast.success(`Generirano ${endNum - startNum + 1} QR kod za prodajalca`);
     } catch (error: any) {

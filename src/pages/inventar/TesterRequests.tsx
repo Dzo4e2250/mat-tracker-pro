@@ -134,6 +134,44 @@ export default function TesterRequests() {
     }
   };
 
+  const syncSellerQrRange = async (sellerId: string, sellerPrefix: string) => {
+    try {
+      // Preberi VSE doormats za tega prodajalca
+      const { data: allDoormats } = await supabase
+        .from('doormats')
+        .select('qr_code')
+        .eq('seller_id', sellerId)
+        .like('qr_code', `${sellerPrefix}-%`);
+
+      if (!allDoormats || allDoormats.length === 0) {
+        return { startNum: null, endNum: null };
+      }
+
+      // Izvleči številke iz QR kod
+      const numbers = allDoormats.map(d => {
+        const match = d.qr_code.match(/-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      }).filter(num => num > 0);
+
+      const minNum = Math.min(...numbers);
+      const maxNum = Math.max(...numbers);
+
+      // Posodobi profil prodajalca z dejanskimi vrednostmi
+      await supabase
+        .from('profiles')
+        .update({
+          qr_start_num: minNum,
+          qr_end_num: maxNum
+        })
+        .eq('id', sellerId);
+
+      return { startNum: minNum, endNum: maxNum };
+    } catch (error) {
+      console.error('Error syncing seller QR range:', error);
+      return { startNum: null, endNum: null };
+    }
+  };
+
   const fetchNextQrNumber = async (sellerId: string) => {
     try {
       const seller = sellers.find(s => s.id === sellerId);
@@ -280,24 +318,8 @@ export default function TesterRequests() {
 
       if (insertError) throw insertError;
 
-      // Update seller's profile with the new QR range
-      // Keep existing start number if set, extend end number if needed
-      const highestNumber = nextNumber - 1;
-      const currentStartNum = seller.qr_start_num || 1;
-      const currentEndNum = seller.qr_end_num || 0;
-      const newEndNum = Math.max(currentEndNum, highestNumber);
-      
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          qr_start_num: currentStartNum,
-          qr_end_num: newEndNum
-        })
-        .eq('id', request.seller_id);
-
-      if (profileError) {
-        console.error('Error updating seller profile:', profileError);
-      }
+      // Sinhronizacija profila prodajalca z dejanskimi QR kodami v bazi
+      await syncSellerQrRange(request.seller_id, seller.qr_prefix);
 
       const { data: { user } } = await supabase.auth.getUser();
       const { error: updateError } = await supabase
