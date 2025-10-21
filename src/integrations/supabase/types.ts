@@ -218,6 +218,7 @@ export type Database = {
         | "on_test"
         | "dirty"
         | "collected_by_delivery"
+        | "waiting_for_driver"
       doormat_type: "MBW0" | "MBW1" | "MBW2" | "MBW4" | "ERM10R" | "ERM11R"
     }
     CompositeTypes: {
@@ -353,6 +354,7 @@ export const Constants = {
         "on_test",
         "dirty",
         "collected_by_delivery",
+        "waiting_for_driver",
       ],
       doormat_type: ["MBW0", "MBW1", "MBW2", "MBW4", "ERM10R", "ERM11R"],
     },

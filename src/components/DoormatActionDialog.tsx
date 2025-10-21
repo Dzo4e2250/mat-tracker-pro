@@ -5,64 +5,40 @@ interface DoormatActionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onPlaceTest: () => void;
-  onCollect?: () => void;
-  onSignContract?: () => void;
-  onExtend?: () => void;
-  isExpiring?: boolean;
   doormatCode: string;
+  doormatType: string;
 }
 
 export default function DoormatActionDialog({
   isOpen,
   onClose,
   onPlaceTest,
-  onCollect,
-  onSignContract,
-  onExtend,
-  isExpiring = false,
   doormatCode,
+  doormatType,
 }: DoormatActionDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{doormatCode}</DialogTitle>
+          <DialogTitle className="text-xl">{doormatCode}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{doormatType}</p>
         </DialogHeader>
-        <div className="space-y-3 py-4">
-          {!isExpiring ? (
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={onPlaceTest}
-            >
-              Položil test
-            </Button>
-          ) : (
-            <>
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={onCollect}
-              >
-                Pobral
-              </Button>
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={onSignContract}
-              >
-                Podpis pogodbe
-              </Button>
-              <Button 
-                className="w-full" 
-                size="lg"
-                variant="outline"
-                onClick={onExtend}
-              >
-                Podaljšaj za dodatnih 7 dni
-              </Button>
-            </>
-          )}
+        <div className="py-4">
+          <Button 
+            className="w-full" 
+            size="lg"
+            onClick={onPlaceTest}
+          >
+            Daj na test
+          </Button>
+          <Button 
+            className="w-full mt-3" 
+            size="lg"
+            variant="outline"
+            onClick={onClose}
+          >
+            Zapri
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
