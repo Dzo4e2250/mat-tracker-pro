@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import InventarDashboard from "./pages/InventarDashboard";
 import AccountsManagement from "./pages/inventar/AccountsManagement";
 import QRGenerator from "./pages/inventar/QRGenerator";
+import DeletionHistory from "./pages/inventar/DeletionHistory";
 import ProdajalecDashboard from "./pages/ProdajalecDashboard";
 import Contacts from "./pages/Contacts";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/inventar" element={<InventarDashboard />} />
             <Route path="/inventar/accounts" element={<AccountsManagement />} />
             <Route path="/inventar/qr-generator" element={<QRGenerator />} />
+            <Route path="/inventar/history" element={<DeletionHistory />} />
             <Route path="/prodajalec" element={<ProdajalecDashboard />} />
             <Route path="/contacts" element={<Contacts />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

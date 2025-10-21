@@ -210,6 +210,32 @@ export default function InventarDashboard() {
     if (!confirmed) return;
 
     try {
+      // First, get all doormats for this seller
+      const { data: doormatsList, error: fetchError } = await supabase
+        .from('doormats')
+        .select('id, qr_code, type, seller_id')
+        .eq('seller_id', selectedSellerId);
+
+      if (fetchError) throw fetchError;
+
+      // Get seller name
+      const sellerName = sellers.find(s => s.id === selectedSellerId)?.full_name || null;
+
+      // Log deletions to history
+      if (doormatsList && doormatsList.length > 0) {
+        const deletionRecords = doormatsList.map(doormat => ({
+          doormat_qr_code: doormat.qr_code,
+          doormat_type: doormat.type,
+          seller_id: doormat.seller_id,
+          seller_name: sellerName,
+          deleted_by: user?.id,
+          deletion_type: 'bulk_seller',
+        }));
+
+        await supabase.from('deletion_history').insert(deletionRecords);
+      }
+
+      // Delete the doormats
       const { error } = await supabase
         .from('doormats')
         .delete()
@@ -243,6 +269,40 @@ export default function InventarDashboard() {
     if (!confirmed) return;
 
     try {
+      // First, get details of selected doormats
+      const { data: doormatsList, error: fetchError } = await supabase
+        .from('doormats')
+        .select('id, qr_code, type, seller_id')
+        .in('id', selectedDoormats);
+
+      if (fetchError) throw fetchError;
+
+      // Log deletions to history
+      if (doormatsList && doormatsList.length > 0) {
+        const deletionRecords = await Promise.all(
+          doormatsList.map(async (doormat) => {
+            // Get seller name if exists
+            let sellerName = null;
+            if (doormat.seller_id) {
+              const seller = sellers.find(s => s.id === doormat.seller_id);
+              sellerName = seller?.full_name || null;
+            }
+
+            return {
+              doormat_qr_code: doormat.qr_code,
+              doormat_type: doormat.type,
+              seller_id: doormat.seller_id,
+              seller_name: sellerName,
+              deleted_by: user?.id,
+              deletion_type: 'selected',
+            };
+          })
+        );
+
+        await supabase.from('deletion_history').insert(deletionRecords);
+      }
+
+      // Delete the doormats
       const { error } = await supabase
         .from('doormats')
         .delete()

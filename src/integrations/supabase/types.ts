@@ -56,6 +56,42 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_history: {
+        Row: {
+          created_at: string
+          deleted_at: string
+          deleted_by: string
+          deletion_type: string
+          doormat_qr_code: string
+          doormat_type: Database["public"]["Enums"]["doormat_type"]
+          id: string
+          seller_id: string | null
+          seller_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string
+          deleted_by: string
+          deletion_type: string
+          doormat_qr_code: string
+          doormat_type: Database["public"]["Enums"]["doormat_type"]
+          id?: string
+          seller_id?: string | null
+          seller_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string
+          deleted_by?: string
+          deletion_type?: string
+          doormat_qr_code?: string
+          doormat_type?: Database["public"]["Enums"]["doormat_type"]
+          id?: string
+          seller_id?: string | null
+          seller_name?: string | null
+        }
+        Relationships: []
+      }
       doormats: {
         Row: {
           created_at: string | null
