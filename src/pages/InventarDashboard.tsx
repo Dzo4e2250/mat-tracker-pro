@@ -2,16 +2,15 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Package, Send, LogOut } from "lucide-react";
+import { Download, LogOut, ChevronDown } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import * as XLSX from 'xlsx';
 
 const DOORMAT_TYPES = ['MBW0', 'MBW1', 'MBW2', 'MBW4', 'ERM10R', 'ERM11R'];
 
@@ -21,30 +20,32 @@ interface Doormat {
   type: string;
   status: string;
   seller_id: string | null;
+  created_at: string;
   profiles?: { full_name: string };
 }
 
 interface Seller {
   id: string;
   full_name: string;
-  profiles?: { full_name: string };
+}
+
+interface SellerStats {
+  id: string;
+  full_name: string;
+  clean: number;
+  on_test: number;
+  dirty: number;
+  total: number;
 }
 
 export default function InventarDashboard() {
   const { user, signOut } = useAuth();
-  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
-  const [isDoormatDialogOpen, setIsDoormatDialogOpen] = useState(false);
-  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [qrCode, setQrCode] = useState('');
-  const [doormatType, setDoormatType] = useState('');
   const [doormats, setDoormats] = useState<Doormat[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
-  const [selectedSeller, setSelectedSeller] = useState('');
-  const [selectedDoormats, setSelectedDoormats] = useState<string[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [openSellers, setOpenSellers] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,24 +59,14 @@ export default function InventarDashboard() {
     try {
       const { data, error } = await supabase
         .from('doormats')
-        .select('*')
+        .select(`
+          *,
+          profiles:seller_id(full_name)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      const doormatData = await Promise.all((data || []).map(async (doormat) => {
-        if (doormat.seller_id) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', doormat.seller_id)
-            .single();
-          return { ...doormat, profiles: profile };
-        }
-        return doormat;
-      }));
-      
-      setDoormats(doormatData as any);
+      setDoormats(data as any || []);
     } catch (error: any) {
       console.error('Error fetching doormats:', error);
     }
@@ -85,403 +76,287 @@ export default function InventarDashboard() {
     try {
       const { data: roles, error } = await supabase
         .from('user_roles')
-        .select('user_id')
+        .select(`
+          user_id,
+          profiles:user_id(full_name)
+        `)
         .eq('role', 'PRODAJALEC');
 
       if (error) throw error;
-      
-      const sellersData = await Promise.all((roles || []).map(async (role) => {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', role.user_id)
-          .single();
-        
-        return {
-          id: role.user_id,
-          full_name: profile?.full_name || 'Unknown',
-          profiles: profile
-        };
+
+      const sellersData = (roles || []).map((role: any) => ({
+        id: role.user_id,
+        full_name: role.profiles?.full_name || 'Unknown',
       }));
-      
+
       setSellers(sellersData);
     } catch (error: any) {
       console.error('Error fetching sellers:', error);
     }
   };
 
-  const handleCreateProdajalec = async () => {
-    if (!email || !password || !fullName) return;
-
-    setIsLoading(true);
-    try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
-      });
-
-      if (signUpError) throw signUpError;
-      if (!signUpData.user) throw new Error('Uporabnik ni bil ustvarjen');
-
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: signUpData.user.id,
-          role: 'PRODAJALEC',
-        });
-
-      if (roleError) throw roleError;
-
-      toast({
-        title: "Uspešno",
-        description: "Prodajalec uspešno ustvarjen",
-      });
-      setEmail('');
-      setPassword('');
-      setFullName('');
-      setIsUserDialogOpen(false);
-      fetchSellers();
-    } catch (error: any) {
-      console.error('Error creating prodajalec:', error);
-      toast({
-        title: "Napaka",
-        description: error.message || 'Napaka pri ustvarjanju prodajalca',
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const getSellerStats = (): SellerStats[] => {
+    return sellers.map(seller => {
+      const sellerDoormats = doormats.filter(d => d.seller_id === seller.id);
+      return {
+        id: seller.id,
+        full_name: seller.full_name,
+        clean: sellerDoormats.filter(d => d.status === 'clean').length,
+        on_test: sellerDoormats.filter(d => d.status === 'on_test').length,
+        dirty: sellerDoormats.filter(d => d.status === 'dirty').length,
+        total: sellerDoormats.length,
+      };
+    });
   };
 
-  const handleAddDoormat = async () => {
-    if (!qrCode || !doormatType) return;
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('doormats')
-        .insert([{
-          qr_code: qrCode,
-          type: doormatType as any,
-          status: 'sent_by_inventar' as any
-        }]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Uspešno",
-        description: "Predpražnik dodan",
-      });
-      setQrCode('');
-      setDoormatType('');
-      setIsDoormatDialogOpen(false);
-      fetchDoormats();
-    } catch (error: any) {
-      console.error('Error adding doormat:', error);
-      toast({
-        title: "Napaka",
-        description: error.message || 'Napaka pri dodajanju predpražnika',
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+  const getTotalTestDoormats = () => {
+    if (selectedSellerId === "all") {
+      return doormats.length;
     }
+    return doormats.filter(d => d.seller_id === selectedSellerId).length;
   };
 
-  const handleSendDoormats = async () => {
-    if (!selectedSeller || selectedDoormats.length === 0) return;
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('doormats')
-        .update({ seller_id: selectedSeller })
-        .in('id', selectedDoormats);
-
-      if (error) throw error;
-
-      toast({
-        title: "Uspešno",
-        description: `${selectedDoormats.length} predpražnikov poslanih`,
-      });
-      setSelectedDoormats([]);
-      setSelectedSeller('');
-      setIsSendDialogOpen(false);
-      fetchDoormats();
-    } catch (error: any) {
-      console.error('Error sending doormats:', error);
-      toast({
-        title: "Napaka",
-        description: error.message || 'Napaka pri pošiljanju predpražnikov',
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const getFilteredDoormats = () => {
+    return doormats.filter(d => {
+      const statusMatch = statusFilter === "all" || d.status === statusFilter;
+      const typeMatch = typeFilter === "all" || d.type === typeFilter;
+      return statusMatch && typeMatch;
+    });
   };
 
-  const availableDoormats = doormats.filter(d => d.status === 'sent_by_inventar' && !d.seller_id);
+  const exportToExcel = () => {
+    const sellerStats = getSellerStats();
+    
+    const data = sellerStats.flatMap(seller => {
+      const sellerDoormats = doormats.filter(d => d.seller_id === seller.id);
+      
+      // Group by date and type
+      const groupedByDate: Record<string, Record<string, number>> = {};
+      
+      sellerDoormats.forEach(doormat => {
+        const date = new Date(doormat.created_at).toLocaleDateString('sl-SI');
+        if (!groupedByDate[date]) {
+          groupedByDate[date] = {};
+        }
+        if (!groupedByDate[date][doormat.type]) {
+          groupedByDate[date][doormat.type] = 0;
+        }
+        groupedByDate[date][doormat.type]++;
+      });
+
+      // Convert to rows
+      const rows = Object.entries(groupedByDate).flatMap(([date, types]) => 
+        Object.entries(types).map(([type, count]) => ({
+          'Prodajalec': seller.full_name,
+          'Datum': date,
+          'Koda predpražnika': type,
+          'Število izdanih': count,
+          'Na zalogi': sellerDoormats.filter(d => d.type === type && d.status === 'clean').length,
+        }))
+      );
+
+      return rows;
+    });
+
+    // Add totals
+    data.push({
+      'Prodajalec': 'SKUPAJ',
+      'Datum': '',
+      'Koda predpražnika': '',
+      'Število izdanih': doormats.length,
+      'Na zalogi': doormats.filter(d => d.status === 'clean').length,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventar');
+    XLSX.writeFile(wb, `Inventar_${new Date().toLocaleDateString('sl-SI')}.xlsx`);
+
+    toast({
+      title: "Uspešno",
+      description: "Excel datoteka je bila prenesena",
+    });
+  };
+
+  const sellerStats = getSellerStats();
+  const totalTestDoormats = getTotalTestDoormats();
+  const filteredDoormats = getFilteredDoormats();
 
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <InventarSidebar />
-        <main className="flex-1 overflow-auto">
-          <div className="container mx-auto p-6 space-y-6">
+        <main className="flex-1 overflow-auto bg-background">
+          <div className="container mx-auto p-6 space-y-8">
             <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold">Domov - Pregled</h1>
-              <Button variant="outline" onClick={signOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Odjava
-              </Button>
+              <h1 className="text-3xl font-bold">Pregled po prodajalcih</h1>
+              <div className="flex gap-2">
+                <Button onClick={exportToExcel} variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Inventar
+                </Button>
+                <Button variant="outline" onClick={signOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Odjava
+                </Button>
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Prodajalci</CardTitle>
-                  <CardDescription>{sellers.length} aktivnih</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full">
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Dodaj prodajalca
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Dodaj novega prodajalca</DialogTitle>
-                        <DialogDescription>
-                          Ustvari nov račun za prodajalca
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="name">Ime in priimek</Label>
-                          <Input
-                            id="name"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder="Janez Novak"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="email">Email</Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="janez.novak@primer.si"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="password">Geslo</Label>
-                          <Input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button onClick={handleCreateProdajalec} disabled={isLoading}>
-                          {isLoading ? 'Ustvarjam...' : 'Ustvari prodajalca'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </CardContent>
-              </Card>
+            {/* Izberi prodajalca */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Izberi prodajalca</label>
+                <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                  <SelectTrigger className="w-full bg-card">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Vsi skupaj</SelectItem>
+                    {sellers.map((seller) => (
+                      <SelectItem key={seller.id} value={seller.id}>
+                        {seller.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Predpražniki</CardTitle>
-                  <CardDescription>{doormats.length} skupaj</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Dialog open={isDoormatDialogOpen} onOpenChange={setIsDoormatDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full">
-                        <Package className="mr-2 h-4 w-4" />
-                        Dodaj predpražnik
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Dodaj predpražnik</DialogTitle>
-                        <DialogDescription>
-                          Dodaj nov testni predpražnik v sistem
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="qr-code">QR koda</Label>
-                          <Input
-                            id="qr-code"
-                            value={qrCode}
-                            onChange={(e) => setQrCode(e.target.value)}
-                            placeholder="Vnesi QR kodo"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="type">Vrsta</Label>
-                          <Select value={doormatType} onValueChange={setDoormatType}>
-                            <SelectTrigger id="type">
-                              <SelectValue placeholder="Izberi vrsto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {DOORMAT_TYPES.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button onClick={handleAddDoormat} disabled={isLoading}>
-                          {isLoading ? 'Dodajam...' : 'Dodaj'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </CardContent>
-              </Card>
+              <div className="text-lg">
+                Skupaj predpražnikov: <span className="font-bold text-2xl">{totalTestDoormats}</span>
+              </div>
+            </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Pošlji testne</CardTitle>
-                  <CardDescription>{availableDoormats.length} na voljo</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full" disabled={availableDoormats.length === 0}>
-                        <Send className="mr-2 h-4 w-4" />
-                        Pošlji prodajalcu
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Pošlji testne predpražnike</DialogTitle>
-                        <DialogDescription>
-                          Izberi predpražnike in prodajalca
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                          <Label>Prodajalec</Label>
-                          <Select value={selectedSeller} onValueChange={setSelectedSeller}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Izberi prodajalca" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sellers.map((seller) => (
-                                <SelectItem key={seller.id} value={seller.id}>
-                                  {seller.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+            {/* Povzetek po prodajalcih */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold">Povzetek po prodajalcih</h2>
+              
+              {sellerStats.map((seller) => (
+                <Collapsible
+                  key={seller.id}
+                  open={openSellers[seller.id]}
+                  onOpenChange={(open) => setOpenSellers({ ...openSellers, [seller.id]: open })}
+                >
+                  <Card>
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-xl">
+                            {seller.full_name} - Skupaj: <span className="text-3xl font-bold ml-2">{seller.total}</span>
+                          </CardTitle>
+                          <ChevronDown className={`h-5 w-5 transition-transform ${openSellers[seller.id] ? 'rotate-180' : ''}`} />
                         </div>
-                        <div className="grid gap-2">
-                          <Label>Predpražniki ({selectedDoormats.length} izbranih)</Label>
-                          <div className="border rounded-md max-h-60 overflow-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-12"></TableHead>
-                                  <TableHead>QR koda</TableHead>
-                                  <TableHead>Vrsta</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {availableDoormats.map((doormat) => (
-                                  <TableRow key={doormat.id}>
-                                    <TableCell>
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedDoormats.includes(doormat.id)}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setSelectedDoormats([...selectedDoormats, doormat.id]);
-                                          } else {
-                                            setSelectedDoormats(selectedDoormats.filter(id => id !== doormat.id));
-                                          }
-                                        }}
-                                      />
-                                    </TableCell>
-                                    <TableCell>{doormat.qr_code}</TableCell>
-                                    <TableCell>{doormat.type}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                            <div className="text-sm text-muted-foreground mb-1">Čisti</div>
+                            <div className="text-4xl font-bold">{seller.clean}</div>
+                          </div>
+                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                            <div className="text-sm text-muted-foreground mb-1">Na testu</div>
+                            <div className="text-4xl font-bold">{seller.on_test}</div>
+                          </div>
+                          <div className="text-center p-4 rounded-lg bg-accent/20">
+                            <div className="text-sm text-muted-foreground mb-1">Umazani</div>
+                            <div className="text-4xl font-bold">{seller.dirty}</div>
                           </div>
                         </div>
-                      </div>
-                      <DialogFooter>
-                        <Button onClick={handleSendDoormats} disabled={isLoading || !selectedSeller || selectedDoormats.length === 0}>
-                          {isLoading ? 'Pošiljam...' : 'Pošlji'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              ))}
+            </div>
+
+            {/* Podrobnosti */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold">Podrobnosti</h2>
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Filtriraj po statusu</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Vsi</SelectItem>
+                      <SelectItem value="clean">Čist</SelectItem>
+                      <SelectItem value="on_test">Na testu</SelectItem>
+                      <SelectItem value="dirty">Umazan</SelectItem>
+                      <SelectItem value="sent_by_inventar">Poslano od inventarja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Filtriraj po tipu</label>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Vsi</SelectItem>
+                      {DOORMAT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Card>
+                <CardContent className="p-0">
+                  <div className="overflow-auto max-h-[500px]">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-card">
+                        <TableRow>
+                          <TableHead>QR Koda</TableHead>
+                          <TableHead>Tip</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Prodajalec</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredDoormats.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              Ni predpražnikov
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredDoormats.map((doormat) => (
+                            <TableRow key={doormat.id}>
+                              <TableCell className="font-mono">{doormat.qr_code}</TableCell>
+                              <TableCell>{doormat.type}</TableCell>
+                              <TableCell>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                                  doormat.status === 'clean' ? 'bg-green-500/20 text-green-700 dark:text-green-300' :
+                                  doormat.status === 'dirty' ? 'bg-red-500/20 text-red-700 dark:text-red-300' :
+                                  doormat.status === 'on_test' ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300' :
+                                  'bg-secondary'
+                                }`}>
+                                  {doormat.status === 'clean' ? 'Čist' :
+                                   doormat.status === 'dirty' ? 'Umazan' :
+                                   doormat.status === 'on_test' ? 'Na testu' :
+                                   doormat.status}
+                                </span>
+                              </TableCell>
+                              <TableCell>{doormat.profiles?.full_name || '-'}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Vsi predpražniki</CardTitle>
-                <CardDescription>Pregled vseh predpražnikov v sistemu</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>QR koda</TableHead>
-                      <TableHead>Vrsta</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Prodajalec</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {doormats.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
-                          Ni predpražnikov
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      doormats.map((doormat) => (
-                        <TableRow key={doormat.id}>
-                          <TableCell className="font-mono">{doormat.qr_code}</TableCell>
-                          <TableCell>{doormat.type}</TableCell>
-                          <TableCell>
-                            <span className="text-xs px-2 py-1 rounded-full bg-secondary">
-                              {doormat.status}
-                            </span>
-                          </TableCell>
-                          <TableCell>{doormat.profiles?.full_name || '-'}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
           </div>
         </main>
       </div>
