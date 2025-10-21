@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,15 +6,62 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Seller {
+  id: string;
+  full_name: string;
+  qr_prefix: string | null;
+}
 
 export default function QRGenerator() {
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState("");
   const [prefix, setPrefix] = useState("");
   const [startNum, setStartNum] = useState(1);
   const [endNum, setEndNum] = useState(200);
   const [qrPerRow, setQrPerRow] = useState(3);
   const [printOption, setPrintOption] = useState("all");
+
+  useEffect(() => {
+    fetchSellers();
+  }, []);
+
+  const fetchSellers = async () => {
+    try {
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'PRODAJALEC');
+
+      if (rolesError) throw rolesError;
+
+      const sellersData = await Promise.all((roles || []).map(async (role) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, qr_prefix')
+          .eq('id', role.user_id)
+          .single();
+        
+        return profile;
+      }));
+
+      setSellers(sellersData.filter(Boolean) as Seller[]);
+    } catch (error: any) {
+      console.error('Error fetching sellers:', error);
+    }
+  };
+
+  const handleSellerChange = (sellerId: string) => {
+    setSelectedSellerId(sellerId);
+    const seller = sellers.find(s => s.id === sellerId);
+    if (seller?.qr_prefix) {
+      setPrefix(seller.qr_prefix);
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -41,18 +88,29 @@ export default function QRGenerator() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="prefix">Začetnice kode</Label>
-                <Input
-                  id="prefix"
-                  placeholder="RIS"
-                  value={prefix}
-                  onChange={(e) => setPrefix(e.target.value.toUpperCase())}
-                  maxLength={3}
-                />
+                <Label htmlFor="seller">Prodajalec</Label>
+                <Select value={selectedSellerId} onValueChange={handleSellerChange}>
+                  <SelectTrigger id="seller">
+                    <SelectValue placeholder="Izberi prodajalca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sellers.map((seller) => (
+                      <SelectItem key={seller.id} value={seller.id}>
+                        {seller.full_name} {seller.qr_prefix && `(${seller.qr_prefix})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-sm text-muted-foreground">
-                  Vnesite 3 črke (npr. prve 3 črke priimka)
+                  Kratica se bo avtomatsko nastavila glede na izbiro
                 </p>
               </div>
+
+              {prefix && (
+                <div className="p-3 bg-primary/10 rounded-lg">
+                  <p className="text-sm font-medium">Izbrana kratica: <span className="text-lg font-bold">{prefix}</span></p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
