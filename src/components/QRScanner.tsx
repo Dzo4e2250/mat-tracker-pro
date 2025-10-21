@@ -7,6 +7,7 @@ import { QrReader } from 'react-qr-reader';
 
 interface QRScannerProps {
   onScan: (qrCode: string, type: string) => void;
+  usedQrCodes?: string[];
 }
 
 const doormatTypes = [
@@ -18,16 +19,16 @@ const doormatTypes = [
   { code: 'ERM11R', size: '86x142 cm' },
 ];
 
-export default function QRScanner({ onScan }: QRScannerProps) {
+export default function QRScanner({ onScan, usedQrCodes = [] }: QRScannerProps) {
   const [manualQrCode, setManualQrCode] = useState('');
   const [selectedQrCode, setSelectedQrCode] = useState<string | null>(null);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
-  // Generate pre-defined QR codes (PRED-001 to PRED-010)
+  // Generate pre-defined QR codes (PRED-001 to PRED-010) and filter out used ones
   const predefinedQrCodes = Array.from({ length: 10 }, (_, i) => 
     `PRED-${String(i + 1).padStart(3, '0')}`
-  );
+  ).filter(code => !usedQrCodes.includes(code));
 
   const handleManualSubmit = () => {
     if (manualQrCode.trim()) {
@@ -125,18 +126,24 @@ export default function QRScanner({ onScan }: QRScannerProps) {
         {/* Pre-defined QR Codes */}
         <div className="space-y-3">
           <h3 className="font-semibold">Proste QR:</h3>
-          <div className="grid grid-cols-4 gap-2">
-            {predefinedQrCodes.map((qrCode) => (
-              <Button
-                key={qrCode}
-                variant="outline"
-                onClick={() => handlePredefinedQrClick(qrCode)}
-                className="h-10 text-sm"
-              >
-                {qrCode}
-              </Button>
-            ))}
-          </div>
+          {predefinedQrCodes.length > 0 ? (
+            <div className="grid grid-cols-4 gap-2">
+              {predefinedQrCodes.map((qrCode) => (
+                <Button
+                  key={qrCode}
+                  variant="outline"
+                  onClick={() => handlePredefinedQrClick(qrCode)}
+                  className="h-10 text-sm"
+                >
+                  {qrCode}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground py-4">
+              Vse QR kode so že uporabljene
+            </p>
+          )}
         </div>
       </div>
 

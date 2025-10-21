@@ -138,6 +138,7 @@ export default function ProdajalecDashboard() {
 
   const handleQRScan = async (qrCode: string, type: string) => {
     try {
+      // Check if this QR code already exists for this user
       const { data: existingDoormat, error: fetchError } = await supabase
         .from('doormats')
         .select('*')
@@ -148,28 +149,29 @@ export default function ProdajalecDashboard() {
       if (fetchError) throw fetchError;
 
       if (existingDoormat) {
-        setScannedDoormat(existingDoormat);
+        // Doormat already exists
         if (existingDoormat.status === 'with_seller') {
+          setScannedDoormat(existingDoormat);
           setShowActionDialog(true);
         } else {
           toast.info('Predpražnik je že v sistemu');
         }
       } else {
-        const sentDoormat = sentDoormats.find(d => d.qr_code === qrCode && d.type === type);
-        if (sentDoormat) {
-          const { error: updateError } = await supabase
-            .from('doormats')
-            .update({ status: 'with_seller' })
-            .eq('id', sentDoormat.id);
+        // Create new doormat entry with 'with_seller' status
+        const { error: insertError } = await supabase
+          .from('doormats')
+          .insert([{
+            qr_code: qrCode,
+            type: type as any,
+            status: 'with_seller',
+            seller_id: user?.id
+          }]);
 
-          if (updateError) throw updateError;
+        if (insertError) throw insertError;
 
-          toast.success('Predpražnik dodan na seznam čistih');
-          setShowScanner(false);
-          fetchDoormats();
-        } else {
-          toast.error('Ta predpražnik vam ni bil poslan');
-        }
+        toast.success('Predpražnik dodan na seznam čistih');
+        setShowScanner(false);
+        fetchDoormats();
       }
     } catch (error: any) {
       console.error('Error handling QR scan:', error);
@@ -244,8 +246,9 @@ export default function ProdajalecDashboard() {
     }
   };
 
-  const totalDoormats = sentDoormats.length + cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length;
+  const totalDoormats = cleanDoormats.length + onTestDoormats.length + dirtyDoormats.length;
   const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats];
+  const usedQrCodes = allDoormats.map(d => d.qr_code);
 
   if (showScanner) {
     return (
@@ -263,7 +266,7 @@ export default function ProdajalecDashboard() {
         </div>
         
         <div className="p-4">
-          <QRScanner onScan={handleQRScan} />
+          <QRScanner onScan={handleQRScan} usedQrCodes={usedQrCodes} />
         </div>
 
         <TestPlacementDialog
