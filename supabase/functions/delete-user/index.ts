@@ -88,10 +88,10 @@ Deno.serve(async (req) => {
       console.error('Error deleting contacts:', contactsError);
     }
 
-    // Delete test placements (set status to deleted instead of actual deletion)
+    // Update test placements (set status to deleted and remove seller reference)
     const { error: testPlacementsError } = await supabaseClient
       .from('test_placements')
-      .update({ status: 'deleted' })
+      .update({ status: 'deleted', seller_id: null })
       .eq('seller_id', user_id);
     
     if (testPlacementsError) {
@@ -118,7 +118,27 @@ Deno.serve(async (req) => {
       console.error('Error updating doormats:', doormatsError);
     }
 
-    // Now delete the user (this will cascade to profiles and user_roles)
+    // Delete from user_roles table
+    const { error: userRolesError } = await supabaseClient
+      .from('user_roles')
+      .delete()
+      .eq('user_id', user_id);
+    
+    if (userRolesError) {
+      console.error('Error deleting user roles:', userRolesError);
+    }
+
+    // Delete from profiles table
+    const { error: profilesError } = await supabaseClient
+      .from('profiles')
+      .delete()
+      .eq('id', user_id);
+    
+    if (profilesError) {
+      console.error('Error deleting profile:', profilesError);
+    }
+
+    // Now delete the user from auth
     const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(user_id);
 
     if (deleteError) {
