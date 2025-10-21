@@ -2,9 +2,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Home, Camera, Package, Heart, Circle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Home, Camera, Package, Heart, Circle, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/QRScanner';
@@ -51,6 +53,8 @@ export default function ProdajalecDashboard() {
   const [showScanner, setShowScanner] = useState(false);
   const [userProfile, setUserProfile] = useState<{ full_name: string; qr_prefix: string | null; qr_end_num: number | null } | null>(null);
   const [selectedDoormatForAction, setSelectedDoormatForAction] = useState<{ doormat: Doormat; testPlacement?: TestPlacement } | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -361,6 +365,28 @@ export default function ProdajalecDashboard() {
   const allDoormats = [...cleanDoormats, ...onTestDoormats.map(t => t.doormats), ...dirtyDoormats, ...waitingForDriverDoormats];
   const usedQrCodes = allDoormats.map(d => d.qr_code);
 
+  // Filtered doormats based on status and search
+  const filteredDoormats = useMemo(() => {
+    let filtered = allDoormats;
+
+    // Filter by status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(doormat => doormat.status === filterStatus);
+    }
+
+    // Filter by search query (QR code or company name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(doormat => {
+        const testPlacement = onTestDoormats.find(t => t.doormat_id === doormat.id);
+        const companyName = testPlacement?.company_name?.toLowerCase() || '';
+        return doormat.qr_code.toLowerCase().includes(query) || companyName.includes(query);
+      });
+    }
+
+    return filtered;
+  }, [allDoormats, filterStatus, searchQuery, onTestDoormats]);
+
   if (showScanner) {
     return (
       <div className="min-h-screen bg-background">
@@ -492,13 +518,42 @@ export default function ProdajalecDashboard() {
         {/* List Section */}
         <div>
           <h3 className="text-lg font-bold mb-3">Seznam</h3>
+          
+          {/* Filters */}
+          <div className="space-y-3 mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Iskanje po QR kodi ali podjetju..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtriraj po statusu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Vsi predpražniki</SelectItem>
+                <SelectItem value="with_seller">Čisti</SelectItem>
+                <SelectItem value="on_test">Na testu</SelectItem>
+                <SelectItem value="dirty">Umazani</SelectItem>
+                <SelectItem value="waiting_for_driver">Čaka šoferja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Card>
             <CardContent className="p-6">
-              {allDoormats.length === 0 ? (
-                <p className="text-center text-muted-foreground">Ni predpražnikov</p>
+              {filteredDoormats.length === 0 ? (
+                <p className="text-center text-muted-foreground">
+                  {allDoormats.length === 0 ? 'Ni predpražnikov' : 'Ni rezultatov'}
+                </p>
               ) : (
                 <div className="space-y-2">
-                  {allDoormats.map((doormat) => {
+                  {filteredDoormats.map((doormat) => {
                     const testPlacement = onTestDoormats.find(t => t.doormat_id === doormat.id);
                     const daysLeft = testPlacement ? differenceInDays(new Date(testPlacement.expires_at), new Date()) : null;
                     const isExpiring = daysLeft !== null && daysLeft <= 1;
