@@ -9,7 +9,9 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import InventarDashboard from "./pages/InventarDashboard";
 import AccountsManagement from "./pages/inventar/AccountsManagement";
-import QRGenerator from "./pages/inventar/QRGenerator";
+import FreeCodes from "./pages/inventar/FreeCodes";
+import QROverview from "./pages/inventar/QROverview";
+import PrintQR from "./pages/inventar/PrintQR";
 import TesterRequests from "./pages/inventar/TesterRequests";
 import DeletionHistory from "./pages/inventar/DeletionHistory";
 import ProdajalecDashboard from "./pages/ProdajalecDashboard";
@@ -38,9 +40,19 @@ const App = () => (
                 <AccountsManagement />
               </ProtectedRoute>
             } />
-            <Route path="/inventar/qr-generator" element={
+            <Route path="/inventar/free-codes" element={
               <ProtectedRoute allowedRoles={['ADMIN', 'INVENTAR']}>
-                <QRGenerator />
+                <FreeCodes />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/qr-overview" element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'INVENTAR']}>
+                <QROverview />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/print-qr" element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'INVENTAR']}>
+                <PrintQR />
               </ProtectedRoute>
             } />
             <Route path="/inventar/tester-requests" element={

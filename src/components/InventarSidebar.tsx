@@ -1,4 +1,4 @@
-import { Home, Users, QrCode, History, FileText } from "lucide-react";
+import { Home, Users, History, FileText, Package, Search, Printer } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
@@ -17,8 +17,10 @@ import {
 const menuItems = [
   { title: "Domov", url: "/inventar", icon: Home },
   { title: "Računi", url: "/inventar/accounts", icon: Users },
-  { title: "QR Generator", url: "/inventar/qr-generator", icon: QrCode },
   { title: "Naročilo", url: "/inventar/tester-requests", icon: FileText },
+  { title: "Proste kode", url: "/inventar/free-codes", icon: Package },
+  { title: "Pregled QR", url: "/inventar/qr-overview", icon: Search },
+  { title: "Natisni QR", url: "/inventar/print-qr", icon: Printer },
   { title: "Zgodovina", url: "/inventar/history", icon: History },
 ];
 
