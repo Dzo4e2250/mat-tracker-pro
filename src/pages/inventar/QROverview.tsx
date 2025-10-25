@@ -7,8 +7,9 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Printer, FileDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import * as XLSX from 'xlsx';
 
 interface Seller {
   id: string;
@@ -205,13 +206,120 @@ export default function QROverview() {
 
   const availableTypes = Array.from(new Set(activeDoormats.map(d => d.type).filter(Boolean)));
 
+  const handleExportToExcel = () => {
+    if (!selectedSeller) return;
+
+    const exportData = filteredCodes.map(item => ({
+      'QR Koda': item.code,
+      'Status': item.status === 'active' ? 'Aktivna' : item.status === 'sent_by_inventar' ? 'Čaka aktivacijo' : 'Neaktivna',
+      'Tip': item.type || '-',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "QR Kode");
+    XLSX.writeFile(wb, `${selectedSeller.full_name}_QR_kode_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast.success('Excel datoteka prenesena');
+  };
+
+  const handlePrintList = () => {
+    if (!selectedSeller) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const activeCodes = filteredCodes.filter(c => c.status === 'active');
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Seznam aktiviranih QR kod - ${selectedSeller.full_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { font-size: 24px; margin-bottom: 10px; }
+            .meta { color: #666; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .summary { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
+            @media print {
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Seznam aktiviranih predpražnikov</h1>
+          <div class="meta">
+            <strong>Prodajalec:</strong> ${selectedSeller.full_name} (${selectedSeller.qr_prefix})<br>
+            <strong>Datum:</strong> ${new Date().toLocaleDateString('sl-SI')}<br>
+            <strong>Čas:</strong> ${new Date().toLocaleTimeString('sl-SI')}
+          </div>
+          
+          <div class="summary">
+            <strong>Skupaj aktivnih:</strong> ${activeCodes.length} / ${qrCodes.length}<br>
+            ${availableTypes.map(type => {
+              const count = activeCodes.filter(c => c.type === type).length;
+              return `<strong>${type}:</strong> ${count}`;
+            }).join('<br>')}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>QR Koda</th>
+                <th>Tip predpražnika</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${activeCodes.map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td><strong>${item.code}</strong></td>
+                  <td>${item.type || '-'}</td>
+                  <td>Aktivna</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <InventarSidebar />
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
-            <h1 className="text-3xl font-bold mb-6">Pregled QR kod</h1>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-3xl font-bold">Pregled QR kod</h1>
+              {selectedSellerId && (
+                <div className="flex gap-2">
+                  <Button onClick={handleExportToExcel} variant="outline">
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Izvozi Excel
+                  </Button>
+                  <Button onClick={handlePrintList} variant="outline">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Natisni seznam
+                  </Button>
+                </div>
+              )}
+            </div>
 
             <Card className="mb-6">
               <CardHeader>
@@ -331,17 +439,19 @@ export default function QROverview() {
                       {filteredCodes.map((item) => (
                         <div
                           key={item.code}
-                          className={`p-3 border rounded-lg text-center ${
+                          className={`p-3 border rounded-lg text-center relative ${
                             item.status === 'active' ? 'bg-green-50 dark:bg-green-950 border-green-300' :
                             item.status === 'sent_by_inventar' ? 'bg-yellow-50 dark:bg-yellow-950 border-yellow-300' :
                             'bg-gray-50 dark:bg-gray-900'
                           }`}
                         >
-                          <p className="font-mono text-sm font-semibold mb-1">{item.code}</p>
-                          {getStatusBadge(item.status)}
                           {item.type && (
-                            <p className="text-xs text-muted-foreground mt-1">{item.type}</p>
+                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-bold">
+                              {item.type}
+                            </div>
                           )}
+                          <p className="font-mono text-sm font-semibold mb-1 mt-1">{item.code}</p>
+                          {getStatusBadge(item.status)}
                         </div>
                       ))}
                     </div>

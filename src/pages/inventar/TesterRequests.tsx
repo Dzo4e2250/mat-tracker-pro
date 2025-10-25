@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { InventarSidebar } from "@/components/InventarSidebar";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Plus, Trash2, X } from "lucide-react";
+import { LogOut, Plus, Trash2, X, Printer } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CardDescription } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const DOORMAT_TYPES = [
   { value: "MBW0", label: "MBW0 - 85x75 cm" },
@@ -85,6 +86,7 @@ export default function TesterRequests() {
   const [nextQrNumber, setNextQrNumber] = useState<number | null>(null);
   const [transportNotifications, setTransportNotifications] = useState<TransportNotification[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [deletingRequest, setDeletingRequest] = useState<TesterRequest | null>(null);
 
   useEffect(() => {
     fetchSellers();
@@ -540,6 +542,130 @@ export default function TesterRequests() {
     fetchTransportNotifications();
   };
 
+  const handleDeleteRequest = async () => {
+    if (!deletingRequest) return;
+
+    try {
+      // Delete all doormats associated with this request
+      if (deletingRequest.generated_qr_codes && deletingRequest.generated_qr_codes.length > 0) {
+        const { error: doormatError } = await supabase
+          .from('doormats')
+          .delete()
+          .in('qr_code', deletingRequest.generated_qr_codes);
+
+        if (doormatError) throw doormatError;
+      }
+
+      // Delete the request
+      const { error: requestError } = await supabase
+        .from('tester_requests')
+        .delete()
+        .eq('id', deletingRequest.id);
+
+      if (requestError) throw requestError;
+
+      toast({
+        title: "Uspeh",
+        description: "Pošiljka uspešno izbrisana"
+      });
+      
+      setDeletingRequest(null);
+      fetchRequests();
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      toast({
+        title: "Napaka",
+        description: "Napaka pri brisanju pošiljke",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePrintRequest = (request: TesterRequest) => {
+    const seller = sellers.find(s => s.id === request.seller_id);
+    if (!seller) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const quantities = request.quantities as Record<string, number>;
+    const totalQty = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Pošiljka - ${seller.full_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { font-size: 24px; margin-bottom: 10px; }
+            .meta { color: #666; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .summary { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
+            .qr-codes { margin-top: 30px; }
+            .qr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+            .qr-item { padding: 8px; border: 1px solid #ddd; text-align: center; font-family: monospace; font-size: 12px; }
+            @media print {
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Odobrena pošiljka predpražnikov</h1>
+          <div class="meta">
+            <strong>Prodajalec:</strong> ${seller.full_name} (${seller.qr_prefix})<br>
+            <strong>Ustvarjeno:</strong> ${new Date(request.created_at).toLocaleString('sl-SI')}<br>
+            <strong>Odobreno:</strong> ${request.approved_at ? new Date(request.approved_at).toLocaleString('sl-SI') : '-'}
+          </div>
+          
+          <div class="summary">
+            <strong>Skupaj kosov:</strong> ${totalQty}<br>
+            <strong>Število QR kod:</strong> ${request.generated_qr_codes?.length || 0}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Tip predpražnika</th>
+                <th>Količina</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.entries(quantities).map(([type, qty]) => `
+                <tr>
+                  <td><strong>${getTypeLabel(type)}</strong></td>
+                  <td>${qty}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          ${request.generated_qr_codes && request.generated_qr_codes.length > 0 ? `
+            <div class="qr-codes">
+              <h2>Generirane QR kode (${request.generated_qr_codes.length})</h2>
+              <div class="qr-grid">
+                ${request.generated_qr_codes.map(code => `
+                  <div class="qr-item">${code}</div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -903,20 +1029,46 @@ export default function TesterRequests() {
                           <Card key={request.id} className="border-green-500/30">
                             <CardContent className="pt-4">
                               <div className="flex justify-between items-start mb-2">
-                                <div>
+                                <div className="flex-1">
                                   <p className="font-medium">{request.seller_name}</p>
                                   <p className="text-xs text-muted-foreground">
                                     Odobreno: {request.approved_at && new Date(request.approved_at).toLocaleDateString('sl-SI')}
                                   </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Generirano {request.generated_qr_codes?.length || 0} QR kod
+                                  </p>
                                 </div>
-                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-600">
-                                  Odobreno
-                                </span>
+                                <div className="flex gap-2">
+                                  <Button
+                                    onClick={() => handlePrintRequest(request)}
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    <Printer className="h-4 w-4 mr-1" />
+                                    Natisni
+                                  </Button>
+                                  <Button
+                                    onClick={() => setDeletingRequest(request)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Izbriši
+                                  </Button>
+                                </div>
                               </div>
 
-                              <p className="text-xs text-muted-foreground">
-                                Generirano {request.generated_qr_codes?.length || 0} QR kod
-                              </p>
+                              <div className="mt-3 space-y-1">
+                                {request.quantities && typeof request.quantities === 'object' && 
+                                  Object.entries(request.quantities as Record<string, number>).map(([type, qty]) => (
+                                    <div key={type} className="flex justify-between text-xs p-2 bg-muted/30 rounded">
+                                      <span>{getTypeLabel(type)}</span>
+                                      <span className="font-medium">{qty}</span>
+                                    </div>
+                                  ))
+                                }
+                              </div>
                             </CardContent>
                           </Card>
                         ))
@@ -929,6 +1081,26 @@ export default function TesterRequests() {
           </div>
         </main>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingRequest} onOpenChange={() => setDeletingRequest(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Izbriši pošiljko?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ali ste prepričani, da želite izbrisati to pošiljko? Vsi generirani QR kodi ({deletingRequest?.generated_qr_codes?.length || 0}) bodo izbrisani iz sistema.
+              <br /><br />
+              <strong>To dejanje je nepovratno!</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Prekliči</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRequest} className="bg-destructive hover:bg-destructive/90">
+              Izbriši
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }
