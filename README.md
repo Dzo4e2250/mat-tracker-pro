@@ -1,73 +1,72 @@
-# Welcome to your Lovable project
+# Mat Tracker Pro
 
-## Project info
+Interna aplikacija za sledenje in upravljanje predpražnikov (entry floor mats) za Lindstrom Group Slovenija.
 
-**URL**: https://lovable.dev/projects/b0574a94-78c3-4a66-be13-bc6353e55d74
+## Namen aplikacije
 
-## How can I edit this code?
+Mat Tracker Pro omogoča popolno sledenje življenjskega cikla predpražnikov od skladišča do stranke in nazaj:
 
-There are several ways of editing your application.
+- **Inventar**: Pregled vseh QR kod, njihovih statusov in trenutnih lokacij
+- **Prodajalci**: Upravljanje prodajalcev, njihovih QR kod in naročil
+- **Prevzemi**: Organizacija prevzemov umazanih predpražnikov (šofer/lastna dostava)
+- **Opozorila**: Avtomatska email opozorila za predolgo testiranje
 
-**Use Lovable**
+## Življenjski cikel predpražnika
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b0574a94-78c3-4a66-be13-bc6353e55d74) and start prompting.
+```
+Prosta (available) → Na testu (on_test) → Umazana (dirty) → Čaka šoferja (waiting_driver) → Zaključena (completed) → Prosta
+```
 
-Changes made via Lovable will be committed automatically to this repo.
+## Tehnologije
 
-**Use your preferred IDE**
+- **Frontend**: React, TypeScript, Vite
+- **UI**: shadcn/ui, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
+- **Deployment**: Docker, nginx
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Zagon razvojnega okolja
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Namestitev odvisnosti
+npm install
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Zagon razvojnega strežnika
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Spremenljivke okolja
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Ustvari `.env` datoteko:
 
-**Use GitHub Codespaces**
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Deployment (Docker)
 
-## What technologies are used for this project?
+```bash
+# Build
+docker build -t mat-tracker-pro .
 
-This project is built with:
+# Run
+docker run -d -p 3000:80 --network npm_npm_network --name mat-tracker-pro mat-tracker-pro
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Struktura projekta
 
-## How can I deploy this project?
+```
+src/
+├── components/     # UI komponente
+├── hooks/          # React hooks za Supabase
+├── integrations/   # Supabase client in tipi
+├── lib/            # Utility funkcije
+└── pages/          # Strani aplikacije
+    ├── inventar/   # Admin panel
+    └── prodajalec/ # Prodajalec portal
 
-Simply open [Lovable](https://lovable.dev/projects/b0574a94-78c3-4a66-be13-bc6353e55d74) and click on Share -> Publish.
+supabase/
+└── functions/      # Edge funkcije (email, user management)
+```
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Lindstrom Group

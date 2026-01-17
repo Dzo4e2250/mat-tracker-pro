@@ -1,14 +1,10 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,47 +29,23 @@ import {
   Phone,
   Mail,
   QrCode,
-  Clock,
-  Truck,
   User,
-  MapPin,
-  Building2,
   ArrowLeft,
-  Plus,
-  X,
-  Trash2,
 } from "lucide-react";
 import { useProdajalecProfiles } from "@/hooks/useProfiles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { QRCode, Cycle, MatType, Company } from "@/integrations/supabase/types";
 import * as XLSX from 'xlsx';
 import { generateUniqueQRCodes } from '@/lib/utils';
 
-type QRCodeWithCycle = QRCode & {
-  active_cycle?: Cycle & {
-    mat_type?: MatType;
-    company?: Company;
-  };
-};
-
-interface DirtyMat {
-  cycleId: string;
-  qrCode: string;
-  qrCodeId: string;
-  matTypeName: string;
-  matTypeCode: string | null;
-  companyName: string | null;
-  companyAddress: string | null;
-  companyLatitude: number | null;
-  companyLongitude: number | null;
-  contactName: string | null;
-  contactPhone: string | null;
-  status: 'dirty' | 'waiting_driver' | 'on_test';
-  pickupRequestedAt: string | null;
-  testStartDate: string | null;
-  daysOnTest: number;
-}
+import {
+  DirtyMat,
+  QRCodeWithCycle,
+  SellerDirtyMatsCard,
+  SellerWaitingDriverCard,
+  SellerLongTestCard,
+  SellerQRCodesTab,
+} from "./components";
 
 export default function SellerPage() {
   const { id: sellerId } = useParams<{ id: string }>();
@@ -82,12 +54,10 @@ export default function SellerPage() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("qr-kode");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedDirtyMats, setSelectedDirtyMats] = useState<Set<string>>(new Set());
   const [confirmSelfDelivery, setConfirmSelfDelivery] = useState<string[] | null>(null);
   const [confirmCreatePickup, setConfirmCreatePickup] = useState<DirtyMat[] | null>(null);
   const [confirmCompletePickup, setConfirmCompletePickup] = useState<string[] | null>(null);
-  const [newCodeCount, setNewCodeCount] = useState(1);
   const [confirmDeleteCode, setConfirmDeleteCode] = useState<string | null>(null);
 
   // Fetch seller profile
@@ -215,7 +185,6 @@ export default function SellerPage() {
           .select('company_id, first_name, last_name, phone')
           .in('company_id', companyIds);
 
-        // Use first contact per company as fallback
         (contacts || []).forEach((contact: any) => {
           if (!companyContacts[contact.company_id]) {
             companyContacts[contact.company_id] = contact;
@@ -230,7 +199,6 @@ export default function SellerPage() {
           ? Math.floor((now.getTime() - testStartDate.getTime()) / (1000 * 60 * 60 * 24))
           : 0;
 
-        // Use direct contact or fallback to company contact
         const contact = cycle.contacts || companyContacts[cycle.company_id];
 
         return {
@@ -262,7 +230,6 @@ export default function SellerPage() {
   // Self-delivery mutation
   const selfDeliveryMutation = useMutation({
     mutationFn: async (cycleIds: string[]) => {
-      // Get cycles with their QR code IDs
       const { data: cycles, error: fetchError } = await supabase
         .from('cycles')
         .select('id, qr_code_id')
@@ -272,7 +239,6 @@ export default function SellerPage() {
 
       const qrCodeIds = cycles?.map(c => c.qr_code_id) || [];
 
-      // Mark cycles as completed with self-delivery note
       const { error: cycleError } = await supabase
         .from('cycles')
         .update({
@@ -284,7 +250,6 @@ export default function SellerPage() {
 
       if (cycleError) throw cycleError;
 
-      // Reset QR codes to available
       if (qrCodeIds.length > 0) {
         const { error: qrError } = await supabase
           .from('qr_codes')
@@ -320,7 +285,6 @@ export default function SellerPage() {
     mutationFn: async (mats: DirtyMat[]) => {
       const cycleIds = mats.map(m => m.cycleId);
 
-      // Create pickup
       const { data: pickup, error: pickupError } = await supabase
         .from('driver_pickups')
         .insert({
@@ -332,7 +296,6 @@ export default function SellerPage() {
 
       if (pickupError) throw pickupError;
 
-      // Create pickup items
       const items = cycleIds.map(cycleId => ({
         pickup_id: pickup.id,
         cycle_id: cycleId,
@@ -345,7 +308,6 @@ export default function SellerPage() {
 
       if (itemsError) throw itemsError;
 
-      // Update cycles to waiting_driver
       const { error: updateError } = await supabase
         .from('cycles')
         .update({
@@ -359,7 +321,6 @@ export default function SellerPage() {
       return { pickup, mats };
     },
     onSuccess: ({ mats }) => {
-      // Determine pickup type based on mat status
       const pickupType = mats.some(m => m.status === 'on_test') ? 'customer' : 'warehouse';
 
       toast({
@@ -374,7 +335,6 @@ export default function SellerPage() {
       setSelectedDirtyMats(new Set());
       setConfirmCreatePickup(null);
 
-      // Generate PDF for driver
       generateDriverPickupPDF(mats, pickupType);
     },
     onError: (error: any) => {
@@ -382,10 +342,9 @@ export default function SellerPage() {
     },
   });
 
-  // Complete pickup mutation - marks cycles as completed and resets QR codes
+  // Complete pickup mutation
   const completePickupMutation = useMutation({
     mutationFn: async (cycleIds: string[]) => {
-      // Get cycles with their QR code IDs
       const { data: cycles, error: fetchError } = await supabase
         .from('cycles')
         .select('id, qr_code_id')
@@ -395,7 +354,6 @@ export default function SellerPage() {
 
       const qrCodeIds = cycles?.map(c => c.qr_code_id) || [];
 
-      // Mark cycles as completed
       const { error: cycleError } = await supabase
         .from('cycles')
         .update({
@@ -406,7 +364,6 @@ export default function SellerPage() {
 
       if (cycleError) throw cycleError;
 
-      // Reset QR codes to available
       if (qrCodeIds.length > 0) {
         const { error: qrError } = await supabase
           .from('qr_codes')
@@ -438,7 +395,7 @@ export default function SellerPage() {
     },
   });
 
-  // Send email warning mutation - sends all long test mats
+  // Send email warning mutation
   const sendEmailWarningMutation = useMutation({
     mutationFn: async (mats: DirtyMat[]) => {
       if (!seller?.email) {
@@ -497,15 +454,12 @@ export default function SellerPage() {
   // Create new QR codes mutation
   const createCodesMutation = useMutation({
     mutationFn: async ({ prefix, count, ownerId }: { prefix: string; count: number; ownerId: string }) => {
-      // Get all existing codes to ensure uniqueness
       const { data: existingCodes } = await supabase
         .from('qr_codes')
         .select('code')
         .like('code', `${prefix}-%`);
 
       const existingSet = new Set((existingCodes || []).map(c => c.code));
-
-      // Generate unique random codes
       const newCodeStrings = generateUniqueQRCodes(prefix, count, existingSet);
 
       if (newCodeStrings.length < count) {
@@ -526,7 +480,6 @@ export default function SellerPage() {
       toast({ title: 'Uspeh', description: `Ustvarjenih ${data.length} novih QR kod` });
       queryClient.invalidateQueries({ queryKey: ['seller_qr_codes', sellerId] });
       queryClient.invalidateQueries({ queryKey: ['inventar', 'stats'] });
-      setNewCodeCount(1);
     },
     onError: (error: Error) => {
       toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
@@ -551,7 +504,7 @@ export default function SellerPage() {
   });
 
   // Handler for adding codes
-  const handleAddCodes = () => {
+  const handleAddCodes = (count: number) => {
     if (!sellerId || !seller?.code_prefix) {
       toast({
         title: 'Napaka',
@@ -563,7 +516,7 @@ export default function SellerPage() {
 
     createCodesMutation.mutate({
       prefix: seller.code_prefix,
-      count: newCodeCount,
+      count,
       ownerId: sellerId,
     });
   };
@@ -595,7 +548,6 @@ export default function SellerPage() {
     let itemsHtml: string;
 
     if (isCustomerPickup) {
-      // Customer pickup - show addresses and contacts
       itemsHtml = mats.map((mat, index) => {
         const mapsUrl = getGoogleMapsUrl(mat);
         const coords = mat.companyLatitude && mat.companyLongitude
@@ -647,7 +599,6 @@ export default function SellerPage() {
         `;
       }).join('');
     } else {
-      // Warehouse pickup - simpler format
       itemsHtml = `
         <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
           <thead>
@@ -674,7 +625,6 @@ export default function SellerPage() {
       `;
     }
 
-    // Generate all-locations Google Maps URL (only for customer pickup)
     let multiStopUrl: string | null = null;
     if (isCustomerPickup) {
       const allAddresses = mats
@@ -790,17 +740,7 @@ export default function SellerPage() {
     }
   };
 
-  // Filter helpers - check active_cycle FIRST, then qr_code status
-  const getCodeStatus = (code: QRCodeWithCycle): string => {
-    // First check if there's an active cycle - this takes priority
-    if (code.active_cycle) return code.active_cycle.status;
-    // Then check QR code status
-    if (code.status === 'pending') return 'pending';
-    if (code.status === 'available') return 'available';
-    return 'active';
-  };
-
-  // Stats - based on actual status
+  // Stats
   const stats = useMemo(() => ({
     total: qrCodes.length,
     available: qrCodes.filter(c => !c.active_cycle && c.status === 'available').length,
@@ -812,29 +752,6 @@ export default function SellerPage() {
     clean: qrCodes.filter(c => c.active_cycle?.status === 'clean').length,
   }), [qrCodes]);
 
-  const filteredCodes = qrCodes.filter(code => {
-    if (filterStatus === 'all') return true;
-    return getCodeStatus(code) === filterStatus;
-  });
-
-  const getStatusBadge = (code: QRCodeWithCycle) => {
-    // First check if there's an active cycle - this takes priority
-    if (code.active_cycle) {
-      const cycleStatus = code.active_cycle.status;
-      switch (cycleStatus) {
-        case 'clean': return <Badge className="bg-blue-500">Čista</Badge>;
-        case 'on_test': return <Badge className="bg-yellow-500">Na testu</Badge>;
-        case 'dirty': return <Badge className="bg-orange-500">Umazana</Badge>;
-        case 'waiting_driver': return <Badge className="bg-purple-500">Čaka prevzem</Badge>;
-        default: return <Badge variant="outline">{cycleStatus}</Badge>;
-      }
-    }
-    // Then check QR code status
-    if (code.status === 'pending') return <Badge variant="secondary">Naročena</Badge>;
-    if (code.status === 'available') return <Badge className="bg-green-500">Prosta</Badge>;
-    return <Badge variant="secondary">Aktivna</Badge>;
-  };
-
   const getStatusLabel = (status: string): string => {
     const labels: Record<string, string> = {
       'pending': 'Naročena', 'available': 'Prosta', 'active': 'Aktivna',
@@ -842,6 +759,13 @@ export default function SellerPage() {
       'waiting_driver': 'Čaka prevzem', 'completed': 'Zaključena',
     };
     return labels[status] || status;
+  };
+
+  const getCodeStatus = (code: QRCodeWithCycle): string => {
+    if (code.active_cycle) return code.active_cycle.status;
+    if (code.status === 'pending') return 'pending';
+    if (code.status === 'available') return 'available';
+    return 'active';
   };
 
   // Dirty mats filtering
@@ -866,6 +790,7 @@ export default function SellerPage() {
   const handlePrintList = () => {
     if (!seller) return;
     const sellerName = `${seller.first_name} ${seller.last_name}`;
+    const filteredCodes = qrCodes;
 
     const printContent = `
       <!DOCTYPE html>
@@ -937,7 +862,7 @@ export default function SellerPage() {
   const handleExportToExcel = () => {
     if (!seller) return;
 
-    const exportData = filteredCodes.map(code => ({
+    const exportData = qrCodes.map(code => ({
       'QR Koda': code.code,
       'Status': getStatusLabel(getCodeStatus(code)),
       'Tip predpražnika': code.active_cycle?.mat_type?.code || code.active_cycle?.mat_type?.name || '-',
@@ -1086,414 +1011,45 @@ export default function SellerPage() {
               </TabsList>
 
               {/* QR Kode Tab */}
-              <TabsContent value="qr-kode" className="mt-4 space-y-4">
-                {/* Add new codes section */}
-                {seller?.code_prefix && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Plus className="h-5 w-5" />
-                        Dodaj nove kode
-                      </CardTitle>
-                      <CardDescription>
-                        Ustvari naključne kode v formatu {seller.code_prefix}-XXXX
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setNewCodeCount(Math.max(1, newCodeCount - 1))}
-                          >
-                            -
-                          </Button>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={newCodeCount}
-                            onChange={(e) => setNewCodeCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
-                            className="text-center w-20"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setNewCodeCount(Math.min(100, newCodeCount + 1))}
-                          >
-                            +
-                          </Button>
-                        </div>
-                        <Button
-                          onClick={handleAddCodes}
-                          disabled={createCodesMutation.isPending}
-                        >
-                          {createCodesMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Plus className="h-4 w-4 mr-2" />
-                          )}
-                          Generiraj {newCodeCount} {newCodeCount === 1 ? 'kodo' : 'kod'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* QR codes grid */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle>QR Kode</CardTitle>
-                      <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Filter po statusu" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Vse ({stats.total})</SelectItem>
-                          <SelectItem value="available">Proste ({stats.available})</SelectItem>
-                          <SelectItem value="on_test">Na testu ({stats.onTest})</SelectItem>
-                          <SelectItem value="dirty">Umazane ({stats.dirty})</SelectItem>
-                          <SelectItem value="waiting_driver">Čaka prevzem ({stats.waitingPickup})</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingCodes ? (
-                      <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : filteredCodes.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">Ni kod za prikaz</p>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {filteredCodes.map((code) => (
-                          <div
-                            key={code.id}
-                            className={`p-3 border rounded-lg text-center relative group ${
-                              code.status === 'available' ? 'bg-green-50 border-green-300' :
-                              code.active_cycle?.status === 'on_test' ? 'bg-yellow-50 border-yellow-300' :
-                              code.active_cycle?.status === 'dirty' ? 'bg-orange-50 border-orange-300' :
-                              code.active_cycle?.status === 'waiting_driver' ? 'bg-purple-50 border-purple-300' :
-                              'bg-gray-50'
-                            }`}
-                          >
-                            {/* Delete button for available codes */}
-                            {code.status === 'available' && !code.active_cycle && (
-                              <button
-                                onClick={() => setConfirmDeleteCode(code.id)}
-                                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                title="Izbriši kodo"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                            {code.active_cycle?.mat_type && (
-                              <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-bold">
-                                {code.active_cycle.mat_type.code || code.active_cycle.mat_type.name}
-                              </div>
-                            )}
-                            <p className="font-mono text-sm font-semibold mb-1 mt-1">{code.code}</p>
-                            {getStatusBadge(code)}
-                            {code.active_cycle?.company && (
-                              <p className="text-xs text-muted-foreground mt-1 truncate">
-                                {code.active_cycle.company.name}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              <TabsContent value="qr-kode" className="mt-4">
+                <SellerQRCodesTab
+                  qrCodes={qrCodes}
+                  stats={stats}
+                  loadingCodes={loadingCodes}
+                  codePrefix={seller.code_prefix}
+                  isCreatingCodes={createCodesMutation.isPending}
+                  onAddCodes={handleAddCodes}
+                  onDeleteCode={(codeId) => setConfirmDeleteCode(codeId)}
+                />
               </TabsContent>
 
               {/* Za ukrepanje Tab */}
               <TabsContent value="ukrepanje" className="mt-4 space-y-4">
-                {/* Dirty Mats */}
-                <Card className={dirtyMatsOnly.length > 0 ? "border-orange-300" : ""}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-orange-500" />
-                        Umazane preproge ({dirtyMatsOnly.length})
-                      </CardTitle>
-                      {dirtyMatsOnly.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          {selectedDirtyMats.size > 0 ? (
-                            <>
-                              <Badge variant="secondary">{selectedDirtyMats.size} izbranih</Badge>
-                              <Button size="sm" variant="outline" onClick={() => setSelectedDirtyMats(new Set())}>
-                                Počisti
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-purple-600"
-                                onClick={() => setConfirmCreatePickup(dirtyMatsOnly.filter(m => selectedDirtyMats.has(m.cycleId)))}
-                              >
-                                <Truck className="h-4 w-4 mr-1" /> Ustvari prevzem
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => setConfirmSelfDelivery(Array.from(selectedDirtyMats))}
-                              >
-                                <User className="h-4 w-4 mr-1" /> Lastna dostava
-                              </Button>
-                            </>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={selectAllDirty}>
-                              Izberi vse
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingDirty ? (
-                      <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : dirtyMatsOnly.length === 0 ? (
-                      <div className="flex flex-col items-center py-8 text-muted-foreground">
-                        <CheckCircle className="h-12 w-12 text-green-500 mb-2" />
-                        <p>Ni umazanih preprog</p>
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-10">
-                              <Checkbox
-                                checked={selectedDirtyMats.size === dirtyMatsOnly.length && dirtyMatsOnly.length > 0}
-                                onCheckedChange={(checked) => {
-                                  if (checked) selectAllDirty();
-                                  else setSelectedDirtyMats(new Set());
-                                }}
-                              />
-                            </TableHead>
-                            <TableHead>QR Koda</TableHead>
-                            <TableHead>Tip</TableHead>
-                            <TableHead>Podjetje</TableHead>
-                            <TableHead>Kontakt</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Akcije</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dirtyMatsOnly.map((mat) => (
-                            <TableRow key={mat.cycleId}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedDirtyMats.has(mat.cycleId)}
-                                  onCheckedChange={() => toggleDirtyMat(mat.cycleId)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-mono font-semibold">{mat.qrCode}</TableCell>
-                              <TableCell>{mat.matTypeCode || mat.matTypeName}</TableCell>
-                              <TableCell>
-                                {mat.companyName && (
-                                  <div className="flex items-center gap-1">
-                                    <Building2 className="h-3 w-3 text-gray-400" />
-                                    {mat.companyName}
-                                  </div>
-                                )}
-                                {mat.companyAddress && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <MapPin className="h-3 w-3" /> {mat.companyAddress}
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {mat.contactName && <div className="text-sm">{mat.contactName}</div>}
-                                {mat.contactPhone && (
-                                  <a href={`tel:${mat.contactPhone}`} className="flex items-center gap-1 text-xs text-blue-600">
-                                    <Phone className="h-3 w-3" /> {mat.contactPhone}
-                                  </a>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="destructive">Umazana</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-green-600 hover:text-green-700"
-                                    onClick={() => setConfirmSelfDelivery([mat.cycleId])}
-                                  >
-                                    <User className="h-3 w-3" />
-                                  </Button>
-                                  {mat.status === 'dirty' && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-purple-600 hover:text-purple-700"
-                                      onClick={() => setConfirmCreatePickup([mat])}
-                                    >
-                                      <Truck className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
+                <SellerDirtyMatsCard
+                  dirtyMatsOnly={dirtyMatsOnly}
+                  loadingDirty={loadingDirty}
+                  selectedDirtyMats={selectedDirtyMats}
+                  onToggleDirtyMat={toggleDirtyMat}
+                  onSelectAllDirty={selectAllDirty}
+                  onClearSelection={() => setSelectedDirtyMats(new Set())}
+                  onCreatePickup={(mats) => setConfirmCreatePickup(mats)}
+                  onSelfDelivery={(cycleIds) => setConfirmSelfDelivery(cycleIds)}
+                />
 
-                {/* Waiting for Driver Mats */}
-                {waitingDriverMats.length > 0 && (
-                  <Card className="border-purple-300 bg-purple-50">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-2 text-purple-800">
-                            <Truck className="h-5 w-5" />
-                            Čaka šoferja ({waitingDriverMats.length})
-                          </CardTitle>
-                          <CardDescription>Predpražniki pripravljeni za prevzem</CardDescription>
-                        </div>
-                        <Button
-                          className="bg-purple-600 hover:bg-purple-700"
-                          onClick={() => setConfirmCompletePickup(waitingDriverMats.map(m => m.cycleId))}
-                          disabled={completePickupMutation.isPending}
-                        >
-                          {completePickupMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                          )}
-                          Potrdi prevzem vseh
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>QR Koda</TableHead>
-                            <TableHead>Tip</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Akcije</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {waitingDriverMats.map((mat) => (
-                            <TableRow key={mat.cycleId}>
-                              <TableCell className="font-mono font-semibold">{mat.qrCode}</TableCell>
-                              <TableCell>{mat.matTypeCode || mat.matTypeName}</TableCell>
-                              <TableCell>
-                                <Badge className="bg-purple-100 text-purple-800">Čaka šoferja</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 hover:text-green-700"
-                                  onClick={() => setConfirmCompletePickup([mat.cycleId])}
-                                >
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Pobrano
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                )}
+                <SellerWaitingDriverCard
+                  waitingDriverMats={waitingDriverMats}
+                  isPending={completePickupMutation.isPending}
+                  onCompletePickup={(cycleIds) => setConfirmCompletePickup(cycleIds)}
+                />
 
-                {/* Long Test Mats */}
-                {longTestMats.length > 0 && (
-                  <Card className="border-yellow-300 bg-yellow-50">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-2 text-yellow-800">
-                            <Clock className="h-5 w-5" />
-                            Dolgo na testu ({longTestMats.length})
-                          </CardTitle>
-                          <CardDescription>Preproge na testu več kot 20 dni</CardDescription>
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200"
-                          onClick={() => sendEmailWarningMutation.mutate(longTestMats)}
-                          disabled={sendEmailWarningMutation.isPending || !seller?.email}
-                        >
-                          {sendEmailWarningMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Mail className="h-4 w-4 mr-2" />
-                          )}
-                          Pošlji opozorilo
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>QR Koda</TableHead>
-                            <TableHead>Tip</TableHead>
-                            <TableHead>Podjetje</TableHead>
-                            <TableHead>Kontakt</TableHead>
-                            <TableHead>Dni na testu</TableHead>
-                            <TableHead>Akcije</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {longTestMats.map((mat) => (
-                            <TableRow key={mat.cycleId}>
-                              <TableCell className="font-mono">{mat.qrCode}</TableCell>
-                              <TableCell>{mat.matTypeCode || mat.matTypeName}</TableCell>
-                              <TableCell>{mat.companyName || '-'}</TableCell>
-                              <TableCell>
-                                {mat.contactPhone ? (
-                                  <a href={`tel:${mat.contactPhone}`} className="flex items-center gap-1 text-blue-600">
-                                    <Phone className="h-3 w-3" /> {mat.contactPhone}
-                                  </a>
-                                ) : '-'}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={mat.daysOnTest >= 25 ? 'destructive' : 'secondary'}
-                                  className={mat.daysOnTest < 25 ? 'bg-yellow-200 text-yellow-800' : ''}>
-                                  {mat.daysOnTest} dni
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-purple-600 hover:text-purple-700"
-                                    title="Šofer bo prevzel"
-                                    onClick={() => setConfirmCreatePickup([mat])}
-                                  >
-                                    <Truck className="h-3 w-3 mr-1" /> Šofer
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-green-600 hover:text-green-700"
-                                    title="Lastna dostava"
-                                    onClick={() => setConfirmSelfDelivery([mat.cycleId])}
-                                  >
-                                    <User className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                )}
+                <SellerLongTestCard
+                  longTestMats={longTestMats}
+                  sellerEmail={seller.email}
+                  isSendingEmail={sendEmailWarningMutation.isPending}
+                  onSendEmailWarning={(mats) => sendEmailWarningMutation.mutate(mats)}
+                  onCreatePickup={(mats) => setConfirmCreatePickup(mats)}
+                  onSelfDelivery={(cycleIds) => setConfirmSelfDelivery(cycleIds)}
+                />
               </TabsContent>
 
               {/* Naročila Tab */}
