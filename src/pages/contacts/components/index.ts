@@ -14,3 +14,4 @@ export { default as MeetingModal } from './MeetingModal';
 export { default as EditAddressModal, type EditAddressFormData } from './EditAddressModal';
 export { default as EditContactModal, type EditContactFormData } from './EditContactModal';
 export { default as CompanyDetailModal } from './CompanyDetailModal';
+export { default as QRScannerModal } from './QRScannerModal';
