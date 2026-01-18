@@ -55,7 +55,7 @@ import {
 } from '@/utils/priceList';
 
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard } from '@/pages/contacts/components';
+import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal } from '@/pages/contacts/components';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -2278,206 +2278,39 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Reminder Modal */}
       {showReminderModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-            <div className="p-4 border-b bg-blue-50 flex items-center justify-between">
-              <h3 className="font-bold text-blue-800 flex items-center gap-2">
-                <Bell size={20} />
-                Dodaj opomnik
-              </h3>
-              <button onClick={() => {
-                setShowReminderModal(false);
-                setReminderCompanyId(null);
-                setReminderDate('');
-                setReminderTime('09:00');
-                setReminderNote('');
-              }} className="p-1 text-blue-800 hover:text-blue-600">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Datum</label>
-                <input
-                  type="date"
-                  value={reminderDate}
-                  onChange={(e) => setReminderDate(e.target.value)}
-                  className="w-full p-2 border rounded-lg"
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Ura</label>
-                <input
-                  type="time"
-                  value={reminderTime}
-                  onChange={(e) => setReminderTime(e.target.value)}
-                  className="w-full p-2 border rounded-lg"
-                />
-              </div>
-
-              {/* Quick time presets */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Hitri izbor</label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      now.setHours(now.getHours() + 1);
-                      setReminderDate(now.toISOString().split('T')[0]);
-                      setReminderTime(now.toTimeString().slice(0, 5));
-                    }}
-                    className="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
-                  >
-                    Čez 1 uro
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      setReminderDate(tomorrow.toISOString().split('T')[0]);
-                      setReminderTime('09:00');
-                    }}
-                    className="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
-                  >
-                    Jutri zjutraj
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextWeek = new Date();
-                      nextWeek.setDate(nextWeek.getDate() + 7);
-                      setReminderDate(nextWeek.toISOString().split('T')[0]);
-                      setReminderTime('09:00');
-                    }}
-                    className="px-3 py-1 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
-                  >
-                    Naslednji teden
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Opomba (neobvezno)</label>
-                <textarea
-                  value={reminderNote}
-                  onChange={(e) => setReminderNote(e.target.value)}
-                  placeholder="Npr. Pokliči glede pogodbe..."
-                  className="w-full p-2 border rounded-lg resize-none"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowReminderModal(false);
-                    setReminderCompanyId(null);
-                    setReminderDate('');
-                    setReminderTime('09:00');
-                    setReminderNote('');
-                  }}
-                  className="flex-1 py-2 border rounded-lg text-gray-600"
-                >
-                  Prekliči
-                </button>
-                <button
-                  onClick={handleCreateReminder}
-                  disabled={!reminderDate || createReminder.isPending}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
-                >
-                  {createReminder.isPending ? 'Shranjujem...' : 'Shrani'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ReminderModal
+          date={reminderDate}
+          time={reminderTime}
+          note={reminderNote}
+          isLoading={createReminder.isPending}
+          onDateChange={setReminderDate}
+          onTimeChange={setReminderTime}
+          onNoteChange={setReminderNote}
+          onSave={handleCreateReminder}
+          onClose={() => {
+            setShowReminderModal(false);
+            setReminderCompanyId(null);
+            setReminderDate('');
+            setReminderTime('09:00');
+            setReminderNote('');
+          }}
+        />
       )}
 
       {/* Existing Company Modal */}
       {showExistingCompanyModal && existingCompany && pendingContactData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
-            <div className="p-4 border-b bg-orange-50 flex items-center justify-between">
-              <h3 className="font-bold text-orange-800 flex items-center gap-2">
-                <Building2 size={20} />
-                Podjetje že obstaja!
-              </h3>
-              <button onClick={() => {
-                setShowExistingCompanyModal(false);
-                setExistingCompany(null);
-                setPendingContactData(null);
-              }} className="p-1 text-orange-800 hover:text-orange-600">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Najdeno obstoječe podjetje:</p>
-                <p className="font-bold text-lg">{existingCompany.name}</p>
-                {existingCompany.tax_number && (
-                  <p className="text-sm text-gray-500">ID za DDV: {existingCompany.tax_number}</p>
-                )}
-                {existingCompany.contacts && existingCompany.contacts.length > 0 && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Obstoječi kontakti: {existingCompany.contacts.map(c => `${c.first_name} ${c.last_name}`).join(', ')}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600 mb-1">Nov kontakt iz vCard:</p>
-                <p className="font-medium">{pendingContactData.contactName || 'Brez imena'}</p>
-                {pendingContactData.contactEmail && (
-                  <p className="text-sm text-gray-600">{pendingContactData.contactEmail}</p>
-                )}
-                {pendingContactData.contactPhone && (
-                  <p className="text-sm text-gray-600">{pendingContactData.contactPhone}</p>
-                )}
-                {pendingContactData.contactRole && (
-                  <p className="text-sm text-gray-500">{pendingContactData.contactRole}</p>
-                )}
-              </div>
-
-              <p className="text-sm text-gray-600 mb-4">
-                Kaj želite storiti?
-              </p>
-
-              <div className="space-y-2">
-                <button
-                  onClick={handleAddToExistingCompany}
-                  disabled={addContact.isPending}
-                  className="w-full py-3 bg-green-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-green-700 transition-colors disabled:opacity-50"
-                >
-                  <Users size={18} />
-                  {addContact.isPending ? 'Dodajam...' : 'Dodaj kontakt k obstoječemu podjetju'}
-                </button>
-
-                <button
-                  onClick={handleCreateNewAnyway}
-                  className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Plus size={18} />
-                  Ustvari novo podjetje vseeno
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowExistingCompanyModal(false);
-                    setExistingCompany(null);
-                    setPendingContactData(null);
-                  }}
-                  className="w-full py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm"
-                >
-                  Prekliči
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExistingCompanyModal
+          company={existingCompany}
+          pendingContact={pendingContactData}
+          isLoading={addContact.isPending}
+          onAddToExisting={handleAddToExistingCompany}
+          onCreateNewAnyway={handleCreateNewAnyway}
+          onClose={() => {
+            setShowExistingCompanyModal(false);
+            setExistingCompany(null);
+            setPendingContactData(null);
+          }}
+        />
       )}
 
       {/* QR Scanner Modal */}
@@ -2535,238 +2368,16 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Add Company Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-bold">Dodaj stranko</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowQRScanner(true)}
-                  className="p-2 bg-purple-100 text-purple-600 rounded-lg flex items-center gap-1"
-                  title="Skeniraj QR kodo vizitke"
-                >
-                  <QrCode size={20} />
-                </button>
-                <button onClick={() => setShowAddModal(false)} className="p-1">
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Ime podjetja *</label>
-                <input
-                  type="text"
-                  value={formData.companyName || ''}
-                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="ABC d.o.o."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Ime na lokaciji</label>
-                <input
-                  type="text"
-                  value={formData.displayName || ''}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Hotel Draš (če se razlikuje od uradnega imena)"
-                />
-                <p className="text-xs text-gray-500 mt-1">Opcijsko - prikazano ime, če se razlikuje od uradnega</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Davčna številka</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={formData.taxNumber || ''}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/^SI/i, '').replace(/\s/g, '');
-                      setFormData({ ...formData, taxNumber: value });
-                      // Avtomatsko poišči ko je 8 števk
-                      if (/^\d{8}$/.test(value) && !taxLookupLoading) {
-                        setTimeout(() => handleTaxLookup(), 100);
-                      }
-                    }}
-                    className="flex-1 p-3 border rounded-lg"
-                    placeholder="12345678"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTaxLookup}
-                    disabled={taxLookupLoading || !formData.taxNumber}
-                    className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm disabled:bg-gray-300"
-                  >
-                    {taxLookupLoading ? '...' : 'Izpolni'}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Avtomatsko izpolni ali klikni "Izpolni"</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Ulica</label>
-                <input
-                  type="text"
-                  value={formData.addressStreet || ''}
-                  onChange={(e) => setFormData({ ...formData, addressStreet: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Slovenska cesta 1"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Pošta</label>
-                  <input
-                    type="text"
-                    value={formData.addressPostal || ''}
-                    onChange={(e) => {
-                      const postal = e.target.value;
-                      const city = getCityByPostalCode(postal);
-                      setFormData({
-                        ...formData,
-                        addressPostal: postal,
-                        ...(city && { addressCity: city })
-                      });
-                    }}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="1000"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-1">Kraj</label>
-                  <input
-                    type="text"
-                    value={formData.addressCity || ''}
-                    onChange={(e) => setFormData({ ...formData, addressCity: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="Ljubljana"
-                  />
-                </div>
-              </div>
-
-              {/* Naslov poslovalnice */}
-              <div className="bg-amber-50 rounded-lg p-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.hasDifferentDeliveryAddress || false}
-                    onChange={(e) => setFormData({ ...formData, hasDifferentDeliveryAddress: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-medium">Poslovalnica na drugem naslovu</span>
-                </label>
-                <p className="text-xs text-gray-500 mt-1 ml-6">Obkljukaj če se naslov dostave razlikuje od sedeža podjetja</p>
-
-                {formData.hasDifferentDeliveryAddress && (
-                  <div className="mt-3 space-y-3 pl-6 border-l-2 border-amber-300">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Ulica poslovalnice</label>
-                      <input
-                        type="text"
-                        value={formData.deliveryAddress || ''}
-                        onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                        className="w-full p-3 border rounded-lg"
-                        placeholder="Industrijska cesta 5"
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Pošta</label>
-                        <input
-                          type="text"
-                          value={formData.deliveryPostal || ''}
-                          onChange={(e) => {
-                            const postal = e.target.value;
-                            const city = getCityByPostalCode(postal);
-                            setFormData({
-                              ...formData,
-                              deliveryPostal: postal,
-                              ...(city && { deliveryCity: city })
-                            });
-                          }}
-                          className="w-full p-3 border rounded-lg"
-                          placeholder="1000"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium mb-1">Kraj</label>
-                        <input
-                          type="text"
-                          value={formData.deliveryCity || ''}
-                          onChange={(e) => setFormData({ ...formData, deliveryCity: e.target.value })}
-                          className="w-full p-3 border rounded-lg"
-                          placeholder="Ljubljana"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-3">Kontaktna oseba</h4>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Ime in priimek</label>
-                    <input
-                      type="text"
-                      value={formData.contactName || ''}
-                      onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="Janez Novak"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Vloga</label>
-                    <input
-                      type="text"
-                      value={formData.contactRole || ''}
-                      onChange={(e) => setFormData({ ...formData, contactRole: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="Direktor"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Telefon</label>
-                    <input
-                      type="tel"
-                      value={formData.contactPhone || ''}
-                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="040 123 456"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={formData.contactEmail || ''}
-                      onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="janez@podjetje.si"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleAddCompany}
-                disabled={createCompany.isPending}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium disabled:bg-gray-300"
-              >
-                {createCompany.isPending ? 'Shranjujem...' : 'Dodaj stranko'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddCompanyModal
+          formData={formData}
+          onFormDataChange={setFormData}
+          taxLookupLoading={taxLookupLoading}
+          onTaxLookup={handleTaxLookup}
+          isLoading={createCompany.isPending}
+          onSubmit={handleAddCompany}
+          onOpenQRScanner={() => setShowQRScanner(true)}
+          onClose={() => setShowAddModal(false)}
+        />
       )}
 
       {/* Company Details Modal */}
@@ -3271,102 +2882,13 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Add Contact Modal */}
       {showAddContactModal && selectedCompany && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-bold">Dodaj kontakt</h3>
-              <button onClick={() => setShowAddContactModal(false)} className="p-1">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Ime in priimek *</label>
-                <input
-                  type="text"
-                  value={formData.newContactName || ''}
-                  onChange={(e) => setFormData({ ...formData, newContactName: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Ana Horvat"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Vloga</label>
-                <input
-                  type="text"
-                  value={formData.newContactRole || ''}
-                  onChange={(e) => setFormData({ ...formData, newContactRole: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Vodja nabave"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Telefon</label>
-                <input
-                  type="tel"
-                  value={formData.newContactPhone || ''}
-                  onChange={(e) => setFormData({ ...formData, newContactPhone: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="040 123 456"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.newContactEmail || ''}
-                  onChange={(e) => setFormData({ ...formData, newContactEmail: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="ana@podjetje.si"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Kontakt od</label>
-                <input
-                  type="date"
-                  value={formData.newContactSince || ''}
-                  onChange={(e) => setFormData({ ...formData, newContactSince: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">Od kdaj imate ta kontakt (za segmentacijo)</p>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.hasDifferentLocation || false}
-                    onChange={(e) => setFormData({ ...formData, hasDifferentLocation: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-medium">Druga lokacija (poslovalnica)</span>
-                </label>
-                {formData.hasDifferentLocation && (
-                  <input
-                    type="text"
-                    placeholder="Naslov poslovalnice"
-                    value={formData.newContactLocation || ''}
-                    onChange={(e) => setFormData({ ...formData, newContactLocation: e.target.value })}
-                    className="w-full p-3 border rounded-lg mt-2"
-                  />
-                )}
-              </div>
-
-              <button
-                onClick={handleAddContact}
-                disabled={addContact.isPending}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium disabled:bg-gray-300"
-              >
-                {addContact.isPending ? 'Shranjujem...' : 'Dodaj kontakt'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddContactModal
+          formData={formData}
+          onFormDataChange={setFormData}
+          isLoading={addContact.isPending}
+          onSubmit={handleAddContact}
+          onClose={() => setShowAddContactModal(false)}
+        />
       )}
 
       {/* Meeting/Deadline Modal */}
