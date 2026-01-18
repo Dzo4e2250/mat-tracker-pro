@@ -55,7 +55,7 @@ import {
 } from '@/utils/priceList';
 
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders } from '@/pages/contacts/components';
+import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard } from '@/pages/contacts/components';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -2197,103 +2197,23 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           onAddReminder={openReminderModal}
         />
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Išči po imenu, kontaktu, telefonu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-lg border bg-white"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
-
-        {/* Filters - Dropdowns */}
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Sort dropdown */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 rounded-lg border bg-white text-sm"
-          >
-            <option value="name">A-Ž po imenu</option>
-            <option value="date">Po datumu</option>
-            <option value="status">Po statusu</option>
-          </select>
-
-          {/* Period filter */}
-          <select
-            value={periodFilter}
-            onChange={(e) => setPeriodFilter(e.target.value as any)}
-            className="px-3 py-2 rounded-lg border bg-white text-sm"
-          >
-            <option value="all">Vsa obdobja</option>
-            <option value="week">Ta teden</option>
-            <option value="month">Ta mesec</option>
-            <option value="lastMonth">Prejšnji mesec</option>
-          </select>
-
-          {/* Pipeline status filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border bg-white text-sm"
-          >
-            <option value="all">Vsi statusi</option>
-            {PIPELINE_STATUSES.map(status => (
-              <option key={status.value} value={status.value}>{status.label}</option>
-            ))}
-          </select>
-
-          {/* Quick filters */}
-          <div className="flex gap-1">
-            {[
-              { key: 'all', label: 'Vse' },
-              { key: 'active', label: '🔵 Aktivne' },
-              { key: 'overdue', label: '🔴 Zamude' },
-              { key: 'signed', label: '✅ Pogodbe' },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setFilter(tab.key as FilterType)}
-                className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${
-                  filter === tab.key
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-600 border'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Route planning button */}
-          {filteredCompanies.filter(c => getCompanyAddress(c)).length > 1 && (
-            <button
-              onClick={openRouteInMaps}
-              className="px-3 py-2 rounded-lg text-sm whitespace-nowrap bg-orange-500 text-white flex items-center gap-1"
-              title={`Odpri pot za ${Math.min(filteredCompanies.filter(c => getCompanyAddress(c)).length, 10)} strank`}
-            >
-              <MapPin size={16} /> Pot ({Math.min(filteredCompanies.filter(c => getCompanyAddress(c)).length, 10)})
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="ml-auto px-3 py-2 rounded-lg text-sm whitespace-nowrap bg-green-500 text-white flex items-center gap-1"
-          >
-            <Plus size={16} /> Dodaj
-          </button>
-        </div>
+        {/* Search and Filters */}
+        <FiltersBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          periodFilter={periodFilter}
+          onPeriodChange={setPeriodFilter}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          pipelineStatuses={PIPELINE_STATUSES}
+          filter={filter}
+          onFilterChange={setFilter}
+          routeCompaniesCount={filteredCompanies.filter(c => getCompanyAddress(c)).length}
+          onOpenRoute={openRouteInMaps}
+          onAddCompany={() => setShowAddModal(true)}
+        />
 
         {/* TODAY Section - Meetings and Deadlines */}
         {!searchQuery && (
@@ -2335,210 +2255,23 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredCompanies.map(company => {
-              const primaryContact = getPrimaryContact(company);
-              const address = formatAddress(company);
-              const mapsUrl = getGoogleMapsUrl(company);
-              const overdueCycle = company.cycles?.find((c: any) => isTestOverdue(c));
-              const daysOverdue = overdueCycle ? getDaysOverdue(overdueCycle) : 0;
-              const isRecent = recentCompanyIds.includes(company.id);
-
-              return (
-                <div
-                  key={company.id}
-                  className={`bg-white rounded-lg shadow overflow-hidden ${overdueCycle ? 'border-2 border-red-400' : ''} ${isRecent && !searchQuery ? 'ring-2 ring-blue-200' : ''}`}
-                >
-                  {/* Main card - clickable */}
-                  <div
-                    className="p-4 cursor-pointer"
-                    onClick={() => {
-                      if (!selectionMode) {
-                        setSelectedCompany(company);
-                        setSelectedCompanyId(company.id);
-                        addToRecent(company.id);
-                      }
-                    }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="font-bold text-lg flex items-center gap-2">
-                          <Building2 size={18} className="text-gray-400" />
-                          {company.display_name || company.name}
-                          {isRecent && !searchQuery && (
-                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
-                              Nedavno
-                            </span>
-                          )}
-                          {overdueCycle && (
-                            <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
-                              {daysOverdue > 0 ? `${daysOverdue} dni zamude` : 'Zamuja'}
-                            </span>
-                          )}
-                        </div>
-                        {!selectionMode && primaryContact && (
-                          <div className="text-sm text-gray-600 mt-1">
-                            {primaryContact.first_name} {primaryContact.last_name}
-                            {primaryContact.role && <span className="text-gray-400"> • {primaryContact.role}</span>}
-                          </div>
-                        )}
-                        {address && (
-                          <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                            <MapPin size={14} />
-                            {address}
-                          </div>
-                        )}
-                      </div>
-                      {!selectionMode && <ChevronRight size={20} className="text-gray-400" />}
-                    </div>
-
-                    {/* Selection mode - show all contacts with checkboxes */}
-                    {selectionMode && company.contacts.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {company.contacts.map(contact => (
-                          <label
-                            key={contact.id}
-                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                toggleContactSelection(contact.id);
-                              }}
-                              className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                selectedContacts.has(contact.id)
-                                  ? 'bg-blue-500 border-blue-500 text-white'
-                                  : 'border-gray-300 bg-white'
-                              }`}
-                            >
-                              {selectedContacts.has(contact.id) && <Check size={14} />}
-                            </button>
-                            <div className="flex-1">
-                              <div className="font-medium text-sm">
-                                {contact.first_name} {contact.last_name}
-                                {contact.role && <span className="text-gray-400 font-normal"> • {contact.role}</span>}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {contact.phone && <span className="mr-3">{contact.phone}</span>}
-                                {contact.email && <span>{contact.email}</span>}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Stats - only show when not in selection mode */}
-                    {!selectionMode && company.cycleStats.total > 0 && (
-                      <div className="flex gap-3 mt-3 text-sm">
-                        {company.cycleStats.onTest > 0 && (
-                          <span className="text-blue-600">🔵 {company.cycleStats.onTest} na testu</span>
-                        )}
-                        {company.cycleStats.signed > 0 && (
-                          <span className="text-green-600">✅ {company.cycleStats.signed} pogodb</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick actions - Klic, Email, Zemljevid */}
-                  {!selectionMode && company.contacts.length > 0 && (
-                    <div className="border-t flex divide-x">
-                      {/* Klic */}
-                      {company.contacts.some(c => c.phone) && (
-                        company.contacts.filter(c => c.phone).length === 1 ? (
-                          <a
-                            href={`tel:${company.contacts.find(c => c.phone)?.phone}`}
-                            className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-blue-600 hover:bg-blue-50"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Phone size={16} />
-                            <span className="text-sm">Klic</span>
-                          </a>
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <button className="flex-1 py-2.5 flex items-center justify-center gap-1 text-blue-600 hover:bg-blue-50">
-                                <Phone size={16} />
-                                <span className="text-sm">Klic</span>
-                                <ChevronDown size={12} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              {company.contacts.filter(c => c.phone).map(contact => (
-                                <DropdownMenuItem key={contact.id} asChild>
-                                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2">
-                                    <Phone size={14} />
-                                    <span>{contact.first_name} {contact.last_name}</span>
-                                  </a>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )
-                      )}
-                      {/* Email */}
-                      {company.contacts.some(c => c.email) && (
-                        company.contacts.filter(c => c.email).length === 1 ? (
-                          <a
-                            href={`mailto:${company.contacts.find(c => c.email)?.email}`}
-                            className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-purple-600 hover:bg-purple-50"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Mail size={16} />
-                            <span className="text-sm">Email</span>
-                          </a>
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <button className="flex-1 py-2.5 flex items-center justify-center gap-1 text-purple-600 hover:bg-purple-50">
-                                <Mail size={16} />
-                                <span className="text-sm">Email</span>
-                                <ChevronDown size={12} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              {company.contacts.filter(c => c.email).map(contact => (
-                                <DropdownMenuItem key={contact.id} asChild>
-                                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2">
-                                    <Mail size={14} />
-                                    <span>{contact.first_name} {contact.last_name}</span>
-                                  </a>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )
-                      )}
-                      {/* Zemljevid */}
-                      {mapsUrl && (
-                        <a
-                          href={mapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-orange-600 hover:bg-orange-50"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MapPin size={16} />
-                          <span className="text-sm">Pot</span>
-                        </a>
-                      )}
-                      {/* Opomnik */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openReminderModal(company.id);
-                        }}
-                        className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-amber-600 hover:bg-amber-50"
-                      >
-                        <Bell size={16} />
-                        <span className="text-sm">Opomni</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {filteredCompanies.map(company => (
+              <CompanyCard
+                key={company.id}
+                company={company}
+                isRecent={recentCompanyIds.includes(company.id)}
+                showRecentBadge={!searchQuery}
+                selectionMode={selectionMode}
+                selectedContacts={selectedContacts}
+                onCompanyClick={() => {
+                  setSelectedCompany(company);
+                  setSelectedCompanyId(company.id);
+                  addToRecent(company.id);
+                }}
+                onContactToggle={toggleContactSelection}
+                onAddReminder={() => openReminderModal(company.id)}
+              />
+            ))}
           </div>
         )}
       </div>
