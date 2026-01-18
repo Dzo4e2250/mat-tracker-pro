@@ -10,3 +10,6 @@ export { default as ReminderModal } from './ReminderModal';
 export { default as ExistingCompanyModal } from './ExistingCompanyModal';
 export { default as AddCompanyModal, type AddCompanyFormData } from './AddCompanyModal';
 export { default as AddContactModal, type AddContactFormData } from './AddContactModal';
+export { default as MeetingModal } from './MeetingModal';
+export { default as EditAddressModal, type EditAddressFormData } from './EditAddressModal';
+export { default as EditContactModal, type EditContactFormData } from './EditContactModal';

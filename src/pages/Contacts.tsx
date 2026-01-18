@@ -55,7 +55,7 @@ import {
 } from '@/utils/priceList';
 
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal } from '@/pages/contacts/components';
+import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal } from '@/pages/contacts/components';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -2893,392 +2893,120 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Meeting/Deadline Modal */}
       {showMeetingModal && selectedCompany && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-bold">
-                {meetingType === 'sestanek' ? 'Dogovorjen sestanek' : 'Pošlji ponudbo do'}
-              </h3>
-              <button onClick={() => setShowMeetingModal(false)} className="p-1">
-                <X size={24} />
-              </button>
-            </div>
+        <MeetingModal
+          type={meetingType}
+          date={meetingDate}
+          time={meetingTime}
+          onDateChange={setMeetingDate}
+          onTimeChange={setMeetingTime}
+          onSaveWithICS={() => {
+            const content = meetingType === 'sestanek'
+              ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
+              : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
 
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Datum</label>
-                <input
-                  type="date"
-                  value={meetingDate}
-                  onChange={(e) => setMeetingDate(e.target.value)}
-                  className="w-full p-3 border rounded-lg"
-                />
-              </div>
+            addNoteMutation.mutate({
+              companyId: selectedCompany.id,
+              noteDate: new Date().toISOString().split('T')[0],
+              content,
+            });
 
-              {meetingType === 'sestanek' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ura</label>
-                  <input
-                    type="time"
-                    value={meetingTime}
-                    onChange={(e) => setMeetingTime(e.target.value)}
-                    className="w-full p-3 border rounded-lg"
-                  />
-                </div>
-              )}
+            generateICSFile(selectedCompany, meetingDate, meetingType === 'sestanek' ? meetingTime : '09:00', meetingType);
+            setShowMeetingModal(false);
+          }}
+          onSaveOnly={() => {
+            const content = meetingType === 'sestanek'
+              ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
+              : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
 
-              <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
-                {meetingType === 'sestanek' ? (
-                  <>
-                    <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
-                    <p>Dogovorjen sestanek za {new Date(meetingDate).toLocaleDateString('sl-SI')} ob {meetingTime}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
-                    <p>Pošlji ponudbo do {new Date(meetingDate).toLocaleDateString('sl-SI')}</p>
-                  </>
-                )}
-              </div>
+            addNoteMutation.mutate({
+              companyId: selectedCompany.id,
+              noteDate: new Date().toISOString().split('T')[0],
+              content,
+            });
 
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    const content = meetingType === 'sestanek'
-                      ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
-                      : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
-
-                    addNoteMutation.mutate({
-                      companyId: selectedCompany.id,
-                      noteDate: new Date().toISOString().split('T')[0],
-                      content,
-                    });
-
-                    // Generate ICS file
-                    generateICSFile(selectedCompany, meetingDate, meetingType === 'sestanek' ? meetingTime : '09:00', meetingType);
-
-                    setShowMeetingModal(false);
-                  }}
-                  className="flex-1 py-3 bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2"
-                >
-                  <Calendar size={18} />
-                  Shrani + Prenesi .ics
-                </button>
-              </div>
-
-              <button
-                onClick={() => {
-                  const content = meetingType === 'sestanek'
-                    ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
-                    : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
-
-                  addNoteMutation.mutate({
-                    companyId: selectedCompany.id,
-                    noteDate: new Date().toISOString().split('T')[0],
-                    content,
-                  });
-
-                  setShowMeetingModal(false);
-                }}
-                className="w-full py-2 text-gray-500 text-sm"
-              >
-                Samo shrani (brez .ics)
-              </button>
-            </div>
-          </div>
-        </div>
+            setShowMeetingModal(false);
+          }}
+          onClose={() => setShowMeetingModal(false)}
+        />
       )}
 
       {/* Edit Address Modal */}
       {showEditAddressModal && selectedCompany && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-bold">Uredi naslove</h3>
-              <button onClick={() => setShowEditAddressModal(false)} className="p-1">
-                <X size={24} />
-              </button>
-            </div>
+        <EditAddressModal
+          formData={editAddressData}
+          onFormDataChange={setEditAddressData}
+          onSave={async () => {
+            try {
+              const { error } = await supabase
+                .from('companies')
+                .update({
+                  address_street: editAddressData.addressStreet || null,
+                  address_postal: editAddressData.addressPostal || null,
+                  address_city: editAddressData.addressCity || null,
+                  delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
+                  delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
+                  delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                })
+                .eq('id', selectedCompany.id);
 
-            <div className="p-4 space-y-4">
-              {/* Sedež podjetja */}
-              <div>
-                <h4 className="font-medium text-sm text-gray-600 mb-2">Sedež podjetja (registrirani naslov)</h4>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={editAddressData.addressStreet || ''}
-                    onChange={(e) => setEditAddressData({ ...editAddressData, addressStreet: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="Ulica in hišna številka"
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      value={editAddressData.addressPostal || ''}
-                      onChange={(e) => {
-                        const postal = e.target.value;
-                        const city = getCityByPostalCode(postal);
-                        setEditAddressData({
-                          ...editAddressData,
-                          addressPostal: postal,
-                          ...(city && { addressCity: city })
-                        });
-                      }}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="Pošta"
-                    />
-                    <input
-                      type="text"
-                      value={editAddressData.addressCity || ''}
-                      onChange={(e) => setEditAddressData({ ...editAddressData, addressCity: e.target.value })}
-                      className="col-span-2 w-full p-3 border rounded-lg"
-                      placeholder="Kraj"
-                    />
-                  </div>
-                </div>
-              </div>
+              if (error) throw error;
 
-              {/* Naslov poslovalnice */}
-              <div className="bg-amber-50 rounded-lg p-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editAddressData.hasDifferentDeliveryAddress || false}
-                    onChange={(e) => setEditAddressData({ ...editAddressData, hasDifferentDeliveryAddress: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-medium">Poslovalnica na drugem naslovu</span>
-                </label>
-                <p className="text-xs text-gray-500 mt-1 ml-6">Naslov kamor gre šofer po predpražnike</p>
+              const updated = {
+                ...selectedCompany,
+                address_street: editAddressData.addressStreet || null,
+                address_postal: editAddressData.addressPostal || null,
+                address_city: editAddressData.addressCity || null,
+                delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
+                delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
+                delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+              };
+              setSelectedCompany(updated as any);
+              queryClient.invalidateQueries({ queryKey: ['companies'] });
 
-                {editAddressData.hasDifferentDeliveryAddress && (
-                  <div className="mt-3 space-y-3 pl-6 border-l-2 border-amber-300">
-                    <input
-                      type="text"
-                      value={editAddressData.deliveryAddress || ''}
-                      onChange={(e) => setEditAddressData({ ...editAddressData, deliveryAddress: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="Ulica poslovalnice"
-                    />
-                    <div className="grid grid-cols-3 gap-2">
-                      <input
-                        type="text"
-                        value={editAddressData.deliveryPostal || ''}
-                        onChange={(e) => {
-                          const postal = e.target.value;
-                          const city = getCityByPostalCode(postal);
-                          setEditAddressData({
-                            ...editAddressData,
-                            deliveryPostal: postal,
-                            ...(city && { deliveryCity: city })
-                          });
-                        }}
-                        className="w-full p-3 border rounded-lg"
-                        placeholder="Pošta"
-                      />
-                      <input
-                        type="text"
-                        value={editAddressData.deliveryCity || ''}
-                        onChange={(e) => setEditAddressData({ ...editAddressData, deliveryCity: e.target.value })}
-                        className="col-span-2 w-full p-3 border rounded-lg"
-                        placeholder="Kraj"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from('companies')
-                      .update({
-                        address_street: editAddressData.addressStreet || null,
-                        address_postal: editAddressData.addressPostal || null,
-                        address_city: editAddressData.addressCity || null,
-                        delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
-                        delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
-                        delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
-                      })
-                      .eq('id', selectedCompany.id);
-
-                    if (error) throw error;
-
-                    // Update local state
-                    const updated = {
-                      ...selectedCompany,
-                      address_street: editAddressData.addressStreet || null,
-                      address_postal: editAddressData.addressPostal || null,
-                      address_city: editAddressData.addressCity || null,
-                      delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
-                      delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
-                      delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
-                    };
-                    setSelectedCompany(updated as any);
-                    queryClient.invalidateQueries({ queryKey: ['companies'] });
-
-                    toast({ description: 'Naslovi posodobljeni' });
-                    setShowEditAddressModal(false);
-                  } catch (error: any) {
-                    console.error('Error updating address:', error);
-                    toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
-                  }
-                }}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium"
-              >
-                Shrani naslove
-              </button>
-            </div>
-          </div>
-        </div>
+              toast({ description: 'Naslovi posodobljeni' });
+              setShowEditAddressModal(false);
+            } catch (error: any) {
+              console.error('Error updating address:', error);
+              toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
+            }
+          }}
+          onClose={() => setShowEditAddressModal(false)}
+        />
       )}
 
       {/* Edit Contact Modal */}
       {editingContact && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-bold">Uredi kontakt</h3>
-              <button onClick={() => setEditingContact(null)} className="p-1">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ime *</label>
-                  <input
-                    type="text"
-                    value={editContactData.first_name || ''}
-                    onChange={(e) => setEditContactData({ ...editContactData, first_name: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="Ana"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Priimek</label>
-                  <input
-                    type="text"
-                    value={editContactData.last_name || ''}
-                    onChange={(e) => setEditContactData({ ...editContactData, last_name: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="Horvat"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Vloga</label>
-                <input
-                  type="text"
-                  value={editContactData.role || ''}
-                  onChange={(e) => setEditContactData({ ...editContactData, role: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Vodja nabave"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Telefon</label>
-                <input
-                  type="tel"
-                  value={editContactData.phone || ''}
-                  onChange={(e) => setEditContactData({ ...editContactData, phone: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="040 123 456"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editContactData.email || ''}
-                  onChange={(e) => setEditContactData({ ...editContactData, email: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="ana@podjetje.si"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Kontakt od</label>
-                <input
-                  type="date"
-                  value={editContactData.contact_since || ''}
-                  onChange={(e) => setEditContactData({ ...editContactData, contact_since: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">Od kdaj imate ta kontakt</p>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editContactData.is_primary || false}
-                    onChange={(e) => setEditContactData({ ...editContactData, is_primary: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-medium">Glavni kontakt</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Druga lokacija (poslovalnica)</label>
-                <input
-                  type="text"
-                  value={editContactData.location_address || ''}
-                  onChange={(e) => setEditContactData({ ...editContactData, location_address: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="Naslov poslovalnice (opcijsko)"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => setEditingContact(null)}
-                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
-                >
-                  Prekliči
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!editContactData.first_name?.trim()) {
-                      toast({ description: 'Ime je obvezno', variant: 'destructive' });
-                      return;
-                    }
-                    try {
-                      await updateContact.mutateAsync({
-                        contactId: editingContact.id,
-                        data: {
-                          first_name: editContactData.first_name.trim(),
-                          last_name: editContactData.last_name?.trim() || '',
-                          phone: editContactData.phone?.trim() || null,
-                          email: editContactData.email?.trim() || null,
-                          role: editContactData.role?.trim() || null,
-                          is_primary: editContactData.is_primary || false,
-                          location_address: editContactData.location_address?.trim() || null,
-                          contact_since: editContactData.contact_since || null,
-                        },
-                      });
-                      toast({ description: 'Kontakt posodobljen' });
-                      setEditingContact(null);
-                    } catch (error) {
-                      toast({ description: 'Napaka pri posodabljanju', variant: 'destructive' });
-                    }
-                  }}
-                  disabled={updateContact.isPending}
-                  className="flex-1 py-3 bg-blue-500 text-white rounded-lg font-medium disabled:bg-gray-300"
-                >
-                  {updateContact.isPending ? 'Shranjujem...' : 'Shrani'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <EditContactModal
+          formData={editContactData}
+          onFormDataChange={setEditContactData}
+          isLoading={updateContact.isPending}
+          onSave={async () => {
+            if (!editContactData.first_name?.trim()) {
+              toast({ description: 'Ime je obvezno', variant: 'destructive' });
+              return;
+            }
+            try {
+              await updateContact.mutateAsync({
+                contactId: editingContact.id,
+                data: {
+                  first_name: editContactData.first_name.trim(),
+                  last_name: editContactData.last_name?.trim() || '',
+                  phone: editContactData.phone?.trim() || null,
+                  email: editContactData.email?.trim() || null,
+                  role: editContactData.role?.trim() || null,
+                  is_primary: editContactData.is_primary || false,
+                  location_address: editContactData.location_address?.trim() || null,
+                  contact_since: editContactData.contact_since || null,
+                },
+              });
+              toast({ description: 'Kontakt posodobljen' });
+              setEditingContact(null);
+            } catch (error) {
+              toast({ description: 'Napaka pri posodabljanju', variant: 'destructive' });
+            }
+          }}
+          onClose={() => setEditingContact(null)}
+        />
       )}
 
       {/* Offer Modal */}
