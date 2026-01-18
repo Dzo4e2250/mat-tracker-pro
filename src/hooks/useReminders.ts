@@ -34,6 +34,8 @@ export function useReminders(userId?: string) {
 export function useDueReminders(userId?: string) {
   return useQuery({
     queryKey: ['reminders', 'due', userId],
+    staleTime: 1000 * 60, // 1 minuta
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       if (!userId) return [];
 
@@ -62,6 +64,8 @@ export function useDueReminders(userId?: string) {
 export function useContractPendingCompanies(userId?: string, daysThreshold: number = 3) {
   return useQuery({
     queryKey: ['companies', 'contract-pending', userId, daysThreshold],
+    staleTime: 1000 * 60 * 5, // 5 minut
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       if (!userId) return [];
 

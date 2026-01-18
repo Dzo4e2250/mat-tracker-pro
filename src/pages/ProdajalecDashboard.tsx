@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ZoomIn } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
@@ -61,6 +61,7 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 export default function ProdajalecDashboard() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
   // Data hooks
@@ -92,7 +93,10 @@ export default function ProdajalecDashboard() {
   const markContractSigned = useMarkContractSigned();
   const createCompanyWithContact = useCreateCompanyWithContact();
 
-  const [view, setView] = useState('home');
+  const [view, setView] = useState(() => {
+    const urlView = searchParams.get('view');
+    return urlView === 'scan' ? 'scan' : 'home';
+  });
   const [scanInput, setScanInput] = useState('');
   const [selectedCycle, setSelectedCycle] = useState<CycleWithRelations | null>(null);
   const [editingStartDate, setEditingStartDate] = useState(false);

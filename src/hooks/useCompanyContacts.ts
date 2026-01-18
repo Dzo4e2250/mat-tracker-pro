@@ -28,6 +28,9 @@ export type ContactWithCompany = Contact & {
 export function useCompanyContacts(userId?: string) {
   return useQuery({
     queryKey: ['company-contacts', userId],
+    staleTime: 1000 * 60 * 5, // 5 minut - podatki so "sveži" 5 minut
+    gcTime: 1000 * 60 * 30, // 30 minut v cache-u
+    refetchOnWindowFocus: false, // ne refetchaj ob fokusu okna
     queryFn: async () => {
       if (!userId) return [];
 

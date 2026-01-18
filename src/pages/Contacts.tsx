@@ -27,7 +27,7 @@
 // IMPORTS
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Phone, MessageSquare, Mail, MapPin, Plus, ChevronRight, Home, Camera, Users, Building2, User, X, Trash2, Package, Calendar, CheckCircle, Clock, FileText, Euro, ChevronDown, MoreVertical, Download, Check, Square, CheckSquare, FileSignature, StickyNote, QrCode, Bell, AlertTriangle, Filter, Pencil } from 'lucide-react';
@@ -47,7 +47,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
-import ContractModal from '@/components/ContractModal';
+// Lazy loaded komponente - naložijo se šele ko se uporabijo
+const ContractModal = lazy(() => import('@/components/ContractModal'));
 import {
   getRentalPrice, getPurchasePrice, getReplacementCost, getDimensions, getPriceByCode,
   STANDARD_TYPES, DESIGN_SIZES, calculateM2FromDimensions, calculateCustomPrice, calculateCustomPurchasePrice,
@@ -56,7 +57,13 @@ import {
 
 // Ekstrahirane komponente
 import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal, QRScannerModal, ContractConfirmDialog } from '@/pages/contacts/components';
-import { OfferTypeStep, OfferItemsNakupStep, OfferItemsNajemStep, OfferPreviewStep, type FrequencyType } from '@/pages/contacts/components/offer';
+import { type FrequencyType } from '@/pages/contacts/components/offer';
+
+// Lazy loaded Offer komponente - naložijo se šele ko se odpre ponudba
+const OfferTypeStep = lazy(() => import('@/pages/contacts/components/offer/OfferTypeStep'));
+const OfferItemsNakupStep = lazy(() => import('@/pages/contacts/components/offer/OfferItemsNakupStep'));
+const OfferItemsNajemStep = lazy(() => import('@/pages/contacts/components/offer/OfferItemsNajemStep'));
+const OfferPreviewStep = lazy(() => import('@/pages/contacts/components/offer/OfferPreviewStep'));
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -2576,6 +2583,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
               </button>
             </div>
 
+            <Suspense fallback={<div className="p-4 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
             <div className="p-4 space-y-4">
               {/* Step 1: Select offer type */}
               {offerStep === 'type' && (
@@ -2784,6 +2792,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                 />
               )}
             </div>
+            </Suspense>
           </div>
         </div>
       )}
@@ -2801,6 +2810,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Contract Modal */}
       {selectedOffer && selectedCompany && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
         <ContractModal
           isOpen={showContractModal}
           onClose={() => setShowContractModal(false)}
@@ -2861,6 +2871,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             setSavedContracts(prev => [...prev, contract]);
           }}
         />
+        </Suspense>
       )}
 
       {/* Floating Action Button - Add Company */}
@@ -2882,7 +2893,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             <span className="text-xs mt-1">Domov</span>
           </button>
           <button
-            onClick={() => navigate('/prodajalec')}
+            onClick={() => navigate('/prodajalec?view=scan')}
             className="flex-1 py-3 flex flex-col items-center text-gray-600"
           >
             <Camera size={22} />
