@@ -54,6 +54,9 @@ import {
   FrequencyKey
 } from '@/utils/priceList';
 
+// Ekstrahirane komponente
+import { TodaySection, SelectionModeBar, UrgentReminders } from '@/pages/contacts/components';
+
 // ============================================================================
 // TYPES & CONSTANTS
 // ============================================================================
@@ -2182,88 +2185,17 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       <div className="p-4 space-y-4">
         {/* Urgent Reminders - Red Cards */}
-        {((dueReminders && dueReminders.length > 0) || (contractPendingCompanies && contractPendingCompanies.length > 0)) && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-red-700 flex items-center gap-2">
-              <AlertTriangle size={16} />
-              Nujno - Zahteva pozornost
-            </h3>
-
-            {/* Due reminders */}
-            {dueReminders?.map(reminder => (
-              <div
-                key={reminder.id}
-                className="bg-red-50 border-2 border-red-300 rounded-lg p-3 flex items-center justify-between"
-              >
-                <div className="flex-1">
-                  <p className="font-medium text-red-800">{reminder.company?.name || 'Neznana stranka'}</p>
-                  {reminder.note && <p className="text-sm text-red-600">{reminder.note}</p>}
-                  <p className="text-xs text-red-500 mt-1">
-                    <Clock size={12} className="inline mr-1" />
-                    {new Date(reminder.reminder_at).toLocaleString('sl-SI', {
-                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (reminder.company) {
-                        setSelectedCompanyId(reminder.company.id);
-                        const company = companies?.find(c => c.id === reminder.company?.id);
-                        if (company) setSelectedCompany(company);
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium"
-                  >
-                    Odpri
-                  </button>
-                  <button
-                    onClick={() => handleCompleteReminder(reminder.id)}
-                    className="px-3 py-1.5 bg-white border border-red-300 text-red-600 rounded-lg text-sm"
-                  >
-                    <Check size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Contract pending reminders (auto-generated) */}
-            {contractPendingCompanies?.map(company => (
-              <div
-                key={`contract-${company.id}`}
-                className="bg-orange-50 border-2 border-orange-300 rounded-lg p-3 flex items-center justify-between"
-              >
-                <div className="flex-1">
-                  <p className="font-medium text-orange-800">{company.display_name || company.name}</p>
-                  <p className="text-sm text-orange-600">
-                    Pogodba poslana {company.contract_sent_at ?
-                      new Date(company.contract_sent_at).toLocaleDateString('sl-SI') : 'pred več kot 3 dni'
-                    } - ni odgovora
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedCompanyId(company.id);
-                      const fullCompany = companies?.find(c => c.id === company.id);
-                      if (fullCompany) setSelectedCompany(fullCompany);
-                    }}
-                    className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-sm font-medium"
-                  >
-                    Pokliči
-                  </button>
-                  <button
-                    onClick={() => openReminderModal(company.id)}
-                    className="px-3 py-1.5 bg-white border border-orange-300 text-orange-600 rounded-lg text-sm"
-                  >
-                    <Bell size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <UrgentReminders
+          dueReminders={dueReminders}
+          contractPendingCompanies={contractPendingCompanies}
+          onOpenCompany={(companyId) => {
+            setSelectedCompanyId(companyId);
+            const company = companies?.find(c => c.id === companyId);
+            if (company) setSelectedCompany(company);
+          }}
+          onCompleteReminder={handleCompleteReminder}
+          onAddReminder={openReminderModal}
+        />
 
         {/* Search */}
         <div className="relative">
@@ -2364,202 +2296,34 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
         </div>
 
         {/* TODAY Section - Meetings and Deadlines */}
-        {((todayTasks?.meetings?.length || 0) > 0 || (todayTasks?.deadlines?.length || 0) > 0) && !searchQuery && (
-          <div className="bg-gradient-to-r from-blue-50 to-amber-50 rounded-xl p-4 border border-blue-200">
-            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <Calendar size={18} className="text-blue-500" />
-              Danes & Prihajajoče
-            </h3>
-
-            <div className="space-y-2">
-              {/* Today's meetings */}
-              {todayTasks?.meetings?.filter((m: any) => m.isToday).map((meeting: any) => (
-                <div
-                  key={meeting.id}
-                  onClick={() => {
-                    const company = companies?.find(c => c.id === meeting.company_id);
-                    if (company) {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
-                    }
-                  }}
-                  className="bg-blue-100 rounded-lg p-3 cursor-pointer hover:bg-blue-200 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-blue-600 uppercase">Danes sestanek</span>
-                      <p className="font-medium text-blue-900">
-                        {meeting.companies?.display_name || meeting.companies?.name}
-                      </p>
-                      <p className="text-sm text-blue-700">{meeting.content}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-blue-400" />
-                  </div>
-                </div>
-              ))}
-
-              {/* Overdue deadlines (past) */}
-              {todayTasks?.deadlines?.filter((d: any) => d.isPast && !d.isToday).map((deadline: any) => (
-                <div
-                  key={deadline.id}
-                  onClick={() => {
-                    const company = companies?.find(c => c.id === deadline.company_id);
-                    if (company) {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
-                    }
-                  }}
-                  className="bg-red-100 rounded-lg p-3 cursor-pointer hover:bg-red-200 transition-colors border-l-4 border-red-500"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-red-600 uppercase">Zamuja!</span>
-                      <p className="font-medium text-red-900">
-                        {deadline.companies?.display_name || deadline.companies?.name}
-                      </p>
-                      <p className="text-sm text-red-700">{deadline.content}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-red-400" />
-                  </div>
-                </div>
-              ))}
-
-              {/* Today's deadlines */}
-              {todayTasks?.deadlines?.filter((d: any) => d.isToday).map((deadline: any) => (
-                <div
-                  key={deadline.id}
-                  onClick={() => {
-                    const company = companies?.find(c => c.id === deadline.company_id);
-                    if (company) {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
-                    }
-                  }}
-                  className="bg-amber-100 rounded-lg p-3 cursor-pointer hover:bg-amber-200 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-amber-600 uppercase">Danes rok</span>
-                      <p className="font-medium text-amber-900">
-                        {deadline.companies?.display_name || deadline.companies?.name}
-                      </p>
-                      <p className="text-sm text-amber-700">{deadline.content}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-amber-400" />
-                  </div>
-                </div>
-              ))}
-
-              {/* Upcoming deadlines (within 2 days) */}
-              {todayTasks?.deadlines?.filter((d: any) => d.isSoon && !d.isToday && !d.isPast).map((deadline: any) => (
-                <div
-                  key={deadline.id}
-                  onClick={() => {
-                    const company = companies?.find(c => c.id === deadline.company_id);
-                    if (company) {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
-                    }
-                  }}
-                  className="bg-gray-100 rounded-lg p-3 cursor-pointer hover:bg-gray-200 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-gray-500 uppercase">Kmalu</span>
-                      <p className="font-medium text-gray-900">
-                        {deadline.companies?.display_name || deadline.companies?.name}
-                      </p>
-                      <p className="text-sm text-gray-600">{deadline.content}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-gray-400" />
-                  </div>
-                </div>
-              ))}
-
-              {/* Upcoming meetings */}
-              {todayTasks?.meetings?.filter((m: any) => !m.isToday && !m.isPast).map((meeting: any) => (
-                <div
-                  key={meeting.id}
-                  onClick={() => {
-                    const company = companies?.find(c => c.id === meeting.company_id);
-                    if (company) {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
-                    }
-                  }}
-                  className="bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-blue-500 uppercase">Prihajajoč sestanek</span>
-                      <p className="font-medium text-blue-800">
-                        {meeting.companies?.display_name || meeting.companies?.name}
-                      </p>
-                      <p className="text-sm text-blue-600">{meeting.content}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-blue-300" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {!searchQuery && (
+          <TodaySection
+            todayTasks={todayTasks}
+            onCompanyClick={(companyId) => {
+              const company = companies?.find(c => c.id === companyId);
+              if (company) {
+                setSelectedCompany(company);
+                setSelectedCompanyId(company.id);
+                addToRecent(company.id);
+              }
+            }}
+          />
         )}
 
         {/* Selection Mode Bar */}
         {selectionMode && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-blue-800">
-                  {selectedContacts.size} izbranih od {getAllContactsCount()}
-                </span>
-                <button
-                  onClick={selectAllContacts}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Izberi vse
-                </button>
-                {selectedContacts.size > 0 && (
-                  <button
-                    onClick={deselectAllContacts}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Počisti
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={exportSelectedContacts}
-                  disabled={selectedContacts.size === 0}
-                  className="px-3 py-1.5 bg-green-500 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  <Download size={14} /> Izvozi
-                </button>
-                <button
-                  onClick={deleteSelectedContacts}
-                  disabled={selectedContacts.size === 0}
-                  className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  <Trash2 size={14} /> Izbriši
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectionMode(false);
-                    setSelectedContacts(new Set());
-                  }}
-                  className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg flex items-center gap-1"
-                >
-                  <X size={14} /> Prekliči
-                </button>
-              </div>
-            </div>
-          </div>
+          <SelectionModeBar
+            selectedCount={selectedContacts.size}
+            totalCount={getAllContactsCount()}
+            onSelectAll={selectAllContacts}
+            onDeselectAll={deselectAllContacts}
+            onExport={exportSelectedContacts}
+            onDelete={deleteSelectedContacts}
+            onCancel={() => {
+              setSelectionMode(false);
+              setSelectedContacts(new Set());
+            }}
+          />
         )}
 
         {/* Company List */}
