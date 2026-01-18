@@ -55,7 +55,7 @@ import {
 } from '@/utils/priceList';
 
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal } from '@/pages/contacts/components';
+import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal } from '@/pages/contacts/components';
 import { OfferTypeStep, OfferItemsNakupStep, OfferPreviewStep, type FrequencyType } from '@/pages/contacts/components/offer';
 
 // ============================================================================
@@ -2383,502 +2383,92 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
       {/* Company Details Modal */}
       {selectedCompany && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-bold">{selectedCompany.display_name || selectedCompany.name}</h3>
-              <button onClick={() => {
-                setSelectedCompany(null);
-                setSelectedCompanyId(null);
-              }} className="p-1">
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Company Info */}
-              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    {selectedCompany.tax_number && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">Davčna:</span> {selectedCompany.tax_number}
-                      </div>
-                    )}
-
-                    {/* Sedež podjetja */}
-                    {selectedCompany.address_street && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">
-                          {(selectedCompany as any).delivery_address ? 'Sedež:' : 'Naslov:'}
-                        </span> {selectedCompany.address_street}
-                      </div>
-                    )}
-                    {(selectedCompany.address_postal || selectedCompany.address_city) && !(selectedCompany as any).delivery_address && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">Pošta:</span> {selectedCompany.address_postal} {selectedCompany.address_city}
-                      </div>
-                    )}
-                    {(selectedCompany.address_postal || selectedCompany.address_city) && (selectedCompany as any).delivery_address && (
-                      <div className="text-sm text-gray-400 ml-4">
-                        {selectedCompany.address_postal} {selectedCompany.address_city}
-                      </div>
-                    )}
-
-                    {/* Naslov poslovalnice */}
-                    {(selectedCompany as any).delivery_address && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        <div className="text-sm">
-                          <span className="text-amber-600 font-medium">Poslovalnica:</span> {(selectedCompany as any).delivery_address}
-                        </div>
-                        {((selectedCompany as any).delivery_postal || (selectedCompany as any).delivery_city) && (
-                          <div className="text-sm text-gray-500 ml-4">
-                            {(selectedCompany as any).delivery_postal} {(selectedCompany as any).delivery_city}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* Edit address button */}
-                  <button
-                    onClick={() => {
-                      setEditAddressData({
-                        addressStreet: selectedCompany.address_street || '',
-                        addressPostal: selectedCompany.address_postal || '',
-                        addressCity: selectedCompany.address_city || '',
-                        deliveryAddress: (selectedCompany as any).delivery_address || '',
-                        deliveryPostal: (selectedCompany as any).delivery_postal || '',
-                        deliveryCity: (selectedCompany as any).delivery_city || '',
-                        hasDifferentDeliveryAddress: !!(selectedCompany as any).delivery_address,
-                      });
-                      setShowEditAddressModal(true);
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"
-                    title="Uredi naslove"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Dated Notes Section */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <StickyNote size={18} className="text-yellow-500" />
-                    Opombe
-                  </h4>
-                </div>
-
-                {/* Quick action buttons */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <button
-                    onClick={() => {
-                      if (selectedCompany) {
-                        addNoteMutation.mutate({
-                          companyId: selectedCompany.id,
-                          noteDate: new Date().toISOString().split('T')[0],
-                          content: 'Klical - ni dvignil',
-                        });
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-xs font-medium"
-                  >
-                    Klical - ni dvignil
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedCompany) {
-                        addNoteMutation.mutate({
-                          companyId: selectedCompany.id,
-                          noteDate: new Date().toISOString().split('T')[0],
-                          content: 'Ni interesa',
-                        });
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-xs font-medium"
-                  >
-                    Ni interesa
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMeetingType('ponudba');
-                      setMeetingDate(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-                      setMeetingTime('09:00');
-                      setShowMeetingModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-full text-xs font-medium"
-                  >
-                    Pošlji ponudbo do...
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMeetingType('sestanek');
-                      setMeetingDate(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-                      setMeetingTime('10:00');
-                      setShowMeetingModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-xs font-medium"
-                  >
-                    Dogovorjen sestanek...
-                  </button>
-                </div>
-
-                {/* Add new note */}
-                <div className="bg-yellow-50 rounded-lg p-3 mb-3">
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="date"
-                      value={newNoteDate}
-                      onChange={(e) => setNewNoteDate(e.target.value)}
-                      className="px-2 py-1 border rounded text-sm"
-                    />
-                    <button
-                      onClick={() => {
-                        if (newNoteContent.trim() && selectedCompany) {
-                          addNoteMutation.mutate({
-                            companyId: selectedCompany.id,
-                            noteDate: newNoteDate,
-                            content: newNoteContent.trim(),
-                          });
-                        }
-                      }}
-                      disabled={!newNoteContent.trim() || addNoteMutation.isPending}
-                      className="px-3 py-1 bg-yellow-500 text-white rounded text-sm disabled:bg-gray-300 flex items-center gap-1"
-                    >
-                      <Plus size={14} />
-                      Dodaj
-                    </button>
-                  </div>
-                  <textarea
-                    value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    placeholder="Prosta opomba..."
-                    className="w-full p-2 border rounded text-sm"
-                    rows={2}
-                  />
-                </div>
-
-                {/* Notes list */}
-                {isLoadingNotes ? (
-                  <div className="text-center py-2 text-gray-500 text-sm">Nalagam opombe...</div>
-                ) : companyNotes && companyNotes.length > 0 ? (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {companyNotes.map((note) => (
-                      <div key={note.id} className="bg-gray-50 rounded-lg p-3 relative group">
-                        <div className="flex items-start justify-between">
-                          <div className="text-xs text-gray-500 font-medium mb-1">
-                            {new Date(note.note_date).toLocaleDateString('sl-SI', {
-                              weekday: 'short',
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </div>
-                          <button
-                            onClick={() => deleteNoteMutation.mutate(note.id)}
-                            className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm text-center py-2">Ni opomb</p>
-                )}
-              </div>
-
-              {/* Stats */}
-              {selectedCompany.cycleStats.total > 0 && (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <div className="text-xl font-bold text-blue-600">{selectedCompany.cycleStats.onTest}</div>
-                    <div className="text-xs text-gray-500">Na testu</div>
-                  </div>
-                  <div className="bg-green-50 p-3 rounded-lg">
-                    <div className="text-xl font-bold text-green-600">{selectedCompany.cycleStats.signed}</div>
-                    <div className="text-xs text-gray-500">Pogodb</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-xl font-bold text-gray-600">{selectedCompany.cycleStats.total}</div>
-                    <div className="text-xs text-gray-500">Skupaj</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Contacts */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">Kontaktne osebe</h4>
-                  <button
-                    onClick={() => setShowAddContactModal(true)}
-                    className="text-sm text-blue-500 flex items-center gap-1"
-                  >
-                    <Plus size={16} /> Dodaj
-                  </button>
-                </div>
-
-                {selectedCompany.contacts.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Ni kontaktnih oseb</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedCompany.contacts.map(contact => (
-                      <div key={contact.id} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-medium flex items-center gap-2">
-                              <User size={16} className="text-gray-400" />
-                              {contact.first_name} {contact.last_name}
-                              {contact.is_primary && (
-                                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded">Glavni</span>
-                              )}
-                            </div>
-                            {contact.role && (
-                              <div className="text-sm text-gray-500">{contact.role}</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => {
-                                setEditingContact(contact);
-                                setEditContactData({
-                                  first_name: contact.first_name || '',
-                                  last_name: contact.last_name || '',
-                                  phone: contact.phone || '',
-                                  email: contact.email || '',
-                                  role: contact.role || '',
-                                  is_primary: contact.is_primary || false,
-                                  location_address: (contact as any).location_address || '',
-                                  contact_since: (contact as any).contact_since || '',
-                                });
-                              }}
-                              className="text-blue-500 p-1 hover:text-blue-700"
-                              title="Uredi kontakt"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteContact(contact.id)}
-                              className="text-red-500 p-1 hover:text-red-700"
-                              title="Izbriši kontakt"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {contact.phone && (
-                            <a
-                              href={`tel:${contact.phone}`}
-                              className="flex items-center gap-1 text-sm text-blue-600"
-                            >
-                              <Phone size={14} /> {contact.phone}
-                            </a>
-                          )}
-                          {contact.email && (
-                            <a
-                              href={`mailto:${contact.email}`}
-                              className="flex items-center gap-1 text-sm text-purple-600"
-                            >
-                              <Mail size={14} /> {contact.email}
-                            </a>
-                          )}
-                        </div>
-                        {(contact as any).contact_since && (
-                          <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                            <Calendar size={12} />
-                            Kontakt od: {new Date((contact as any).contact_since).toLocaleDateString('sl-SI')}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Cycles History */}
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <Package size={18} className="text-gray-400" />
-                  Zgodovina predpražnikov
-                </h4>
-
-                {isLoadingDetails ? (
-                  <div className="text-center py-4 text-gray-500 text-sm">Nalagam...</div>
-                ) : !companyDetails?.cycles || companyDetails.cycles.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Ni zgodovine predpražnikov</p>
-                ) : (
-                  <div className="space-y-2">
-                    {companyDetails.cycles.map((cycle: any) => {
-                      const statusConfig: Record<string, { icon: any; color: string; label: string }> = {
-                        on_test: { icon: Clock, color: 'text-blue-600 bg-blue-50', label: 'Na testu' },
-                        completed: { icon: CheckCircle, color: 'text-gray-600 bg-gray-100', label: 'Zaključen' },
-                        clean: { icon: Package, color: 'text-green-600 bg-green-50', label: 'Čist' },
-                      };
-                      const status = statusConfig[cycle.status] || statusConfig.clean;
-                      const StatusIcon = status.icon;
-
-                      return (
-                        <div key={cycle.id} className={`rounded-lg p-3 ${status.color.split(' ')[1]}`}>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <div className="font-medium flex items-center gap-2">
-                                {cycle.mat_type?.name || 'Predpražnik'}
-                                <span className="text-xs text-gray-500">
-                                  ({cycle.qr_code?.code || 'N/A'})
-                                </span>
-                              </div>
-                              <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                                <Calendar size={12} />
-                                {new Date(cycle.created_at).toLocaleDateString('sl-SI')}
-                                {cycle.test_end_date && (
-                                  <span className="text-gray-400">
-                                    {' → '}{new Date(cycle.test_end_date).toLocaleDateString('sl-SI')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${status.color}`}>
-                              <StatusIcon size={12} />
-                              {status.label}
-                              {cycle.contract_signed && (
-                                <span className="ml-1">✅</span>
-                              )}
-                            </div>
-                          </div>
-                          {cycle.notes && (
-                            <div className="text-xs text-gray-500 mt-2 flex items-start gap-1">
-                              <FileText size={12} className="mt-0.5 flex-shrink-0" />
-                              {cycle.notes}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Sent Offers */}
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <FileText size={18} className="text-gray-400" />
-                  Poslane ponudbe
-                </h4>
-
-                {loadingSentOffers ? (
-                  <div className="text-center py-4 text-gray-500 text-sm">Nalagam...</div>
-                ) : sentOffers.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Ni poslanih ponudb</p>
-                ) : (
-                  <div className="space-y-2">
-                    {sentOffers.map((offer) => {
-                      const offerTypeLabel = offer.offer_type === 'rental' ? 'Najem' :
-                        offer.offer_type === 'purchase' ? 'Nakup' : 'Najem + Nakup';
-                      const frequencyLabel = offer.frequency ? `${offer.frequency} ${offer.frequency === '1' ? 'teden' : 'tedna'}` : '';
-                      const hasContract = savedContracts.some(c => c.offer_id === offer.id);
-
-                      return (
-                        <div key={offer.id} className={`rounded-lg p-3 ${hasContract ? 'bg-green-50 border border-green-200' : 'bg-purple-50'}`}>
-                          <div className="flex items-start justify-between">
-                            <div
-                              className="flex-1 cursor-pointer"
-                              onClick={() => {
-                                setSelectedOffer(offer);
-                                setShowContractConfirm(true);
-                              }}
-                            >
-                              <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-0.5 rounded text-xs ${
-                                  offer.offer_type === 'rental' ? 'bg-blue-100 text-blue-700' :
-                                  offer.offer_type === 'purchase' ? 'bg-green-100 text-green-700' :
-                                  'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {offerTypeLabel}
-                                </span>
-                                {frequencyLabel && <span className="text-gray-500 text-xs">{frequencyLabel}</span>}
-                                {hasContract && (
-                                  <span className="px-2 py-0.5 rounded text-xs bg-green-500 text-white flex items-center gap-1">
-                                    <FileSignature size={10} />
-                                    Pogodba
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
-                                <Calendar size={12} />
-                                {new Date(offer.sent_at).toLocaleDateString('sl-SI')}
-                                <span className="text-gray-400 ml-2">{offer.recipient_email}</span>
-                              </div>
-                              {offer.items && offer.items.length > 0 && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {offer.items.length} artikel{offer.items.length > 1 ? 'ov' : ''}
-                                  {offer.items.map((item: any) => item.notes).filter(Boolean).slice(0, 2).join(', ') && (
-                                    <span className="text-gray-400"> • {offer.items.map((item: any) => item.notes).filter(Boolean).slice(0, 2).join(', ')}</span>
-                                  )}
-                                </div>
-                              )}
-                              {hasContract && (
-                                <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                                  <FileSignature size={12} />
-                                  Pogodba generirana {new Date(savedContracts.find(c => c.offer_id === offer.id)?.generated_at || '').toLocaleDateString('sl-SI')}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteSentOffer(offer.id);
-                              }}
-                              className="text-red-500 p-1 hover:bg-red-100 rounded"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Actions */}
-              <div className="space-y-2">
-                <button
-                  onClick={openOfferModal}
-                  className="w-full py-3 bg-green-500 text-white rounded-lg flex items-center justify-center gap-2 font-medium"
-                >
-                  <Euro size={18} /> Pošlji ponudbo
-                </button>
-                <div className="grid grid-cols-2 gap-2">
-                  {getGoogleMapsUrl(selectedCompany) && (
-                    <a
-                      href={getGoogleMapsUrl(selectedCompany)!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-3 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center gap-2"
-                    >
-                      <MapPin size={18} /> Navigacija
-                    </a>
-                  )}
-                  <button
-                    onClick={() => {
-                      setSelectedCompany(null);
-                      setSelectedCompanyId(null);
-                      navigate('/prodajalec');
-                    }}
-                    className="py-3 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Camera size={18} /> Dodaj predpražnik
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CompanyDetailModal
+          company={selectedCompany}
+          companyNotes={companyNotes}
+          isLoadingNotes={isLoadingNotes}
+          companyDetails={companyDetails}
+          isLoadingDetails={isLoadingDetails}
+          sentOffers={sentOffers}
+          loadingSentOffers={loadingSentOffers}
+          savedContracts={savedContracts}
+          newNoteDate={newNoteDate}
+          newNoteContent={newNoteContent}
+          isAddingNote={addNoteMutation.isPending}
+          googleMapsUrl={getGoogleMapsUrl(selectedCompany)}
+          onNewNoteDateChange={setNewNoteDate}
+          onNewNoteContentChange={setNewNoteContent}
+          onClose={() => {
+            setSelectedCompany(null);
+            setSelectedCompanyId(null);
+          }}
+          onEditAddress={() => {
+            setEditAddressData({
+              addressStreet: selectedCompany.address_street || '',
+              addressPostal: selectedCompany.address_postal || '',
+              addressCity: selectedCompany.address_city || '',
+              deliveryAddress: (selectedCompany as any).delivery_address || '',
+              deliveryPostal: (selectedCompany as any).delivery_postal || '',
+              deliveryCity: (selectedCompany as any).delivery_city || '',
+              hasDifferentDeliveryAddress: !!(selectedCompany as any).delivery_address,
+            });
+            setShowEditAddressModal(true);
+          }}
+          onQuickNote={(content) => {
+            addNoteMutation.mutate({
+              companyId: selectedCompany.id,
+              noteDate: new Date().toISOString().split('T')[0],
+              content,
+            });
+          }}
+          onAddNote={() => {
+            if (newNoteContent.trim()) {
+              addNoteMutation.mutate({
+                companyId: selectedCompany.id,
+                noteDate: newNoteDate,
+                content: newNoteContent.trim(),
+              });
+            }
+          }}
+          onDeleteNote={(noteId) => deleteNoteMutation.mutate(noteId)}
+          onShowAddContact={() => setShowAddContactModal(true)}
+          onShowMeeting={(type) => {
+            setMeetingType(type);
+            if (type === 'ponudba') {
+              setMeetingDate(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+              setMeetingTime('09:00');
+            } else {
+              setMeetingDate(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+              setMeetingTime('10:00');
+            }
+            setShowMeetingModal(true);
+          }}
+          onEditContact={(contact) => {
+            setEditingContact(contact);
+            setEditContactData({
+              first_name: contact.first_name || '',
+              last_name: contact.last_name || '',
+              phone: contact.phone || '',
+              email: contact.email || '',
+              role: contact.role || '',
+              is_primary: contact.is_primary || false,
+              location_address: (contact as any).location_address || '',
+              contact_since: (contact as any).contact_since || '',
+            });
+          }}
+          onDeleteContact={handleDeleteContact}
+          onOpenOffer={openOfferModal}
+          onViewOffer={(offer) => {
+            setSelectedOffer(offer);
+            setShowContractConfirm(true);
+          }}
+          onDeleteSentOffer={deleteSentOffer}
+          onNavigateToSeller={() => {
+            setSelectedCompany(null);
+            setSelectedCompanyId(null);
+            navigate('/prodajalec');
+          }}
+        />
       )}
 
       {/* Add Contact Modal */}
