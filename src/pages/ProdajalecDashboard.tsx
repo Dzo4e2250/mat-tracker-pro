@@ -16,47 +16,12 @@ import { useToast } from '@/hooks/use-toast';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
 
-const STATUSES = {
-  clean: { label: 'Čist', color: '#4CAF50', icon: '💚' },
-  on_test: { label: 'Na testu', color: '#2196F3', icon: '🔵' },
-  dirty: { label: 'Umazan', color: '#FF9800', icon: '🟠' },
-  waiting_driver: { label: 'Čaka šoferja', color: '#9C27B0', icon: '📋' },
-  completed: { label: 'Zaključeno', color: '#607D8B', icon: '✅' },
-};
+// Ekstrahirane komponente
+import { HomeView, ScanView, MapView, HistoryView, StatisticsView } from './prodajalec/components';
+import { STATUSES, type StatusKey } from './prodajalec/utils/constants';
+import { getTimeRemaining, formatCountdown } from './prodajalec/utils/timeHelpers';
 
-// Slovenia center coordinates
-const SLOVENIA_CENTER: [number, number] = [46.1512, 14.9955];
-const DEFAULT_ZOOM = 8;
-
-// Create custom marker icons
-const createCustomIcon = (color: string, isPulsing: boolean = false) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `
-      <div style="
-        width: 24px;
-        height: 24px;
-        background-color: ${color};
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        ${isPulsing ? 'animation: pulse 2s infinite;' : ''}
-      "></div>
-    `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  });
-};
-
-// Component to handle map clicks in edit mode
-function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click: (e) => {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
+// createCustomIcon in MapClickHandler so zdaj v MapView komponenti
 
 export default function ProdajalecDashboard() {
   const { user, profile, signOut } = useAuth();
@@ -973,68 +938,11 @@ export default function ProdajalecDashboard() {
         )}
 
         {view === 'history' && (
-          <div>
-            <h2 className="text-xl font-bold mb-4">📜 Zgodovina</h2>
-            {!cycleHistory || cycleHistory.length === 0 ? (
-              <div className="bg-white p-4 rounded shadow text-center text-gray-500">
-                Ni zgodovine
-              </div>
-            ) : (
-              cycleHistory.map(cycle => (
-                <div key={cycle.id} className="bg-white p-3 mb-2 rounded shadow">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold">{cycle.mat_type?.code || cycle.mat_type?.name}</div>
-                      <div className="text-sm text-gray-500 font-mono">{cycle.qr_code?.code}</div>
-                      {cycle.company && <div className="text-sm text-gray-600">{cycle.company.name}</div>}
-                    </div>
-                    <div
-                      className="px-2 py-1 rounded text-xs"
-                      style={{
-                        backgroundColor: STATUSES[cycle.status as keyof typeof STATUSES]?.color + '20',
-                        color: STATUSES[cycle.status as keyof typeof STATUSES]?.color
-                      }}
-                    >
-                      {STATUSES[cycle.status as keyof typeof STATUSES]?.label}
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(cycle.created_at).toLocaleString('sl-SI')}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <HistoryView cycleHistory={cycleHistory} />
         )}
 
         {view === 'statistics' && (
-          <div>
-            <h2 className="text-xl font-bold mb-4">📊 Statistika</h2>
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-4xl font-bold text-green-600 text-center mb-4">
-                {getMyStatistics().successRate}%
-              </div>
-              <div className="text-center text-gray-600 mb-4">Uspešnost</div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 p-3 rounded text-center">
-                  <div className="text-xl font-bold">{getMyStatistics().totalTests}</div>
-                  <div className="text-sm text-gray-600">Skupaj testov</div>
-                </div>
-                <div className="bg-green-50 p-3 rounded text-center">
-                  <div className="text-xl font-bold text-green-600">{getMyStatistics().successful}</div>
-                  <div className="text-sm text-gray-600">Uspešnih</div>
-                </div>
-                <div className="bg-red-50 p-3 rounded text-center">
-                  <div className="text-xl font-bold text-red-600">{getMyStatistics().failed}</div>
-                  <div className="text-sm text-gray-600">Neuspešnih</div>
-                </div>
-                <div className="bg-blue-50 p-3 rounded text-center">
-                  <div className="text-xl font-bold text-blue-600">{getMyStatistics().inProgress}</div>
-                  <div className="text-sm text-gray-600">V teku</div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <StatisticsView cycleHistory={cycleHistory} />
         )}
 
         {view === 'map' && (
