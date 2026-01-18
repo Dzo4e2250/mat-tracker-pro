@@ -53,15 +53,23 @@ export interface OfferItem {
   pricePerUnit: number;
   originalPrice?: number;
   discount?: number;
-  // For najem only
+  replacementCost?: number;
+  // Seasonal pricing fields
   seasonal?: boolean;
+  // Normal period (obdobje 1)
+  normalFrequency?: string;
   normalFromWeek?: number;
   normalToWeek?: number;
   normalPrice?: number;
-  seasonFromWeek?: number;
-  seasonToWeek?: number;
-  seasonPrice?: number;
-  replacementCost?: number;
+  normalDiscount?: number;
+  normalOriginalPrice?: number;
+  // Seasonal period (obdobje 2)
+  seasonalFrequency?: string;
+  seasonalFromWeek?: number;
+  seasonalToWeek?: number;
+  seasonalPrice?: number;
+  seasonalDiscount?: number;
+  seasonalOriginalPrice?: number;
 }
 
 /**

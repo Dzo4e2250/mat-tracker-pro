@@ -56,7 +56,7 @@ import {
 
 // Ekstrahirane komponente
 import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal, QRScannerModal } from '@/pages/contacts/components';
-import { OfferTypeStep, OfferItemsNakupStep, OfferPreviewStep, type FrequencyType } from '@/pages/contacts/components/offer';
+import { OfferTypeStep, OfferItemsNakupStep, OfferItemsNajemStep, OfferPreviewStep, type FrequencyType } from '@/pages/contacts/components/offer';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -2615,399 +2615,122 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
               {/* Step 2b: Configure NAJEM items */}
               {offerStep === 'items-najem' && (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 p-2 rounded text-sm text-center font-medium">
-                    🔄 {offerType === 'primerjava' ? 'Artikli (najem + nakup)' : offerType === 'dodatna' ? 'Artikli' : 'Najem'} - menjava na {offerFrequency} {offerFrequency === '1' ? 'teden' : 'tedne'}
-                  </div>
-
-                  <div className="space-y-3 max-h-[40vh] overflow-y-auto">
-                    {offerItemsNajem.map((item, index) => (
-                      <div key={item.id} className={`border rounded-lg p-3 space-y-2 ${item.purpose === 'nakup' ? 'border-yellow-400 bg-yellow-50/50' : ''}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            Artikel {index + 1}
-                            {item.purpose === 'nakup' && <span className="ml-2 text-xs bg-yellow-500 text-white px-2 py-0.5 rounded">NAKUP</span>}
-                          </span>
-                          {offerItemsNajem.length > 1 && (
-                            <button onClick={() => removeOfferItem(item.id, 'najem')} className="text-red-500 p-1"><Trash2 size={18} /></button>
-                          )}
-                        </div>
-
-                        <div className={`grid gap-1 ${item.purpose === 'nakup' ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                          {item.purpose !== 'nakup' && (
-                            <button onClick={() => handleItemTypeChange(item.id, 'standard', 'najem')} className={`py-1 px-2 text-xs rounded ${item.itemType === 'standard' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>Standardni</button>
-                          )}
-                          <button onClick={() => handleItemTypeChange(item.id, 'design', 'najem')} className={`py-1 px-2 text-xs rounded ${item.itemType === 'design' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>Design</button>
-                          <button onClick={() => handleItemTypeChange(item.id, 'custom', 'najem')} className={`py-1 px-2 text-xs rounded ${item.itemType === 'custom' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>Custom</button>
-                        </div>
-
-                        {item.itemType === 'standard' && (
-                          <select value={item.code} onChange={(e) => {
-                            const code = e.target.value;
-                            const priceInfo = getPriceByCode(code);
-                            const price = item.purpose === 'nakup'
-                              ? getPurchasePrice(code)
-                              : getRentalPrice(code, offerFrequency as FrequencyKey);
-                            updateOfferItem(item.id, {
-                              code,
-                              size: priceInfo?.dimensions || '',
-                              m2: priceInfo?.m2,
-                              pricePerUnit: price,
-                              replacementCost: item.purpose !== 'nakup' ? getReplacementCost(code) : 0,
-                              name: 'predpražnik'
-                            }, 'najem');
-                          }} className="w-full p-2 border rounded text-sm">
-                            <option value="">Izberi tip...</option>
-                            {STANDARD_TYPES.map(t => (<option key={t.code} value={t.code}>{t.label}</option>))}
-                          </select>
-                        )}
-
-                        {item.itemType === 'design' && (
-                          <select value={item.code} onChange={(e) => {
-                            const code = e.target.value;
-                            const designSize = DESIGN_SIZES.find(d => d.code === code);
-                            const m2 = designSize ? calculateM2FromDimensions(designSize.dimensions) : 0;
-                            const price = item.purpose === 'nakup'
-                              ? calculateCustomPurchasePrice(m2)
-                              : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-                            updateOfferItem(item.id, {
-                              code,
-                              size: designSize?.dimensions || '',
-                              m2,
-                              pricePerUnit: price,
-                              replacementCost: item.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
-                              name: 'predpražnik po meri'
-                            }, 'najem');
-                          }} className="w-full p-2 border rounded text-sm">
-                            <option value="">Izberi velikost...</option>
-                            {DESIGN_SIZES.map(d => (<option key={d.code} value={d.code}>{d.label}</option>))}
-                          </select>
-                        )}
-
-                        {item.itemType === 'custom' && (
-                          <div>
-                            <label className="block text-xs text-gray-500">Dimenzije (cm)</label>
-                            <input type="text" value={item.size} onChange={(e) => {
-                              const dims = e.target.value;
-                              const m2 = calculateM2FromDimensions(dims);
-                              const price = item.purpose === 'nakup'
-                                ? calculateCustomPurchasePrice(m2)
-                                : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-                              updateOfferItem(item.id, {
-                                size: dims,
-                                m2: m2 || undefined,
-                                pricePerUnit: price,
-                                code: m2 > 0 ? `CUSTOM-${dims.replace('*', 'x')}` : '',
-                                replacementCost: item.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
-                                name: 'predpražnik po meri'
-                              }, 'najem');
-                            }} className="w-full p-2 border rounded text-sm" placeholder="npr. 120*180" />
-                            {item.m2 && item.m2 > 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                📐 {item.m2.toFixed(2)} m² {item.purpose === 'nakup' ? `× 165€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Purpose selector - only for primerjava and dodatna */}
-                        {(offerType === 'primerjava' || offerType === 'dodatna') && (
-                          <select
-                            value={item.purpose || 'najem'}
-                            onChange={(e) => {
-                              const newPurpose = e.target.value as 'najem' | 'nakup';
-                              let newPrice = item.pricePerUnit;
-                              let newItemType = item.itemType;
-                              let newCode = item.code;
-                              let newSize = item.size;
-                              let newM2 = item.m2;
-                              let newName = item.name;
-
-                              // If switching to nakup and currently standard, change to design (standard items are not for sale)
-                              if (newPurpose === 'nakup' && item.itemType === 'standard') {
-                                newItemType = 'design';
-                                newCode = '';
-                                newSize = '';
-                                newM2 = undefined;
-                                newPrice = 0;
-                                newName = 'predpražnik po meri';
-                              } else if (item.code) {
-                                if (item.itemType === 'standard') {
-                                  newPrice = newPurpose === 'nakup'
-                                    ? getPurchasePrice(item.code)
-                                    : getRentalPrice(item.code, offerFrequency as FrequencyKey);
-                                } else if (item.m2) {
-                                  newPrice = newPurpose === 'nakup'
-                                    ? calculateCustomPurchasePrice(item.m2)
-                                    : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
-                                }
-                              }
-                              updateOfferItem(item.id, {
-                                purpose: newPurpose,
-                                itemType: newItemType,
-                                code: newCode,
-                                size: newSize,
-                                m2: newM2,
-                                name: newName,
-                                pricePerUnit: newPrice,
-                                replacementCost: newPurpose === 'nakup' ? 0 : (item.m2 ? calculateCustomPurchasePrice(item.m2) : getReplacementCost(item.code)),
-                                discount: newPurpose === 'nakup' ? 0 : item.discount,
-                                originalPrice: newPurpose === 'nakup' ? undefined : item.originalPrice
-                              }, 'najem');
-                            }}
-                            className={`w-full p-2 border rounded text-sm font-medium ${item.purpose === 'nakup' ? 'bg-yellow-100 border-yellow-400' : 'bg-blue-50 border-blue-300'}`}
-                          >
-                            <option value="najem">🔄 NAJEM (menjava)</option>
-                            <option value="nakup">💰 NAKUP (enkratno)</option>
-                          </select>
-                        )}
-
-                        {/* NAJEM fields */}
-                        {item.purpose !== 'nakup' && (
-                          <>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <label className="block text-xs text-gray-500">Količina</label>
-                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateOfferItem(item.id, { quantity: parseInt(e.target.value) || 1 }, 'najem')} className="w-full p-2 border rounded text-sm" />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500">Cena/teden €</label>
-                                <input type="number" step="0.01" min="0" value={item.pricePerUnit || ''} onChange={(e) => handlePriceChange(item.id, parseFloat(e.target.value) || 0, 'najem')} className="w-full p-2 border rounded text-sm" placeholder="0.00" />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500">Popust %</label>
-                                <input type="number" min="0" max="100" value={item.discount || ''} onChange={(e) => handleDiscountChange(item.id, parseInt(e.target.value) || 0, 'najem')} className="w-full p-2 border rounded text-sm" placeholder="0" />
-                              </div>
-                            </div>
-
-                            {item.discount && item.discount > 0 && item.originalPrice && (
-                              <div className="text-xs text-green-600 bg-green-50 p-2 rounded">
-                                💰 Izhodiščna: {item.originalPrice.toFixed(2)} €/teden → <span className="font-bold">-{item.discount}%</span> = {item.pricePerUnit.toFixed(2)} €/teden
-                              </div>
-                            )}
-
-                            <div>
-                              <label className="block text-xs text-gray-500">Povračilo (izguba) €</label>
-                              <input type="number" step="0.01" min="0" value={item.replacementCost || ''} onChange={(e) => updateOfferItem(item.id, { replacementCost: parseFloat(e.target.value) || 0 }, 'najem')} className="w-full p-2 border rounded text-sm" placeholder="0.00" />
-                            </div>
-
-                            <div className="flex gap-4">
-                              <label className="flex items-center gap-2 text-sm">
-                                <input type="checkbox" checked={item.customized} onChange={(e) => updateOfferItem(item.id, { customized: e.target.checked }, 'najem')} />
-                                Prilagojen
-                              </label>
-                              <label className="flex items-center gap-2 text-sm">
-                                <input type="checkbox" checked={item.seasonal || false} onChange={(e) => handleSeasonalToggle(item.id, e.target.checked)} />
-                                Sezonske menjave
-                              </label>
-                            </div>
-
-                            {/* Seasonal section - DVE OBDOBJI */}
-                            {item.seasonal && (
-                              <div className="space-y-2">
-                                {/* NORMALNO OBDOBJE */}
-                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-3">
-                                  <div className="text-sm text-blue-800 font-medium">☀️ OBDOBJE 1</div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label className="block text-xs text-blue-700 mb-1">Frekvenca menjave</label>
-                                      <select
-                                        value={item.normalFrequency || '4'}
-                                        onChange={(e) => handleNormalFrequencyChange(item.id, e.target.value)}
-                                        className="w-full p-2 border border-blue-300 rounded text-sm bg-white"
-                                      >
-                                        <option value="1">1 teden</option>
-                                        <option value="2">2 tedna</option>
-                                        <option value="4">4 tedne</option>
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs text-blue-700 mb-1">Cena/teden €</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={item.normalPrice || ''}
-                                        onChange={(e) => handleNormalPriceChange(item.id, parseFloat(e.target.value) || 0)}
-                                        className="w-full p-2 border border-blue-300 rounded text-sm bg-white"
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-blue-700 mb-1">Obdobje (od tedna → do tedna)</label>
-                                    <div className="flex items-center gap-2">
-                                      <select value={item.normalFromWeek || 13} onChange={(e) => updateOfferItem(item.id, { normalFromWeek: parseInt(e.target.value) }, 'najem')} className="flex-1 p-2 border border-blue-300 rounded text-sm bg-white">
-                                        {WEEKS.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}
-                                      </select>
-                                      <span className="text-blue-500 font-bold">→</span>
-                                      <select value={item.normalToWeek || 44} onChange={(e) => updateOfferItem(item.id, { normalToWeek: parseInt(e.target.value) }, 'najem')} className="flex-1 p-2 border border-blue-300 rounded text-sm bg-white">
-                                        {WEEKS.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}
-                                      </select>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-blue-700 mb-1">Popust %</label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={item.normalDiscount || ''}
-                                      onChange={(e) => handleNormalDiscountChange(item.id, parseInt(e.target.value) || 0)}
-                                      className="w-full p-2 border border-blue-300 rounded text-sm bg-white"
-                                      placeholder="0"
-                                    />
-                                  </div>
-                                  {item.normalDiscount && item.normalDiscount > 0 && item.normalOriginalPrice && (
-                                    <div className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
-                                      💰 Izhodiščna: {item.normalOriginalPrice.toFixed(2)} € → <span className="font-bold">-{item.normalDiscount}%</span> = {item.normalPrice?.toFixed(2)} €
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* SEZONSKO OBDOBJE */}
-                                <div className="bg-orange-50 p-3 rounded-lg border border-orange-200 space-y-3">
-                                  <div className="text-sm text-orange-800 font-medium">❄️ OBDOBJE 2</div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label className="block text-xs text-orange-700 mb-1">Frekvenca menjave</label>
-                                      <select
-                                        value={item.seasonalFrequency || '1'}
-                                        onChange={(e) => handleSeasonalFrequencyChange(item.id, e.target.value)}
-                                        className="w-full p-2 border border-orange-300 rounded text-sm bg-white"
-                                      >
-                                        <option value="1">1 teden</option>
-                                        <option value="2">2 tedna</option>
-                                        <option value="4">4 tedne</option>
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs text-orange-700 mb-1">Cena/teden €</label>
-                                      <input type="number" step="0.01" min="0" value={item.seasonalPrice || ''} onChange={(e) => handleSeasonalPriceChange(item.id, parseFloat(e.target.value) || 0)} className="w-full p-2 border border-orange-300 rounded text-sm bg-white" placeholder="0.00" />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-orange-700 mb-1">Obdobje (od tedna → do tedna)</label>
-                                    <div className="flex items-center gap-2">
-                                      <select value={item.seasonalFromWeek || 45} onChange={(e) => updateOfferItem(item.id, { seasonalFromWeek: parseInt(e.target.value) }, 'najem')} className="flex-1 p-2 border border-orange-300 rounded text-sm bg-white">
-                                        {WEEKS.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}
-                                      </select>
-                                      <span className="text-orange-500 font-bold">→</span>
-                                      <select value={item.seasonalToWeek || 12} onChange={(e) => updateOfferItem(item.id, { seasonalToWeek: parseInt(e.target.value) }, 'najem')} className="flex-1 p-2 border border-orange-300 rounded text-sm bg-white">
-                                        {WEEKS.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}
-                                      </select>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs text-orange-700 mb-1">Popust %</label>
-                                    <input type="number" min="0" max="100" value={item.seasonalDiscount || ''} onChange={(e) => handleSeasonalDiscountChange(item.id, parseInt(e.target.value) || 0)} className="w-full p-2 border border-orange-300 rounded text-sm bg-white" placeholder="0" />
-                                  </div>
-                                  {item.seasonalDiscount && item.seasonalDiscount > 0 && item.seasonalOriginalPrice && (
-                                    <div className="text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
-                                      💰 Izhodiščna: {item.seasonalOriginalPrice.toFixed(2)} € → <span className="font-bold">-{item.seasonalDiscount}%</span> = {item.seasonalPrice?.toFixed(2)} €
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {/* NAKUP fields - simplified */}
-                        {item.purpose === 'nakup' && (
-                          <>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-xs text-gray-500">Količina</label>
-                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateOfferItem(item.id, { quantity: parseInt(e.target.value) || 1 }, 'najem')} className="w-full p-2 border rounded text-sm" />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500">Cena/kos €</label>
-                                <input type="number" step="0.01" min="0" value={item.pricePerUnit || ''} onChange={(e) => updateOfferItem(item.id, { pricePerUnit: parseFloat(e.target.value) || 0 }, 'najem')} className="w-full p-2 border rounded text-sm bg-yellow-50" />
-                              </div>
-                            </div>
-                            <label className="flex items-center gap-2 text-sm">
-                              <input type="checkbox" checked={item.customized} onChange={(e) => updateOfferItem(item.id, { customized: e.target.checked }, 'najem')} />
-                              Prilagojen
-                            </label>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <button onClick={() => addCustomOfferItem('najem')} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 flex items-center justify-center gap-2">
-                    <Plus size={18} /> Dodaj artikel
-                  </button>
-
-                  {/* Summary - different layout for primerjava/dodatna */}
-                  {(offerType === 'primerjava' || offerType === 'dodatna') ? (
-                    <div className="space-y-2">
-                      {/* NAJEM summary */}
-                      {offerItemsNajem.filter(i => i.purpose !== 'nakup').length > 0 && (
-                        <div className="bg-blue-50 p-3 rounded-lg">
-                          <div className="text-xs text-blue-600 font-medium mb-1">🔄 NAJEM</div>
-                          <div className="flex justify-between text-sm">
-                            <span>Artiklov za najem:</span>
-                            <span className="font-bold">{offerItemsNajem.filter(i => i.purpose !== 'nakup').reduce((sum, i) => sum + i.quantity, 0)} KOS</span>
-                          </div>
-                          <div className="flex justify-between text-sm mt-1">
-                            <span>Frekvenca:</span>
-                            <span className="font-bold">{offerFrequency} {offerFrequency === '1' ? 'TEDEN' : 'TEDNE'}</span>
-                          </div>
-                          <div className="flex justify-between text-base mt-2 pt-2 border-t border-blue-200">
-                            <span>4-tedenski obračun:</span>
-                            <span className="font-bold">
-                              {(offerItemsNajem.filter(i => i.purpose !== 'nakup').reduce((sum, i) => sum + (i.pricePerUnit * i.quantity), 0) * 4).toFixed(2)} €
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      {/* NAKUP summary */}
-                      {offerItemsNajem.filter(i => i.purpose === 'nakup').length > 0 && (
-                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                          <div className="text-xs text-yellow-700 font-medium mb-1">💰 NAKUP</div>
-                          <div className="flex justify-between text-sm">
-                            <span>Artiklov za nakup:</span>
-                            <span className="font-bold">{offerItemsNajem.filter(i => i.purpose === 'nakup').reduce((sum, i) => sum + i.quantity, 0)} KOS</span>
-                          </div>
-                          <div className="flex justify-between text-base mt-2 pt-2 border-t border-yellow-300">
-                            <span>Skupaj nakup:</span>
-                            <span className="font-bold">
-                              {(offerItemsNajem.filter(i => i.purpose === 'nakup').reduce((sum, i) => sum + (i.pricePerUnit * i.quantity), 0)).toFixed(2)} €
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <div className="flex justify-between text-sm">
-                        <span>Število artiklov:</span>
-                        <span className="font-bold">{calculateOfferTotals('najem').totalItems} KOS</span>
-                      </div>
-                      <div className="flex justify-between text-sm mt-1">
-                        <span>Frekvenca:</span>
-                        <span className="font-bold">{offerFrequency} {offerFrequency === '1' ? 'TEDEN' : 'TEDNE'}</span>
-                      </div>
-                      <div className="flex justify-between text-lg mt-2 pt-2 border-t border-blue-200">
-                        <span>4-tedenski obračun:</span>
-                        <span className="font-bold">{(calculateOfferTotals('najem') as any).fourWeekTotal?.toFixed(2)} €</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <button onClick={() => setOfferStep('type')} className="flex-1 py-2 border rounded">← Nazaj</button>
-                    <button
-                      onClick={() => setOfferStep('preview')}
-                      disabled={offerItemsNajem.some(i => !i.code || i.pricePerUnit <= 0)}
-                      className="flex-1 bg-blue-500 text-white py-2 rounded disabled:bg-gray-300"
-                    >
-                      Predogled →
-                    </button>
-                  </div>
-                </div>
+                <OfferItemsNajemStep
+                  items={offerItemsNajem}
+                  offerType={offerType}
+                  offerFrequency={offerFrequency}
+                  standardTypes={STANDARD_TYPES}
+                  designSizes={DESIGN_SIZES}
+                  weeks={WEEKS}
+                  onItemTypeChange={(itemId, type) => handleItemTypeChange(itemId, type, 'najem')}
+                  onStandardSelect={(itemId, code) => {
+                    const item = offerItemsNajem.find(i => i.id === itemId);
+                    const priceInfo = getPriceByCode(code);
+                    const price = item?.purpose === 'nakup'
+                      ? getPurchasePrice(code)
+                      : getRentalPrice(code, offerFrequency as FrequencyKey);
+                    updateOfferItem(itemId, {
+                      code,
+                      size: priceInfo?.dimensions || '',
+                      m2: priceInfo?.m2,
+                      pricePerUnit: price,
+                      replacementCost: item?.purpose !== 'nakup' ? getReplacementCost(code) : 0,
+                      name: 'predpražnik'
+                    }, 'najem');
+                  }}
+                  onDesignSelect={(itemId, code) => {
+                    const item = offerItemsNajem.find(i => i.id === itemId);
+                    const designSize = DESIGN_SIZES.find(d => d.code === code);
+                    const m2 = designSize ? calculateM2FromDimensions(designSize.dimensions) : 0;
+                    const price = item?.purpose === 'nakup'
+                      ? calculateCustomPurchasePrice(m2)
+                      : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+                    updateOfferItem(itemId, {
+                      code,
+                      size: designSize?.dimensions || '',
+                      m2,
+                      pricePerUnit: price,
+                      replacementCost: item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
+                      name: 'predpražnik po meri'
+                    }, 'najem');
+                  }}
+                  onCustomDimensionsChange={(itemId, dims) => {
+                    const item = offerItemsNajem.find(i => i.id === itemId);
+                    const m2 = calculateM2FromDimensions(dims);
+                    const price = item?.purpose === 'nakup'
+                      ? calculateCustomPurchasePrice(m2)
+                      : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+                    updateOfferItem(itemId, {
+                      size: dims,
+                      m2: m2 || undefined,
+                      pricePerUnit: price,
+                      code: m2 > 0 ? `CUSTOM-${dims.replace('*', 'x')}` : '',
+                      replacementCost: item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
+                      name: 'predpražnik po meri'
+                    }, 'najem');
+                  }}
+                  onPurposeChange={(itemId, newPurpose) => {
+                    const item = offerItemsNajem.find(i => i.id === itemId);
+                    if (!item) return;
+                    let newPrice = item.pricePerUnit;
+                    let newItemType = item.itemType;
+                    let newCode = item.code;
+                    let newSize = item.size;
+                    let newM2 = item.m2;
+                    let newName = item.name;
+                    if (newPurpose === 'nakup' && item.itemType === 'standard') {
+                      newItemType = 'design';
+                      newCode = '';
+                      newSize = '';
+                      newM2 = undefined;
+                      newPrice = 0;
+                      newName = 'predpražnik po meri';
+                    } else if (item.code) {
+                      if (item.itemType === 'standard') {
+                        newPrice = newPurpose === 'nakup'
+                          ? getPurchasePrice(item.code)
+                          : getRentalPrice(item.code, offerFrequency as FrequencyKey);
+                      } else if (item.m2) {
+                        newPrice = newPurpose === 'nakup'
+                          ? calculateCustomPurchasePrice(item.m2)
+                          : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
+                      }
+                    }
+                    updateOfferItem(itemId, {
+                      purpose: newPurpose,
+                      itemType: newItemType,
+                      code: newCode,
+                      size: newSize,
+                      m2: newM2,
+                      name: newName,
+                      pricePerUnit: newPrice,
+                      replacementCost: newPurpose === 'nakup' ? 0 : (item.m2 ? calculateCustomPurchasePrice(item.m2) : getReplacementCost(item.code)),
+                      discount: newPurpose === 'nakup' ? 0 : item.discount,
+                      originalPrice: newPurpose === 'nakup' ? undefined : item.originalPrice
+                    }, 'najem');
+                  }}
+                  onQuantityChange={(itemId, quantity) => updateOfferItem(itemId, { quantity }, 'najem')}
+                  onPriceChange={(itemId, price) => handlePriceChange(itemId, price, 'najem')}
+                  onDiscountChange={(itemId, discount) => handleDiscountChange(itemId, discount, 'najem')}
+                  onReplacementCostChange={(itemId, cost) => updateOfferItem(itemId, { replacementCost: cost }, 'najem')}
+                  onCustomizedChange={(itemId, customized) => updateOfferItem(itemId, { customized }, 'najem')}
+                  onSeasonalToggle={handleSeasonalToggle}
+                  onNormalFrequencyChange={handleNormalFrequencyChange}
+                  onNormalPriceChange={handleNormalPriceChange}
+                  onNormalDiscountChange={handleNormalDiscountChange}
+                  onNormalFromWeekChange={(itemId, week) => updateOfferItem(itemId, { normalFromWeek: week }, 'najem')}
+                  onNormalToWeekChange={(itemId, week) => updateOfferItem(itemId, { normalToWeek: week }, 'najem')}
+                  onSeasonalFrequencyChange={handleSeasonalFrequencyChange}
+                  onSeasonalPriceChange={handleSeasonalPriceChange}
+                  onSeasonalDiscountChange={handleSeasonalDiscountChange}
+                  onSeasonalFromWeekChange={(itemId, week) => updateOfferItem(itemId, { seasonalFromWeek: week }, 'najem')}
+                  onSeasonalToWeekChange={(itemId, week) => updateOfferItem(itemId, { seasonalToWeek: week }, 'najem')}
+                  onAddItem={() => addCustomOfferItem('najem')}
+                  onRemoveItem={(itemId) => removeOfferItem(itemId, 'najem')}
+                  onBack={() => setOfferStep('type')}
+                  onNext={() => setOfferStep('preview')}
+                  calculateTotals={() => calculateOfferTotals('najem')}
+                />
               )}
 
               {/* Step 3: Preview and send */}
