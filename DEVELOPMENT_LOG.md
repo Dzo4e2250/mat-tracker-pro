@@ -1,6 +1,36 @@
 # Mat Tracker Pro - Development Log
 
-## Zadnja seja: 2026-01-18
+## Zadnja seja: 2026-01-18 (nadaljevanje)
+
+### Dokumentacija (FAZA 1 iz IMPROVEMENT_PLAN.md)
+
+1. **Contacts.tsx dokumentiran** (~5000 vrstic):
+   - Dodan obsežen JSDoc header komentar z opisom datoteke
+   - Dodani section markers za vse glavne sekcije:
+     - `IMPORTS` - vse knjižnice
+     - `TYPES & CONSTANTS` - tipi za ponudbe
+     - `HELPER FUNCTIONS` - funkcije izven komponente
+     - `GLAVNA KOMPONENTA` - začetek komponente
+     - `HOOKS & NAVIGATION` - React hooks
+     - `DATA FETCHING` - React Query hooks
+     - `STATE` - stanje komponent
+     - `QR KODA` - skeniranje vizitk
+     - `OPOMNIKI` - reminder funkcije
+     - `FILTRIRANJE IN SORTIRANJE` - logika za seznam
+     - `OPOMBE (NOTES)` - CRM dnevnik
+     - `"DANES" SEKCIJA` - današnji sestanki/roki
+     - `CRUD OPERACIJE` - dodajanje/urejanje strank
+     - `POMOŽNE FUNKCIJE` - formatiranje, naslovi
+     - `IZBIRA IN IZVOZ KONTAKTOV` - vCard export
+     - `POSLANE PONUDBE` - upravljanje ponudb
+     - `KREIRANJE PONUDB` - najem/nakup/primerjava
+     - `GENERIRANJE E-POŠTE` - HTML/tekst vsebina
+     - `RENDER` - JSX vmesnik
+   - Dodani JSDoc komentarji za ključne funkcije
+
+---
+
+## Seja: 2026-01-18 (popoldne)
 
 ### Kaj je bilo narejeno
 

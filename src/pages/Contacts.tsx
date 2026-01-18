@@ -1,3 +1,32 @@
+/**
+ * @file Contacts.tsx
+ * @description Glavna CRM stran za upravljanje strank in kontaktov
+ *
+ * Ta datoteka je "srce" Mat Tracker Pro aplikacije - CRM modul za prodajalce.
+ * Vsebuje celotno logiko za:
+ * - Pregledovanje in iskanje strank
+ * - Dodajanje novih strank (ročno ali preko QR kode)
+ * - Upravljanje kontaktov (dodajanje, urejanje, brisanje)
+ * - Pošiljanje ponudb (najem, nakup, primerjava, dodatna)
+ * - Opombe in opomniki za stranke
+ * - Izvoz kontaktov v vCard format
+ * - Načrtovanje poti (Google Maps)
+ *
+ * @author Mat Tracker Pro Team
+ * @version 2.0
+ * @since 2025-01
+ *
+ * @see ARCHITECTURE.md za pregled celotne arhitekture
+ * @see IMPROVEMENT_PLAN.md za načrt refaktoriranja te datoteke
+ *
+ * OPOMBA: Ta datoteka ima ~5000 vrstic in je kandidat za refaktoring.
+ * Priporočeno je, da se razdeli na manjše komponente (glej IMPROVEMENT_PLAN.md).
+ */
+
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -25,9 +54,29 @@ import {
   FrequencyKey
 } from '@/utils/priceList';
 
-// Types for offer
+// ============================================================================
+// TYPES & CONSTANTS
+// ============================================================================
+
+/**
+ * Tip artikla v ponudbi
+ * - standard: Preddefinirane velikosti iz cenika
+ * - design: Design predpražniki (s potiskom)
+ * - custom: Po meri (poljubne dimenzije)
+ */
 type ItemType = 'standard' | 'design' | 'custom';
+
+/**
+ * Namen artikla v ponudbi (za tip "dodatna")
+ * - najem: Artikel za najem z menjavami
+ * - nakup: Artikel za nakup brez menjav
+ */
 type ItemPurpose = 'najem' | 'nakup';
+
+/**
+ * Struktura posameznega artikla v ponudbi
+ * Podpira tako navadne kot sezonske cene
+ */
 type OfferItem = {
   id: string;
   itemType: ItemType;
@@ -73,9 +122,19 @@ const WEEKS = Array.from({ length: 52 }, (_, i) => ({
   label: `Teden ${i + 1} (${getMonthForWeek(i + 1)})`
 }));
 
+/** Filter za prikaz strank glede na status cikla */
 type FilterType = 'all' | 'active' | 'signed' | 'inactive' | 'overdue';
 
-// Helper: preveri če je cikel v zamudi (test traja več kot 14 dni)
+// ============================================================================
+// HELPER FUNCTIONS (izven komponente)
+// ============================================================================
+
+/**
+ * Preveri ali je cikel predpražnika v zamudi
+ * Test je v zamudi če traja več kot 14 dni
+ * @param cycle - Cikel predpražnika iz baze
+ * @returns true če je test v zamudi
+ */
 const isTestOverdue = (cycle: any): boolean => {
   if (cycle.status !== 'on_test' || !cycle.test_start_date) return false;
   const testStart = new Date(cycle.test_start_date);
@@ -84,7 +143,11 @@ const isTestOverdue = (cycle: any): boolean => {
   return daysDiff > 14;
 };
 
-// Helper: vrni število dni zamude
+/**
+ * Izračuna število dni zamude za test
+ * @param cycle - Cikel predpražnika
+ * @returns Število dni čez 14-dnevni limit (0 če ni zamude)
+ */
 const getDaysOverdue = (cycle: any): number => {
   if (cycle.status !== 'on_test' || !cycle.test_start_date) return 0;
   const testStart = new Date(cycle.test_start_date);
@@ -93,12 +156,38 @@ const getDaysOverdue = (cycle: any): number => {
   return Math.max(0, daysDiff - 14);
 };
 
+// ============================================================================
+// GLAVNA KOMPONENTA
+// ============================================================================
+
+/**
+ * Contacts - Glavna CRM stran za prodajalce
+ *
+ * Funkcionalnosti:
+ * 1. Seznam strank z iskanjem in filtriranjem
+ * 2. "Danes" sekcija - sestanki in roki za danes
+ * 3. Opomniki in nujne naloge
+ * 4. Dodajanje strank (ročno ali QR skeniranje vizitk)
+ * 5. Upravljanje kontaktov za posamezno stranko
+ * 6. Kreiranje in pošiljanje ponudb
+ * 7. Opombe (CRM dnevnik) za vsako stranko
+ * 8. Izvoz kontaktov v vCard format
+ * 9. Načrtovanje poti za obiske
+ *
+ * @returns JSX.Element - CRM stran
+ */
 export default function Contacts() {
+  // --------------------------------------------------------------------------
+  // HOOKS & NAVIGATION
+  // --------------------------------------------------------------------------
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // --------------------------------------------------------------------------
+  // DATA FETCHING - React Query hooks za pridobivanje podatkov
+  // --------------------------------------------------------------------------
   const { data: companies, isLoading } = useCompanyContacts(user?.id);
   const createCompany = useCreateCompany();
   const addContact = useAddContact();
@@ -106,14 +195,18 @@ export default function Contacts() {
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
 
-  // Reminders hooks
+  // Opomniki - nujne naloge za prodajalca
   const { data: dueReminders } = useDueReminders(user?.id);
   const { data: contractPendingCompanies } = useContractPendingCompanies(user?.id, 3);
   const createReminder = useCreateReminder();
   const completeReminder = useCompleteReminder();
   const updatePipelineStatus = useUpdatePipelineStatus();
 
-  // Reminder modal state
+  // --------------------------------------------------------------------------
+  // STATE - Stanje komponent (modali, filtri, forme, itd.)
+  // --------------------------------------------------------------------------
+
+  // Opomnik modal
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderCompanyId, setReminderCompanyId] = useState<string | null>(null);
   const [reminderDate, setReminderDate] = useState('');
@@ -127,6 +220,26 @@ export default function Contacts() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+
+  // Recent companies (stored in localStorage)
+  const [recentCompanyIds, setRecentCompanyIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('recentCompanies');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Add company to recent when selected
+  const addToRecent = (companyId: string) => {
+    setRecentCompanyIds(prev => {
+      const filtered = prev.filter(id => id !== companyId);
+      const updated = [companyId, ...filtered].slice(0, 5); // Keep last 5
+      localStorage.setItem('recentCompanies', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Handle company query parameter from URL (e.g., from Dashboard redirect)
   useEffect(() => {
@@ -184,7 +297,13 @@ export default function Contacts() {
   const [newNoteContent, setNewNoteContent] = useState('');
   const queryClient = useQueryClient();
 
-  // QR Scanner state
+  // Quick note with meeting/deadline
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [meetingDate, setMeetingDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [meetingTime, setMeetingTime] = useState<string>('10:00');
+  const [meetingType, setMeetingType] = useState<'sestanek' | 'ponudba'>('sestanek');
+
+  // QR Scanner - za skeniranje vizitk (vCard)
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scannerRef, setScannerRef] = useState<Html5Qrcode | null>(null);
   const [scannerError, setScannerError] = useState<string | null>(null);
@@ -192,7 +311,7 @@ export default function Contacts() {
   const [maxZoom, setMaxZoom] = useState(1);
   const [zoomSupported, setZoomSupported] = useState(false);
 
-  // Existing company detection state
+  // Obstoječe podjetje - ko QR koda najde podjetje ki že obstaja
   const [showExistingCompanyModal, setShowExistingCompanyModal] = useState(false);
   const [existingCompany, setExistingCompany] = useState<CompanyWithContacts | null>(null);
   const [pendingContactData, setPendingContactData] = useState<any>(null);
@@ -201,7 +320,20 @@ export default function Contacts() {
   const [editingContact, setEditingContact] = useState<any>(null);
   const [editContactData, setEditContactData] = useState<any>({});
 
-  // Parse vCard data from QR code
+  // Urejanje naslova podjetja
+  const [showEditAddressModal, setShowEditAddressModal] = useState(false);
+  const [editAddressData, setEditAddressData] = useState<any>({});
+
+  // --------------------------------------------------------------------------
+  // QR KODA - Skeniranje in parsiranje vizitk
+  // --------------------------------------------------------------------------
+
+  /**
+   * Parsira vCard podatke iz QR kode
+   * Podpira standardne vCard polja: FN, N, ORG, TITLE, TEL, EMAIL, ADR, URL, NOTE
+   * @param vCardText - Surovi vCard tekst
+   * @returns Objekt s parsiranimi polji
+   */
   const parseVCard = (vCardText: string) => {
     const data: any = {};
 
@@ -273,7 +405,13 @@ export default function Contacts() {
     return data;
   };
 
-  // Check if company already exists by name or tax number
+  /**
+   * Poišče obstoječe podjetje po imenu ali davčni številki
+   * Uporablja se pri skeniranju QR kod za preprečitev duplikatov
+   * @param companyName - Ime podjetja za iskanje
+   * @param taxNumber - Davčna številka za iskanje
+   * @returns Obstoječe podjetje ali null
+   */
   const findExistingCompany = (companyName?: string, taxNumber?: string): CompanyWithContacts | null => {
     if (!companies) return null;
 
@@ -301,7 +439,11 @@ export default function Contacts() {
     return null;
   };
 
-  // Handle QR scan result
+  /**
+   * Obdela rezultat skeniranja QR kode
+   * Če je vCard format, parsira podatke in preveri za duplikate
+   * @param decodedText - Dekodirani tekst iz QR kode
+   */
   const handleQRScan = (decodedText: string) => {
     // Check if it's a vCard
     if (decodedText.includes('BEGIN:VCARD') || decodedText.includes('VCARD')) {
@@ -371,7 +513,14 @@ export default function Contacts() {
     toast({ description: 'Podatki uvoženi - ustvarite novo podjetje' });
   };
 
-  // Handle creating a reminder
+  // --------------------------------------------------------------------------
+  // OPOMNIKI - Ustvarjanje in upravljanje opomnikov
+  // --------------------------------------------------------------------------
+
+  /**
+   * Ustvari nov opomnik za stranko
+   * Shrani v bazo in osveži seznam opomnikov
+   */
   const handleCreateReminder = async () => {
     if (!reminderCompanyId || !reminderDate || !user?.id) return;
 
@@ -414,23 +563,44 @@ export default function Contacts() {
     setShowReminderModal(true);
   };
 
-  // Filter and sort companies
+  // --------------------------------------------------------------------------
+  // FILTRIRANJE IN SORTIRANJE - Logika za prikaz seznama strank
+  // --------------------------------------------------------------------------
+
+  /**
+   * Filtrira in sortira seznam podjetij
+   * Upošteva: iskalni niz, filter po obdobju, filter po statusu, filter po ciklu
+   * Nedavno odprte stranke so na vrhu seznama
+   * @returns Filtriran in sortiran seznam podjetij
+   */
   const getFilteredCompanies = () => {
     if (!companies) return [];
 
     let filtered = [...companies];
 
-    // Search filter
+    // Search filter - searches name, display_name, tax_number, city, address, phone
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(query) ||
-        c.tax_number?.toLowerCase().includes(query) ||
-        c.contacts?.some(contact =>
+      filtered = filtered.filter(c => {
+        // Company fields
+        const matchesCompany =
+          c.name.toLowerCase().includes(query) ||
+          c.display_name?.toLowerCase().includes(query) ||
+          c.tax_number?.toLowerCase().includes(query) ||
+          c.address_city?.toLowerCase().includes(query) ||
+          c.address_street?.toLowerCase().includes(query) ||
+          (c as any).delivery_city?.toLowerCase().includes(query) ||
+          (c as any).delivery_address?.toLowerCase().includes(query);
+
+        // Contact fields
+        const matchesContact = c.contacts?.some(contact =>
           `${contact.first_name} ${contact.last_name}`.toLowerCase().includes(query) ||
-          contact.email?.toLowerCase().includes(query)
-        )
-      );
+          contact.email?.toLowerCase().includes(query) ||
+          contact.phone?.replace(/\s/g, '').includes(query.replace(/\s/g, ''))
+        );
+
+        return matchesCompany || matchesContact;
+      });
     }
 
     // Period filter - based on contact_since field
@@ -525,6 +695,25 @@ export default function Contacts() {
         break;
     }
 
+    // Put recent companies at the top (only when not searching)
+    if (!searchQuery && recentCompanyIds.length > 0) {
+      const recent: CompanyWithContacts[] = [];
+      const rest: CompanyWithContacts[] = [];
+
+      filtered.forEach(company => {
+        if (recentCompanyIds.includes(company.id)) {
+          recent.push(company);
+        } else {
+          rest.push(company);
+        }
+      });
+
+      // Sort recent by their order in recentCompanyIds
+      recent.sort((a, b) => recentCompanyIds.indexOf(a.id) - recentCompanyIds.indexOf(b.id));
+
+      return [...recent, ...rest];
+    }
+
     return filtered;
   };
 
@@ -605,7 +794,11 @@ export default function Contacts() {
     }
   }, [showQRScanner]);
 
-  // Fetch company notes
+  // --------------------------------------------------------------------------
+  // OPOMBE (NOTES) - CRM dnevnik za vsako stranko
+  // --------------------------------------------------------------------------
+
+  /** Opombe za izbrano stranko */
   const { data: companyNotes, isLoading: isLoadingNotes } = useQuery({
     queryKey: ['company-notes', selectedCompanyId],
     queryFn: async () => {
@@ -619,6 +812,62 @@ export default function Contacts() {
       return data as CompanyNote[];
     },
     enabled: !!selectedCompanyId,
+  });
+
+  // --------------------------------------------------------------------------
+  // "DANES" SEKCIJA - Sestanki in roki za danes
+  // --------------------------------------------------------------------------
+
+  /** Današnji datum za primerjavo */
+  const todayStr = new Date().toISOString().split('T')[0];
+  const { data: todayTasks } = useQuery({
+    queryKey: ['today-tasks', todayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('company_notes')
+        .select('*, companies:company_id(id, name, display_name)')
+        .or(`content.ilike.%sestanek%,content.ilike.%ponudbo do%`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Parse dates from content and categorize
+      const meetings: any[] = [];
+      const deadlines: any[] = [];
+
+      data?.forEach((note: any) => {
+        const content = note.content.toLowerCase();
+
+        // Extract date from content like "sestanek za 18. 1. 2026" or "ponudbo do 18. 1. 2026"
+        const dateMatch = note.content.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
+        if (dateMatch) {
+          const [_, day, month, year] = dateMatch;
+          const noteDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          noteDate.setHours(0, 0, 0, 0);
+
+          const isToday = noteDate.getTime() === today.getTime();
+          const isPast = noteDate.getTime() < today.getTime();
+          const isSoon = noteDate.getTime() <= today.getTime() + 2 * 24 * 60 * 60 * 1000; // within 2 days
+
+          if (content.includes('sestanek') && (isToday || (isPast && noteDate.getTime() > today.getTime() - 7 * 24 * 60 * 60 * 1000))) {
+            meetings.push({ ...note, noteDate, isToday, isPast });
+          }
+
+          if (content.includes('ponudbo do') && (isToday || isPast || isSoon)) {
+            deadlines.push({ ...note, noteDate, isToday, isPast, isSoon });
+          }
+        }
+      });
+
+      // Sort by date
+      meetings.sort((a, b) => a.noteDate.getTime() - b.noteDate.getTime());
+      deadlines.sort((a, b) => a.noteDate.getTime() - b.noteDate.getTime());
+
+      return { meetings, deadlines };
+    },
   });
 
   // Add note mutation
@@ -642,6 +891,10 @@ export default function Contacts() {
       setNewNoteContent('');
       toast({ description: 'Opomba dodana' });
     },
+    onError: (error: any) => {
+      console.error('Error adding note:', error);
+      toast({ description: `Napaka pri dodajanju opombe: ${error.message}`, variant: 'destructive' });
+    },
   });
 
   // Delete note mutation
@@ -659,9 +912,17 @@ export default function Contacts() {
     },
   });
 
-  // Use the new filtering function
+  // Filtriran seznam strank za prikaz
   const filteredCompanies = getFilteredCompanies();
 
+  // --------------------------------------------------------------------------
+  // CRUD OPERACIJE - Dodajanje, urejanje, brisanje strank in kontaktov
+  // --------------------------------------------------------------------------
+
+  /**
+   * Doda novo stranko v bazo
+   * Hkrati doda tudi prvi kontakt če so podatki podani
+   */
   const handleAddCompany = async () => {
     if (!formData.companyName || !user?.id) {
       toast({ description: 'Ime podjetja je obvezno', variant: 'destructive' });
@@ -788,8 +1049,79 @@ export default function Contacts() {
     }
   };
 
+  // --------------------------------------------------------------------------
+  // POMOŽNE FUNKCIJE - Formatiranje, naslovi, poti
+  // --------------------------------------------------------------------------
+
+  /**
+   * Vrne primarni kontakt podjetja (ali prvega če ni označenega)
+   */
   const getPrimaryContact = (company: CompanyWithContacts) => {
     return company.contacts.find(c => c.is_primary) || company.contacts[0];
+  };
+
+  /**
+   * Generira .ics datoteko za Outlook/Calendar
+   * @param company - Podjetje za katerega ustvarjamo dogodek
+   * @param date - Datum sestanka/roka (YYYY-MM-DD)
+   * @param time - Čas sestanka (HH:MM)
+   * @param type - Tip dogodka ('sestanek' ali 'ponudba')
+   */
+  const generateICSFile = (company: CompanyWithContacts, date: string, time: string, type: 'sestanek' | 'ponudba') => {
+    const startDate = new Date(`${date}T${time}:00`);
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour
+
+    const formatICSDate = (d: Date) => {
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    const primaryContact = getPrimaryContact(company);
+    const contactName = primaryContact ? `${primaryContact.first_name} ${primaryContact.last_name}` : '';
+    const companyName = company.display_name || company.name;
+
+    // Get address for location
+    const c = company as any;
+    const hasDeliveryAddress = c.delivery_address || c.delivery_postal || c.delivery_city;
+    const location = hasDeliveryAddress
+      ? [c.delivery_address, c.delivery_postal, c.delivery_city].filter(Boolean).join(', ')
+      : [company.address_street, company.address_postal, company.address_city].filter(Boolean).join(', ');
+
+    const title = type === 'sestanek'
+      ? `Sestanek - ${companyName}`
+      : `Poslati ponudbo - ${companyName}`;
+
+    const description = type === 'sestanek'
+      ? `Sestanek s stranko ${companyName}${contactName ? `\\nKontakt: ${contactName}` : ''}${primaryContact?.phone ? `\\nTel: ${primaryContact.phone}` : ''}`
+      : `Rok za pošiljanje ponudbe stranki ${companyName}`;
+
+    const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mat Tracker Pro//SL
+BEGIN:VEVENT
+UID:${Date.now()}@matpro.ristov.xyz
+DTSTAMP:${formatICSDate(new Date())}
+DTSTART:${formatICSDate(startDate)}
+DTEND:${formatICSDate(endDate)}
+SUMMARY:${title}
+DESCRIPTION:${description}
+LOCATION:${location}
+BEGIN:VALARM
+TRIGGER:-PT30M
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR`;
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${type === 'sestanek' ? 'sestanek' : 'ponudba'}-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const formatAddress = (company: CompanyWithContacts) => {
@@ -798,12 +1130,68 @@ export default function Contacts() {
   };
 
   const getGoogleMapsUrl = (company: CompanyWithContacts) => {
-    const parts = [company.address_street, company.address_postal, company.address_city].filter(Boolean);
+    // Uporabi naslov poslovalnice če obstaja, sicer sedež podjetja
+    const c = company as any;
+    const hasDeliveryAddress = c.delivery_address || c.delivery_postal || c.delivery_city;
+
+    const parts = hasDeliveryAddress
+      ? [c.delivery_address, c.delivery_postal, c.delivery_city].filter(Boolean)
+      : [company.address_street, company.address_postal, company.address_city].filter(Boolean);
+
     if (parts.length === 0) return null;
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`;
   };
 
-  // ============= CONTACT SELECTION & EXPORT FUNCTIONS =============
+  // Get company address for route planning
+  const getCompanyAddress = (company: CompanyWithContacts) => {
+    const c = company as any;
+    const hasDeliveryAddress = c.delivery_address || c.delivery_postal || c.delivery_city;
+
+    const parts = hasDeliveryAddress
+      ? [c.delivery_address, c.delivery_postal, c.delivery_city].filter(Boolean)
+      : [company.address_street, company.address_postal, company.address_city].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(', ') : null;
+  };
+
+  // Open route in Google Maps with multiple waypoints
+  const openRouteInMaps = () => {
+    const companiesWithAddresses = filteredCompanies
+      .filter(c => getCompanyAddress(c))
+      .slice(0, 10); // Google Maps supports up to 10 waypoints
+
+    if (companiesWithAddresses.length === 0) {
+      toast({ description: 'Ni strank z naslovi', variant: 'destructive' });
+      return;
+    }
+
+    if (companiesWithAddresses.length === 1) {
+      // Single destination
+      window.open(getGoogleMapsUrl(companiesWithAddresses[0])!, '_blank');
+      return;
+    }
+
+    // Multiple waypoints - Google Maps Directions URL format
+    const origin = encodeURIComponent(getCompanyAddress(companiesWithAddresses[0])!);
+    const destination = encodeURIComponent(getCompanyAddress(companiesWithAddresses[companiesWithAddresses.length - 1])!);
+    const waypoints = companiesWithAddresses
+      .slice(1, -1)
+      .map(c => encodeURIComponent(getCompanyAddress(c)!))
+      .join('|');
+
+    const url = waypoints
+      ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`
+      : `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+
+    window.open(url, '_blank');
+    toast({ description: `Odpiranje poti za ${companiesWithAddresses.length} strank` });
+  };
+
+  // --------------------------------------------------------------------------
+  // IZBIRA IN IZVOZ KONTAKTOV - vCard izvoz, množično brisanje
+  // --------------------------------------------------------------------------
+
+  /** Preklopi izbiro kontakta za izvoz/brisanje */
   const toggleContactSelection = (contactId: string) => {
     setSelectedContacts(prev => {
       const newSet = new Set(prev);
@@ -941,8 +1329,14 @@ export default function Contacts() {
     setSelectedContacts(new Set());
   };
 
-  // ============= SENT OFFERS FUNCTIONS =============
-  // Fetch sent offers for a company
+  // --------------------------------------------------------------------------
+  // POSLANE PONUDBE - Pregled in upravljanje poslanih ponudb
+  // --------------------------------------------------------------------------
+
+  /**
+   * Pridobi vse poslane ponudbe za podjetje
+   * @param companyId - ID podjetja
+   */
   const fetchSentOffers = async (companyId: string) => {
     setLoadingSentOffers(true);
     try {
@@ -1119,7 +1513,13 @@ export default function Contacts() {
     }
   }, [selectedCompanyId]);
 
-  // ============= OFFER FUNCTIONS =============
+  // --------------------------------------------------------------------------
+  // KREIRANJE PONUDB - Najem, nakup, primerjava, dodatna
+  // --------------------------------------------------------------------------
+
+  /**
+   * Odpre modal za novo ponudbo in ponastavi stanje
+   */
   const openOfferModal = () => {
     // Reset offer state
     setOfferType('najem');
@@ -1498,6 +1898,14 @@ Cene ne vključujejo DDV
 Cena: ${totals.totalPrice.toFixed(2)} €`;
   };
 
+  // --------------------------------------------------------------------------
+  // GENERIRANJE E-POŠTE - Tekstovna in HTML vsebina ponudbe
+  // --------------------------------------------------------------------------
+
+  /**
+   * Generira vsebino e-pošte v tekstovnem formatu
+   * Uporablja se za navadno kopiranje ali mailto link
+   */
   const generateEmailContent = () => {
     const signature = `Lep pozdrav,`;
     const hasSeasonalItems = offerItemsNajem.some(item => item.seasonal);
@@ -1729,7 +2137,10 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
     toast({ description: '✅ Ponudba kopirana in shranjena - prilepi v Outlook (Ctrl+V)' });
   };
-  // ============= END OFFER FUNCTIONS =============
+
+  // ==========================================================================
+  // RENDER - JSX za prikaz uporabniškega vmesnika
+  // ==========================================================================
 
   return (
     <div className="min-h-screen bg-gray-100 pb-20">
@@ -1933,6 +2344,17 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             ))}
           </div>
 
+          {/* Route planning button */}
+          {filteredCompanies.filter(c => getCompanyAddress(c)).length > 1 && (
+            <button
+              onClick={openRouteInMaps}
+              className="px-3 py-2 rounded-lg text-sm whitespace-nowrap bg-orange-500 text-white flex items-center gap-1"
+              title={`Odpri pot za ${Math.min(filteredCompanies.filter(c => getCompanyAddress(c)).length, 10)} strank`}
+            >
+              <MapPin size={16} /> Pot ({Math.min(filteredCompanies.filter(c => getCompanyAddress(c)).length, 10)})
+            </button>
+          )}
+
           <button
             onClick={() => setShowAddModal(true)}
             className="ml-auto px-3 py-2 rounded-lg text-sm whitespace-nowrap bg-green-500 text-white flex items-center gap-1"
@@ -1940,6 +2362,153 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             <Plus size={16} /> Dodaj
           </button>
         </div>
+
+        {/* TODAY Section - Meetings and Deadlines */}
+        {((todayTasks?.meetings?.length || 0) > 0 || (todayTasks?.deadlines?.length || 0) > 0) && !searchQuery && (
+          <div className="bg-gradient-to-r from-blue-50 to-amber-50 rounded-xl p-4 border border-blue-200">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <Calendar size={18} className="text-blue-500" />
+              Danes & Prihajajoče
+            </h3>
+
+            <div className="space-y-2">
+              {/* Today's meetings */}
+              {todayTasks?.meetings?.filter((m: any) => m.isToday).map((meeting: any) => (
+                <div
+                  key={meeting.id}
+                  onClick={() => {
+                    const company = companies?.find(c => c.id === meeting.company_id);
+                    if (company) {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }
+                  }}
+                  className="bg-blue-100 rounded-lg p-3 cursor-pointer hover:bg-blue-200 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-blue-600 uppercase">Danes sestanek</span>
+                      <p className="font-medium text-blue-900">
+                        {meeting.companies?.display_name || meeting.companies?.name}
+                      </p>
+                      <p className="text-sm text-blue-700">{meeting.content}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-blue-400" />
+                  </div>
+                </div>
+              ))}
+
+              {/* Overdue deadlines (past) */}
+              {todayTasks?.deadlines?.filter((d: any) => d.isPast && !d.isToday).map((deadline: any) => (
+                <div
+                  key={deadline.id}
+                  onClick={() => {
+                    const company = companies?.find(c => c.id === deadline.company_id);
+                    if (company) {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }
+                  }}
+                  className="bg-red-100 rounded-lg p-3 cursor-pointer hover:bg-red-200 transition-colors border-l-4 border-red-500"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-red-600 uppercase">Zamuja!</span>
+                      <p className="font-medium text-red-900">
+                        {deadline.companies?.display_name || deadline.companies?.name}
+                      </p>
+                      <p className="text-sm text-red-700">{deadline.content}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-red-400" />
+                  </div>
+                </div>
+              ))}
+
+              {/* Today's deadlines */}
+              {todayTasks?.deadlines?.filter((d: any) => d.isToday).map((deadline: any) => (
+                <div
+                  key={deadline.id}
+                  onClick={() => {
+                    const company = companies?.find(c => c.id === deadline.company_id);
+                    if (company) {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }
+                  }}
+                  className="bg-amber-100 rounded-lg p-3 cursor-pointer hover:bg-amber-200 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-amber-600 uppercase">Danes rok</span>
+                      <p className="font-medium text-amber-900">
+                        {deadline.companies?.display_name || deadline.companies?.name}
+                      </p>
+                      <p className="text-sm text-amber-700">{deadline.content}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-amber-400" />
+                  </div>
+                </div>
+              ))}
+
+              {/* Upcoming deadlines (within 2 days) */}
+              {todayTasks?.deadlines?.filter((d: any) => d.isSoon && !d.isToday && !d.isPast).map((deadline: any) => (
+                <div
+                  key={deadline.id}
+                  onClick={() => {
+                    const company = companies?.find(c => c.id === deadline.company_id);
+                    if (company) {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }
+                  }}
+                  className="bg-gray-100 rounded-lg p-3 cursor-pointer hover:bg-gray-200 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-gray-500 uppercase">Kmalu</span>
+                      <p className="font-medium text-gray-900">
+                        {deadline.companies?.display_name || deadline.companies?.name}
+                      </p>
+                      <p className="text-sm text-gray-600">{deadline.content}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-400" />
+                  </div>
+                </div>
+              ))}
+
+              {/* Upcoming meetings */}
+              {todayTasks?.meetings?.filter((m: any) => !m.isToday && !m.isPast).map((meeting: any) => (
+                <div
+                  key={meeting.id}
+                  onClick={() => {
+                    const company = companies?.find(c => c.id === meeting.company_id);
+                    if (company) {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }
+                  }}
+                  className="bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-blue-500 uppercase">Prihajajoč sestanek</span>
+                      <p className="font-medium text-blue-800">
+                        {meeting.companies?.display_name || meeting.companies?.name}
+                      </p>
+                      <p className="text-sm text-blue-600">{meeting.content}</p>
+                    </div>
+                    <ChevronRight size={20} className="text-blue-300" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Selection Mode Bar */}
         {selectionMode && (
@@ -2008,11 +2577,12 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
               const mapsUrl = getGoogleMapsUrl(company);
               const overdueCycle = company.cycles?.find((c: any) => isTestOverdue(c));
               const daysOverdue = overdueCycle ? getDaysOverdue(overdueCycle) : 0;
+              const isRecent = recentCompanyIds.includes(company.id);
 
               return (
                 <div
                   key={company.id}
-                  className={`bg-white rounded-lg shadow overflow-hidden ${overdueCycle ? 'border-2 border-red-400' : ''}`}
+                  className={`bg-white rounded-lg shadow overflow-hidden ${overdueCycle ? 'border-2 border-red-400' : ''} ${isRecent && !searchQuery ? 'ring-2 ring-blue-200' : ''}`}
                 >
                   {/* Main card - clickable */}
                   <div
@@ -2021,6 +2591,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                       if (!selectionMode) {
                         setSelectedCompany(company);
                         setSelectedCompanyId(company.id);
+                        addToRecent(company.id);
                       }
                     }}
                   >
@@ -2029,6 +2600,11 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                         <div className="font-bold text-lg flex items-center gap-2">
                           <Building2 size={18} className="text-gray-400" />
                           {company.display_name || company.name}
+                          {isRecent && !searchQuery && (
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                              Nedavno
+                            </span>
+                          )}
                           {overdueCycle && (
                             <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
                               {daysOverdue > 0 ? `${daysOverdue} dni zamude` : 'Zamuja'}
@@ -2575,6 +3151,65 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                 </div>
               </div>
 
+              {/* Naslov poslovalnice */}
+              <div className="bg-amber-50 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.hasDifferentDeliveryAddress || false}
+                    onChange={(e) => setFormData({ ...formData, hasDifferentDeliveryAddress: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-medium">Poslovalnica na drugem naslovu</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">Obkljukaj če se naslov dostave razlikuje od sedeža podjetja</p>
+
+                {formData.hasDifferentDeliveryAddress && (
+                  <div className="mt-3 space-y-3 pl-6 border-l-2 border-amber-300">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Ulica poslovalnice</label>
+                      <input
+                        type="text"
+                        value={formData.deliveryAddress || ''}
+                        onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
+                        className="w-full p-3 border rounded-lg"
+                        placeholder="Industrijska cesta 5"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Pošta</label>
+                        <input
+                          type="text"
+                          value={formData.deliveryPostal || ''}
+                          onChange={(e) => {
+                            const postal = e.target.value;
+                            const city = getCityByPostalCode(postal);
+                            setFormData({
+                              ...formData,
+                              deliveryPostal: postal,
+                              ...(city && { deliveryCity: city })
+                            });
+                          }}
+                          className="w-full p-3 border rounded-lg"
+                          placeholder="1000"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium mb-1">Kraj</label>
+                        <input
+                          type="text"
+                          value={formData.deliveryCity || ''}
+                          onChange={(e) => setFormData({ ...formData, deliveryCity: e.target.value })}
+                          className="w-full p-3 border rounded-lg"
+                          placeholder="Ljubljana"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3">Kontaktna oseba</h4>
 
@@ -2654,21 +3289,67 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             <div className="p-4 space-y-4">
               {/* Company Info */}
               <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                {selectedCompany.tax_number && (
-                  <div className="text-sm">
-                    <span className="text-gray-500">Davčna:</span> {selectedCompany.tax_number}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    {selectedCompany.tax_number && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Davčna:</span> {selectedCompany.tax_number}
+                      </div>
+                    )}
+
+                    {/* Sedež podjetja */}
+                    {selectedCompany.address_street && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">
+                          {(selectedCompany as any).delivery_address ? 'Sedež:' : 'Naslov:'}
+                        </span> {selectedCompany.address_street}
+                      </div>
+                    )}
+                    {(selectedCompany.address_postal || selectedCompany.address_city) && !(selectedCompany as any).delivery_address && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Pošta:</span> {selectedCompany.address_postal} {selectedCompany.address_city}
+                      </div>
+                    )}
+                    {(selectedCompany.address_postal || selectedCompany.address_city) && (selectedCompany as any).delivery_address && (
+                      <div className="text-sm text-gray-400 ml-4">
+                        {selectedCompany.address_postal} {selectedCompany.address_city}
+                      </div>
+                    )}
+
+                    {/* Naslov poslovalnice */}
+                    {(selectedCompany as any).delivery_address && (
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <div className="text-sm">
+                          <span className="text-amber-600 font-medium">Poslovalnica:</span> {(selectedCompany as any).delivery_address}
+                        </div>
+                        {((selectedCompany as any).delivery_postal || (selectedCompany as any).delivery_city) && (
+                          <div className="text-sm text-gray-500 ml-4">
+                            {(selectedCompany as any).delivery_postal} {(selectedCompany as any).delivery_city}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-                {selectedCompany.address_street && (
-                  <div className="text-sm">
-                    <span className="text-gray-500">Naslov:</span> {selectedCompany.address_street}
-                  </div>
-                )}
-                {(selectedCompany.address_postal || selectedCompany.address_city) && (
-                  <div className="text-sm">
-                    <span className="text-gray-500">Pošta:</span> {selectedCompany.address_postal} {selectedCompany.address_city}
-                  </div>
-                )}
+                  {/* Edit address button */}
+                  <button
+                    onClick={() => {
+                      setEditAddressData({
+                        addressStreet: selectedCompany.address_street || '',
+                        addressPostal: selectedCompany.address_postal || '',
+                        addressCity: selectedCompany.address_city || '',
+                        deliveryAddress: (selectedCompany as any).delivery_address || '',
+                        deliveryPostal: (selectedCompany as any).delivery_postal || '',
+                        deliveryCity: (selectedCompany as any).delivery_city || '',
+                        hasDifferentDeliveryAddress: !!(selectedCompany as any).delivery_address,
+                      });
+                      setShowEditAddressModal(true);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"
+                    title="Uredi naslove"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Dated Notes Section */}
@@ -2678,6 +3359,60 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                     <StickyNote size={18} className="text-yellow-500" />
                     Opombe
                   </h4>
+                </div>
+
+                {/* Quick action buttons */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button
+                    onClick={() => {
+                      if (selectedCompany) {
+                        addNoteMutation.mutate({
+                          companyId: selectedCompany.id,
+                          noteDate: new Date().toISOString().split('T')[0],
+                          content: 'Klical - ni dvignil',
+                        });
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-xs font-medium"
+                  >
+                    Klical - ni dvignil
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedCompany) {
+                        addNoteMutation.mutate({
+                          companyId: selectedCompany.id,
+                          noteDate: new Date().toISOString().split('T')[0],
+                          content: 'Ni interesa',
+                        });
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-xs font-medium"
+                  >
+                    Ni interesa
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMeetingType('ponudba');
+                      setMeetingDate(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+                      setMeetingTime('09:00');
+                      setShowMeetingModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-full text-xs font-medium"
+                  >
+                    Pošlji ponudbo do...
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMeetingType('sestanek');
+                      setMeetingDate(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+                      setMeetingTime('10:00');
+                      setShowMeetingModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-xs font-medium"
+                  >
+                    Dogovorjen sestanek...
+                  </button>
                 </div>
 
                 {/* Add new note */}
@@ -2709,7 +3444,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                   <textarea
                     value={newNoteContent}
                     onChange={(e) => setNewNoteContent(e.target.value)}
-                    placeholder="Kaj ste se pogovarjali..."
+                    placeholder="Prosta opomba..."
                     className="w-full p-2 border rounded text-sm"
                     rows={2}
                   />
@@ -3131,6 +3866,250 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                 className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium disabled:bg-gray-300"
               >
                 {addContact.isPending ? 'Shranjujem...' : 'Dodaj kontakt'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meeting/Deadline Modal */}
+      {showMeetingModal && selectedCompany && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-bold">
+                {meetingType === 'sestanek' ? 'Dogovorjen sestanek' : 'Pošlji ponudbo do'}
+              </h3>
+              <button onClick={() => setShowMeetingModal(false)} className="p-1">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Datum</label>
+                <input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => setMeetingDate(e.target.value)}
+                  className="w-full p-3 border rounded-lg"
+                />
+              </div>
+
+              {meetingType === 'sestanek' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ura</label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    className="w-full p-3 border rounded-lg"
+                  />
+                </div>
+              )}
+
+              <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                {meetingType === 'sestanek' ? (
+                  <>
+                    <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
+                    <p>Dogovorjen sestanek za {new Date(meetingDate).toLocaleDateString('sl-SI')} ob {meetingTime}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
+                    <p>Pošlji ponudbo do {new Date(meetingDate).toLocaleDateString('sl-SI')}</p>
+                  </>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const content = meetingType === 'sestanek'
+                      ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
+                      : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
+
+                    addNoteMutation.mutate({
+                      companyId: selectedCompany.id,
+                      noteDate: new Date().toISOString().split('T')[0],
+                      content,
+                    });
+
+                    // Generate ICS file
+                    generateICSFile(selectedCompany, meetingDate, meetingType === 'sestanek' ? meetingTime : '09:00', meetingType);
+
+                    setShowMeetingModal(false);
+                  }}
+                  className="flex-1 py-3 bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2"
+                >
+                  <Calendar size={18} />
+                  Shrani + Prenesi .ics
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  const content = meetingType === 'sestanek'
+                    ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
+                    : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
+
+                  addNoteMutation.mutate({
+                    companyId: selectedCompany.id,
+                    noteDate: new Date().toISOString().split('T')[0],
+                    content,
+                  });
+
+                  setShowMeetingModal(false);
+                }}
+                className="w-full py-2 text-gray-500 text-sm"
+              >
+                Samo shrani (brez .ics)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Address Modal */}
+      {showEditAddressModal && selectedCompany && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-bold">Uredi naslove</h3>
+              <button onClick={() => setShowEditAddressModal(false)} className="p-1">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Sedež podjetja */}
+              <div>
+                <h4 className="font-medium text-sm text-gray-600 mb-2">Sedež podjetja (registrirani naslov)</h4>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editAddressData.addressStreet || ''}
+                    onChange={(e) => setEditAddressData({ ...editAddressData, addressStreet: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    placeholder="Ulica in hišna številka"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      value={editAddressData.addressPostal || ''}
+                      onChange={(e) => {
+                        const postal = e.target.value;
+                        const city = getCityByPostalCode(postal);
+                        setEditAddressData({
+                          ...editAddressData,
+                          addressPostal: postal,
+                          ...(city && { addressCity: city })
+                        });
+                      }}
+                      className="w-full p-3 border rounded-lg"
+                      placeholder="Pošta"
+                    />
+                    <input
+                      type="text"
+                      value={editAddressData.addressCity || ''}
+                      onChange={(e) => setEditAddressData({ ...editAddressData, addressCity: e.target.value })}
+                      className="col-span-2 w-full p-3 border rounded-lg"
+                      placeholder="Kraj"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Naslov poslovalnice */}
+              <div className="bg-amber-50 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editAddressData.hasDifferentDeliveryAddress || false}
+                    onChange={(e) => setEditAddressData({ ...editAddressData, hasDifferentDeliveryAddress: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-medium">Poslovalnica na drugem naslovu</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">Naslov kamor gre šofer po predpražnike</p>
+
+                {editAddressData.hasDifferentDeliveryAddress && (
+                  <div className="mt-3 space-y-3 pl-6 border-l-2 border-amber-300">
+                    <input
+                      type="text"
+                      value={editAddressData.deliveryAddress || ''}
+                      onChange={(e) => setEditAddressData({ ...editAddressData, deliveryAddress: e.target.value })}
+                      className="w-full p-3 border rounded-lg"
+                      placeholder="Ulica poslovalnice"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        value={editAddressData.deliveryPostal || ''}
+                        onChange={(e) => {
+                          const postal = e.target.value;
+                          const city = getCityByPostalCode(postal);
+                          setEditAddressData({
+                            ...editAddressData,
+                            deliveryPostal: postal,
+                            ...(city && { deliveryCity: city })
+                          });
+                        }}
+                        className="w-full p-3 border rounded-lg"
+                        placeholder="Pošta"
+                      />
+                      <input
+                        type="text"
+                        value={editAddressData.deliveryCity || ''}
+                        onChange={(e) => setEditAddressData({ ...editAddressData, deliveryCity: e.target.value })}
+                        className="col-span-2 w-full p-3 border rounded-lg"
+                        placeholder="Kraj"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase
+                      .from('companies')
+                      .update({
+                        address_street: editAddressData.addressStreet || null,
+                        address_postal: editAddressData.addressPostal || null,
+                        address_city: editAddressData.addressCity || null,
+                        delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
+                        delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
+                        delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                      })
+                      .eq('id', selectedCompany.id);
+
+                    if (error) throw error;
+
+                    // Update local state
+                    const updated = {
+                      ...selectedCompany,
+                      address_street: editAddressData.addressStreet || null,
+                      address_postal: editAddressData.addressPostal || null,
+                      address_city: editAddressData.addressCity || null,
+                      delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
+                      delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
+                      delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                    };
+                    setSelectedCompany(updated as any);
+                    queryClient.invalidateQueries({ queryKey: ['companies'] });
+
+                    toast({ description: 'Naslovi posodobljeni' });
+                    setShowEditAddressModal(false);
+                  } catch (error: any) {
+                    console.error('Error updating address:', error);
+                    toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
+                  }
+                }}
+                className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium"
+              >
+                Shrani naslove
               </button>
             </div>
           </div>
