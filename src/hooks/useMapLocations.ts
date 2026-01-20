@@ -11,6 +11,7 @@ export interface MapLocation {
   lng: number;
   companyName: string;
   companyAddress: string;
+  companyCity: string | null;
   contactName: string | null;
   contactPhone: string | null;
   matTypeName: string;
@@ -40,6 +41,7 @@ function getMarkerStatus(cycle: any): MapMarkerStatus {
 export function useMapLocations(filters?: {
   status?: MapMarkerStatus[];
   salespersonId?: string;
+  includeDirty?: boolean; // Za inventar zemljevid - prikaže tudi pobrane predpražnike
 }) {
   return useQuery({
     queryKey: ['map', 'locations', filters],
@@ -62,8 +64,14 @@ export function useMapLocations(filters?: {
           profiles!cycles_salesperson_id_fkey(first_name, last_name)
         `)
         .not('location_lat', 'is', null)
-        .not('location_lng', 'is', null)
-        .in('status', ['on_test', 'dirty', 'waiting_driver']);
+        .not('location_lng', 'is', null);
+
+      // Določi katere statuse prikazati
+      const statusesToShow = filters?.includeDirty
+        ? ['on_test', 'waiting_driver', 'dirty']
+        : ['on_test', 'waiting_driver'];
+
+      query = query.in('status', statusesToShow);
 
       // Filter by salesperson if specified
       if (filters?.salespersonId) {
@@ -98,6 +106,7 @@ export function useMapLocations(filters?: {
         companyAddress: cycle.companies
           ? `${cycle.companies.address_street || ''}, ${cycle.companies.address_city || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
           : '',
+        companyCity: cycle.companies?.address_city || null,
         contactName: cycle.contacts
           ? `${cycle.contacts.first_name || ''} ${cycle.contacts.last_name || ''}`.trim()
           : null,
@@ -195,7 +204,7 @@ export function getStatusLabel(status: MapMarkerStatus): string {
     case 'waiting_driver':
       return 'Čaka na prevzem';
     case 'dirty':
-      return 'Umazan';
+      return 'Neuspeli prospect';
     default:
       return 'Neznan status';
   }

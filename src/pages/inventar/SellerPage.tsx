@@ -45,6 +45,7 @@ import {
   SellerWaitingDriverCard,
   SellerLongTestCard,
   SellerQRCodesTab,
+  SellerQRPrintTab,
 } from "./components";
 
 export default function SellerPage() {
@@ -1002,6 +1003,9 @@ export default function SellerPage() {
                 <TabsTrigger value="qr-kode" className="flex items-center gap-2">
                   <QrCode className="h-4 w-4" /> QR Kode ({stats.total})
                 </TabsTrigger>
+                <TabsTrigger value="tiskanje" className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" /> Tiskanje ({stats.available})
+                </TabsTrigger>
                 <TabsTrigger value="ukrepanje" className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" /> Za ukrepanje ({dirtyMatsOnly.length + waitingDriverMats.length + longTestMats.length})
                 </TabsTrigger>
@@ -1020,6 +1024,15 @@ export default function SellerPage() {
                   isCreatingCodes={createCodesMutation.isPending}
                   onAddCodes={handleAddCodes}
                   onDeleteCode={(codeId) => setConfirmDeleteCode(codeId)}
+                />
+              </TabsContent>
+
+              {/* Tiskanje Tab */}
+              <TabsContent value="tiskanje" className="mt-4">
+                <SellerQRPrintTab
+                  qrCodes={qrCodes}
+                  sellerName={`${seller.first_name} ${seller.last_name}`}
+                  codePrefix={seller.code_prefix}
                 />
               </TabsContent>
 

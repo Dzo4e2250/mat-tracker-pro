@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, role, loading } = useAuth();
+  const { user, activeRole, availableRoles, loading } = useAuth();
 
   if (loading) {
     return (
@@ -24,11 +24,15 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/auth" replace />;
   }
 
-  if (role && !allowedRoles.includes(role)) {
-    // Redirect based on user's actual role
-    if (role === 'admin' || role === 'inventar') {
+  // Check if user has access through activeRole OR any of their available roles
+  const hasAccess = activeRole && allowedRoles.includes(activeRole) ||
+    availableRoles.some(r => allowedRoles.includes(r));
+
+  if (!hasAccess) {
+    // Redirect based on user's active role
+    if (activeRole === 'admin' || activeRole === 'inventar') {
       return <Navigate to="/inventar" replace />;
-    } else if (role === 'prodajalec') {
+    } else if (activeRole === 'prodajalec') {
       return <Navigate to="/prodajalec" replace />;
     }
     return <Navigate to="/auth" replace />;

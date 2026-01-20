@@ -51,6 +51,9 @@ export function MapMarker({ location, onClick }: MapMarkerProps) {
     dirty: 'bg-red-500',
   }[location.status];
 
+  // Za dirty/prospect prikaži samo minimalne podatke (brez podatkov o podjetju)
+  const isDirtyProspect = location.status === 'dirty';
+
   return (
     <Marker
       position={[location.lat, location.lng]}
@@ -61,13 +64,13 @@ export function MapMarker({ location, onClick }: MapMarkerProps) {
     >
       <Popup className="custom-popup" minWidth={280} maxWidth={350}>
         <div className="p-1">
-          {/* Company name and status */}
+          {/* Title and status */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <h3 className="font-semibold text-gray-900 text-base leading-tight">
-              {location.companyName}
+              {isDirtyProspect ? 'Prospect' : location.companyName}
             </h3>
             <Badge className={`${statusBadgeColor} text-white text-xs shrink-0`}>
-              {statusLabel}
+              {isDirtyProspect ? 'Neuspeli prospect' : statusLabel}
             </Badge>
           </div>
 
@@ -77,33 +80,38 @@ export function MapMarker({ location, onClick }: MapMarkerProps) {
             <span className="font-mono">{location.qrCode}</span>
           </div>
 
-          {/* Address */}
-          {location.companyAddress && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-              <Building2 className="h-4 w-4 text-gray-400" />
-              <span>{location.companyAddress}</span>
-            </div>
-          )}
+          {/* Za dirty/prospect samo prikažemo prodajalca in datume, brez naslova in kontakta */}
+          {!isDirtyProspect && (
+            <>
+              {/* Address */}
+              {location.companyAddress && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                  <Building2 className="h-4 w-4 text-gray-400" />
+                  <span>{location.companyAddress}</span>
+                </div>
+              )}
 
-          {/* Contact */}
-          {location.contactName && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-              <User className="h-4 w-4 text-gray-400" />
-              <span>{location.contactName}</span>
-            </div>
-          )}
+              {/* Contact */}
+              {location.contactName && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <span>{location.contactName}</span>
+                </div>
+              )}
 
-          {/* Phone */}
-          {location.contactPhone && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-              <Phone className="h-4 w-4 text-gray-400" />
-              <a
-                href={`tel:${location.contactPhone}`}
-                className="text-blue-600 hover:underline"
-              >
-                {location.contactPhone}
-              </a>
-            </div>
+              {/* Phone */}
+              {location.contactPhone && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <a
+                    href={`tel:${location.contactPhone}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {location.contactPhone}
+                  </a>
+                </div>
+              )}
+            </>
           )}
 
           {/* Test dates */}
@@ -178,36 +186,39 @@ export function ClusterMarker({ locations, lat, lng, onClick }: ClusterMarkerPro
             {locations.length} predpražnikov na tej lokaciji
           </h3>
           <div className="max-h-64 overflow-y-auto space-y-2">
-            {locations.map((loc) => (
-              <div
-                key={loc.cycleId}
-                className="p-2 bg-gray-50 rounded border border-gray-100"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono text-sm">{loc.qrCode}</span>
-                  <Badge
-                    className={`${
-                      {
-                        on_test: 'bg-blue-500',
-                        contract_signed: 'bg-green-500',
-                        waiting_driver: 'bg-purple-500',
-                        dirty: 'bg-red-500',
-                      }[loc.status]
-                    } text-white text-xs`}
-                  >
-                    {getStatusLabel(loc.status)}
-                  </Badge>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {loc.companyName}
-                </div>
-                {loc.contactPhone && (
-                  <div className="text-xs text-blue-600">
-                    {loc.contactPhone}
+            {locations.map((loc) => {
+              const isDirty = loc.status === 'dirty';
+              return (
+                <div
+                  key={loc.cycleId}
+                  className="p-2 bg-gray-50 rounded border border-gray-100"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-sm">{loc.qrCode}</span>
+                    <Badge
+                      className={`${
+                        {
+                          on_test: 'bg-blue-500',
+                          contract_signed: 'bg-green-500',
+                          waiting_driver: 'bg-purple-500',
+                          dirty: 'bg-red-500',
+                        }[loc.status]
+                      } text-white text-xs`}
+                    >
+                      {isDirty ? 'Neuspeli prospect' : getStatusLabel(loc.status)}
+                    </Badge>
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="text-xs text-gray-600">
+                    {isDirty ? 'Prospect' : loc.companyName}
+                  </div>
+                  {!isDirty && loc.contactPhone && (
+                    <div className="text-xs text-blue-600">
+                      {loc.contactPhone}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </Popup>

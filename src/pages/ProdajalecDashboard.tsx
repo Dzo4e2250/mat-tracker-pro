@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ZoomIn } from 'lucide-react';
+import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ZoomIn, ArrowRightLeft, Key } from 'lucide-react';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -11,8 +12,10 @@ import { useMapLocations, groupLocationsByProximity, getMarkerColor, getStatusLa
 import { useMatTypes } from '@/hooks/useMatTypes';
 import { useQRCodes, useAvailableQRCodes } from '@/hooks/useQRCodes';
 import { useCycles, useCycleHistory, useCreateCycle, useUpdateCycleStatus, usePutOnTest, useSignContract, useExtendTest, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, CycleWithRelations } from '@/hooks/useCycles';
-import { useCompanies, useCreateCompanyWithContact } from '@/hooks/useCompanies';
+import { useCreateCompanyWithContact, useCreateContact, useCompanyHistory } from '@/hooks/useCompanies';
+import { useCompanyContacts, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
+import CompanySelectModal from '@/components/CompanySelectModal';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
 
@@ -21,10 +24,42 @@ import { HomeView, ScanView, MapView, HistoryView, StatisticsView } from './prod
 import { STATUSES, type StatusKey } from './prodajalec/utils/constants';
 import { getTimeRemaining, formatCountdown } from './prodajalec/utils/timeHelpers';
 
-// createCustomIcon in MapClickHandler so zdaj v MapView komponenti
+// Konstante za zemljevid
+const SLOVENIA_CENTER: [number, number] = [46.1512, 14.9955];
+const DEFAULT_ZOOM = 8;
+
+// Create custom marker icons
+const createCustomIcon = (color: string, isPulsing: boolean = false) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `
+      <div style="
+        width: 24px;
+        height: 24px;
+        background-color: ${color};
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        ${isPulsing ? 'animation: pulse 2s infinite;' : ''}
+      "></div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+};
+
+// Component to handle map clicks in edit mode
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (e) => {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
 
 export default function ProdajalecDashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, availableRoles, switchRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -35,7 +70,11 @@ export default function ProdajalecDashboard() {
   const { data: availableQRCodes } = useAvailableQRCodes(user?.id || '');
   const { data: cycles, isLoading: loadingCycles } = useCycles(user?.id);
   const { data: cycleHistory } = useCycleHistory(user?.id);
-  const { data: companies } = useCompanies();
+  const { data: companies } = useCompanyContacts(user?.id);
+
+  // Company select modal state
+  const [showCompanySelectModal, setShowCompanySelectModal] = useState(false);
+  const [selectedCompanyForTest, setSelectedCompanyForTest] = useState<CompanyWithContacts | null>(null);
 
   // Map data - filtered by current user
   const { data: mapLocations, isLoading: loadingMap } = useMapLocations({
@@ -57,6 +96,7 @@ export default function ProdajalecDashboard() {
   const updateCycleLocation = useUpdateCycleLocation();
   const markContractSigned = useMarkContractSigned();
   const createCompanyWithContact = useCreateCompanyWithContact();
+  const createContact = useCreateContact();
 
   const [view, setView] = useState(() => {
     const urlView = searchParams.get('view');
@@ -78,6 +118,7 @@ export default function ProdajalecDashboard() {
   const [taxLookupLoading, setTaxLookupLoading] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -88,6 +129,9 @@ export default function ProdajalecDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  // Fetch company history when a company is selected (for showing previous notes)
+  const { data: companyHistoryData } = useCompanyHistory(formData.companyId);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -384,8 +428,10 @@ export default function ProdajalecDashboard() {
       // Create company if new
       let companyId = formData.companyId;
       let companyName = formData.clientName;
+      let contactId: string | undefined;
 
       if (!companyId && formData.clientName) {
+        // New company - create with contact
         const newCompany = await createCompanyWithContact.mutateAsync({
           company: {
             name: formData.clientName,
@@ -408,13 +454,34 @@ export default function ProdajalecDashboard() {
         });
         companyId = newCompany.id;
       } else if (companyId) {
+        // Existing company
         const selectedCompany = companies?.find(c => c.id === companyId);
-        companyName = selectedCompany?.name || '';
+        companyName = selectedCompany?.display_name || selectedCompany?.name || '';
+
+        // Check if using existing contact or creating new one
+        if (formData.useExistingContact && formData.contactId && formData.contactId !== 'new') {
+          // Use existing contact
+          contactId = formData.contactId;
+        } else if (formData.contactId === 'new' && formData.contactPerson) {
+          // Create new contact for existing company
+          const newContact = await createContact.mutateAsync({
+            company_id: companyId,
+            first_name: formData.contactPerson.split(' ')[0] || formData.contactPerson,
+            last_name: formData.contactPerson.split(' ').slice(1).join(' ') || '',
+            email: formData.email || null,
+            phone: formData.phone || null,
+            role: formData.contactRole || null,
+            is_decision_maker: formData.isDecisionMaker || false,
+            created_by: user.id,
+          });
+          contactId = newContact.id;
+        }
       }
 
       await putOnTest.mutateAsync({
         cycleId: selectedCycle.id,
         companyId,
+        contactId,
         userId: user.id,
         notes: formData.comment,
         locationLat: location?.lat,
@@ -428,6 +495,7 @@ export default function ProdajalecDashboard() {
         ...formData,
         lastCompanyId: companyId,
         lastCompanyName: companyName,
+        lastContactId: contactId,
         lastLocationLat: location?.lat,
         lastLocationLng: location?.lng,
       });
@@ -689,6 +757,28 @@ export default function ProdajalecDashboard() {
               </div>
 
               <hr className="my-4" />
+
+              {/* Switch panel button - only show if user has multiple roles */}
+              {availableRoles.length > 1 && (availableRoles.includes('inventar') || availableRoles.includes('admin')) && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    switchRole(availableRoles.includes('admin') ? 'admin' : 'inventar');
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-blue-50 text-blue-600 mb-2"
+                >
+                  <ArrowRightLeft size={20} />
+                  <span>Preklopi v Inventar</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => { setShowPasswordModal(true); setMenuOpen(false); }}
+                className="w-full flex items-center gap-3 p-3 rounded hover:bg-gray-100 mb-2"
+              >
+                <Key size={20} />
+                <span>Spremeni geslo</span>
+              </button>
 
               <button
                 onClick={() => { signOut(); setMenuOpen(false); }}
@@ -1575,47 +1665,178 @@ export default function ProdajalecDashboard() {
               <div>
                 <h3 className="text-lg font-bold mb-4">Daj na test</h3>
                 <div className="space-y-3">
+                  {/* Company selection */}
                   <div>
-                    <label className="block text-sm font-medium mb-1">Izberi obstoječe podjetje</label>
-                    <input
-                      type="text"
-                      placeholder="Išči med strankami..."
-                      value={companySearch}
-                      onChange={(e) => setCompanySearch(e.target.value)}
-                      className="w-full p-2 border rounded mb-2"
-                    />
-                    <select
-                      value={formData.companyId || ''}
-                      onChange={(e) => {
-                        const company = companies?.find(c => c.id === e.target.value);
-                        setFormData({
-                          ...formData,
-                          companyId: e.target.value,
-                          clientName: company?.display_name || company?.name || '',
-                        });
-                        setCompanySearch('');
-                      }}
-                      className="w-full p-2 border rounded"
-                      size={companySearch ? 5 : 1}
-                    >
-                      <option value="">-- Novo podjetje --</option>
-                      {companies
-                        ?.filter(company =>
-                          !companySearch ||
-                          (company.display_name || company.name || '').toLowerCase().includes(companySearch.toLowerCase()) ||
-                          (company.tax_number || '').includes(companySearch)
-                        )
-                        .map(company => (
-                          <option key={company.id} value={company.id}>
-                            {company.display_name || company.name}
-                            {company.tax_number ? ` (${company.tax_number})` : ''}
-                          </option>
-                        ))}
-                    </select>
+                    <label className="block text-sm font-medium mb-1">Podjetje</label>
+                    {formData.companyId ? (
+                      // Selected company display
+                      <div className="p-3 border rounded-lg bg-blue-50 border-blue-200">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium text-blue-900">
+                              {(() => {
+                                const company = companies?.find(c => c.id === formData.companyId);
+                                return company?.display_name || company?.name || formData.clientName;
+                              })()}
+                            </div>
+                            {(() => {
+                              const company = companies?.find(c => c.id === formData.companyId);
+                              return company?.address_city ? (
+                                <div className="text-xs text-blue-700 flex items-center gap-1 mt-0.5">
+                                  <MapPin size={12} />
+                                  {company.address_city}
+                                  {company.tax_number && <span className="text-blue-500 ml-2">{company.tax_number}</span>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, companyId: '', clientName: '', contactId: '', useExistingContact: false });
+                              setSelectedCompanyForTest(null);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Button to open company select modal
+                      <button
+                        type="button"
+                        onClick={() => setShowCompanySelectModal(true)}
+                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Users size={18} />
+                        Izberi obstoječe podjetje
+                      </button>
+                    )}
+                    {!formData.companyId && (
+                      <p className="text-xs text-gray-500 mt-1 text-center">ali pusti prazno za novo podjetje</p>
+                    )}
                   </div>
 
-                  {!formData.companyId && (
+                  {/* Show existing contacts when company is selected */}
+                  {formData.companyId && (() => {
+                    const selectedCompany = companies?.find(c => c.id === formData.companyId);
+                    const contacts = selectedCompany?.contacts || [];
+                    return contacts.length > 0 ? (
+                      <div className="bg-green-50 p-3 rounded-lg space-y-3">
+                        <h4 className="font-medium text-sm text-green-700">Obstoječi kontakti</h4>
+                        <div className="space-y-2">
+                          {contacts.map((contact) => (
+                            <label
+                              key={contact.id}
+                              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-colors ${
+                                formData.contactId === contact.id
+                                  ? 'bg-green-100 border-green-500'
+                                  : 'bg-white border-gray-200 hover:border-green-300'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="existingContact"
+                                checked={formData.contactId === contact.id}
+                                onChange={() => setFormData({
+                                  ...formData,
+                                  contactId: contact.id,
+                                  useExistingContact: true,
+                                })}
+                                className="text-green-600"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium text-sm">
+                                  {contact.first_name} {contact.last_name}
+                                  {contact.role && <span className="text-gray-500 font-normal"> ({contact.role})</span>}
+                                </div>
+                                {contact.phone && (
+                                  <div className="text-xs text-gray-600">📞 {contact.phone}</div>
+                                )}
+                                {contact.email && (
+                                  <div className="text-xs text-gray-600">✉️ {contact.email}</div>
+                                )}
+                              </div>
+                            </label>
+                          ))}
+                          <label
+                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-colors ${
+                              formData.contactId === 'new'
+                                ? 'bg-blue-100 border-blue-500'
+                                : 'bg-white border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="existingContact"
+                              checked={formData.contactId === 'new'}
+                              onChange={() => setFormData({
+                                ...formData,
+                                contactId: 'new',
+                                useExistingContact: false,
+                              })}
+                              className="text-blue-600"
+                            />
+                            <div className="font-medium text-sm text-blue-700">+ Dodaj nov kontakt</div>
+                          </label>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <p className="text-sm text-yellow-700">Podjetje nima shranjenih kontaktov.</p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Show previous cycle notes for this company */}
+                  {formData.companyId && companyHistoryData && companyHistoryData.length > 0 && (
+                    <div className="bg-amber-50 p-3 rounded-lg space-y-2">
+                      <h4 className="font-medium text-sm text-amber-700 flex items-center gap-2">
+                        📝 Zgodovina in zapiski
+                        <span className="text-xs font-normal text-amber-600">({companyHistoryData.length})</span>
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {companyHistoryData.filter(c => c.notes).map((cycle) => (
+                          <div key={cycle.id} className="bg-white p-2 rounded border border-amber-200 text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                cycle.status === 'dirty' ? 'bg-red-100 text-red-700' :
+                                cycle.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                cycle.status === 'on_test' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {cycle.status === 'dirty' ? 'Neuspel' :
+                                 cycle.status === 'completed' ? 'Zaključen' :
+                                 cycle.status === 'on_test' ? 'Na testu' :
+                                 cycle.status}
+                              </span>
+                              {cycle.salesperson && (
+                                <span className="text-xs text-gray-500">
+                                  {cycle.salesperson.first_name} {cycle.salesperson.last_name}
+                                </span>
+                              )}
+                              {cycle.test_start_date && (
+                                <span className="text-xs text-gray-400">
+                                  {new Date(cycle.test_start_date).toLocaleDateString('sl-SI')}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-gray-700 whitespace-pre-wrap">{cycle.notes}</p>
+                          </div>
+                        ))}
+                        {companyHistoryData.filter(c => c.notes).length === 0 && (
+                          <p className="text-xs text-amber-600 italic">Ni zapiskov iz prejšnjih poskusov.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show new contact form when: 1) new company OR 2) existing company but "new contact" selected */}
+                  {(!formData.companyId || formData.contactId === 'new') && (
                     <>
+                      {/* Only show company fields when creating new company */}
+                      {!formData.companyId && (
                       <div className="bg-gray-50 p-3 rounded-lg space-y-3">
                         <h4 className="font-medium text-sm text-gray-700">Novo podjetje</h4>
 
@@ -1712,9 +1933,12 @@ export default function ProdajalecDashboard() {
                           </div>
                         </div>
                       </div>
+                      )}
 
                       <div className="bg-blue-50 p-3 rounded-lg space-y-3">
-                        <h4 className="font-medium text-sm text-blue-700">Kontaktna oseba</h4>
+                        <h4 className="font-medium text-sm text-blue-700">
+                          {formData.companyId ? 'Nov kontakt' : 'Kontaktna oseba'}
+                        </h4>
 
                         <div>
                           <label className="block text-sm font-medium mb-1">Ime in priimek</label>
@@ -2220,6 +2444,42 @@ export default function ProdajalecDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
+
+      {/* Company Select Modal */}
+      <CompanySelectModal
+        companies={companies || []}
+        isOpen={showCompanySelectModal}
+        onClose={() => setShowCompanySelectModal(false)}
+        onSelect={(company) => {
+          if (company) {
+            setFormData({
+              ...formData,
+              companyId: company.id,
+              clientName: company.display_name || company.name || '',
+              contactId: '',
+              useExistingContact: false,
+            });
+            setSelectedCompanyForTest(company);
+          } else {
+            // null means "create new company"
+            setFormData({
+              ...formData,
+              companyId: '',
+              clientName: '',
+              contactId: '',
+              useExistingContact: false,
+            });
+            setSelectedCompanyForTest(null);
+          }
+          setShowCompanySelectModal(false);
+        }}
+      />
     </div>
   );
 }

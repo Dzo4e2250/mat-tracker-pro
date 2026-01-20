@@ -8,8 +8,9 @@
  * - standard: Preddefinirane velikosti iz cenika
  * - design: Design predpražniki (s potiskom)
  * - custom: Po meri (poljubne dimenzije)
+ * - optibrush: Optibrush predpražniki (samo nakup)
  */
-export type ItemType = 'standard' | 'design' | 'custom';
+export type ItemType = 'standard' | 'design' | 'custom' | 'optibrush';
 
 /**
  * Namen artikla v ponudbi (za tip "dodatna")
@@ -70,6 +71,14 @@ export interface OfferItem {
   seasonalPrice?: number;
   seasonalDiscount?: number;
   seasonalOriginalPrice?: number;
+  // Optibrush fields
+  optibrushHasEdge?: boolean;
+  optibrushColorCount?: '1' | '2-3';
+  optibrushHasDrainage?: boolean;
+  optibrushSpecialShape?: boolean;
+  optibrushWidthCm?: number;
+  optibrushHeightCm?: number;
+  optibrushPricePerM2?: number;
 }
 
 /**

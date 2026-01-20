@@ -1,10 +1,13 @@
-import { Home, Users, LogOut, ClipboardList, ShoppingCart, ChevronRight, UserCircle, Truck, QrCode } from "lucide-react";
+import { useState } from "react";
+import { Home, Users, LogOut, ShoppingCart, ChevronRight, UserCircle, Truck, ArrowRightLeft, Key, Map, Package, BarChart2, Euro } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProdajalecProfiles } from "@/hooks/useProfiles";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
@@ -23,22 +26,28 @@ import {
 } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 
+// Meni elementi - brez Dashboard in Analitika (ti sta ročno renderirani)
 const menuItems = [
-  { title: "Dashboard", url: "/inventar", icon: Home },
-  { title: "Prevzemi", url: "/inventar/prevzemi", icon: Truck },
+  { title: "Cenik", url: "/inventar/cenik", icon: Euro },
+  { title: "Zemljevid", url: "/inventar/zemljevid", icon: Map },
+  { title: "Prevzemi", url: "/inventar/prevzemi", icon: Package },
+  { title: "Dostavljalci", url: "/inventar/dostavljalci", icon: Truck },
   { title: "Naročila", url: "/inventar/narocila", icon: ShoppingCart },
-  { title: "QR Kode", url: "/inventar/qr-kode", icon: QrCode },
   { title: "Računi", url: "/inventar/accounts", icon: Users },
 ];
 
 export function InventarSidebar() {
   const { state } = useSidebar();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, availableRoles, switchRole } = useAuth();
   const { data: sellers = [] } = useProdajalecProfiles();
   const location = useLocation();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Check if current path is a seller page
   const isSellerPageActive = location.pathname.startsWith('/inventar/prodajalec/');
+
+  // Check if user can switch to prodajalec panel
+  const canSwitchToProdajalec = availableRoles.length > 1 && availableRoles.includes('prodajalec');
 
   return (
     <>
@@ -48,13 +57,6 @@ export function InventarSidebar() {
           <span className="text-sm text-muted-foreground">
             {profile?.first_name} {profile?.last_name}
           </span>
-          <button
-            onClick={() => signOut()}
-            className="p-2 hover:bg-gray-100 rounded"
-            title="Odjava"
-          >
-            <LogOut size={18} />
-          </button>
         </div>
       </header>
       <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
@@ -76,6 +78,23 @@ export function InventarSidebar() {
                     >
                       <Home className="mr-2 h-4 w-4" />
                       {state !== "collapsed" && <span>Dashboard</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Analitika - takoj pod Dashboard */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/inventar/analitika"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "hover:bg-accent/50"
+                      }
+                    >
+                      <BarChart2 className="mr-2 h-4 w-4" />
+                      {state !== "collapsed" && <span>Analitika</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -130,7 +149,7 @@ export function InventarSidebar() {
                 </Collapsible>
 
                 {/* Other menu items */}
-                {menuItems.slice(1).map((item) => (
+                {menuItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
@@ -152,7 +171,49 @@ export function InventarSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            {/* Switch to Prodajalec panel */}
+            {canSwitchToProdajalec && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => switchRole('prodajalec')}
+                  className="text-blue-600 hover:bg-blue-50"
+                >
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  {state !== "collapsed" && <span>Preklopi v Prodajalec</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {/* Change Password */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setShowPasswordModal(true)}
+                className="hover:bg-accent/50"
+              >
+                <Key className="mr-2 h-4 w-4" />
+                {state !== "collapsed" && <span>Spremeni geslo</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {/* Logout */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => signOut()}
+                className="text-red-600 hover:bg-red-50"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {state !== "collapsed" && <span>Odjava</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
     </>
   );
 }

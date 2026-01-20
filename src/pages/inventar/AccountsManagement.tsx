@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -43,9 +44,11 @@ export default function AccountsManagement() {
   const createUser = useCreateUser();
 
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [editingUserRole, setEditingUserRole] = useState<string | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPrefix, setEditPrefix] = useState("");
+  const [editHasSecondaryRole, setEditHasSecondaryRole] = useState(false);
   const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
   const { toast } = useToast();
 
@@ -116,26 +119,31 @@ export default function AccountsManagement() {
 
   const handleUpdateUser = async (userId: string) => {
     try {
-      const updates: Partial<Profile> = {};
+      // Always include all editable fields
+      const updates: Record<string, any> = {
+        first_name: editFirstName,
+        last_name: editLastName,
+      };
 
-      if (editFirstName) {
-        updates.first_name = editFirstName;
-      }
-      if (editLastName) {
-        updates.last_name = editLastName;
-      }
       if (editPrefix) {
         updates.code_prefix = editPrefix.toUpperCase();
       }
 
-      if (Object.keys(updates).length === 0) {
-        toast({
-          title: "Ni sprememb",
-          description: "Niste spremenili nobenih podatkov.",
-        });
-        return;
+      // Handle secondary role based on primary role
+      console.log('handleUpdateUser: editingUserRole=', editingUserRole, 'editHasSecondaryRole=', editHasSecondaryRole);
+      if (editingUserRole === 'inventar' || editingUserRole === 'admin') {
+        // Inventar/admin users get prodajalec as secondary role
+        updates.secondary_role = editHasSecondaryRole ? 'prodajalec' : null;
+      } else if (editingUserRole === 'prodajalec') {
+        // Prodajalec users get inventar as secondary role
+        updates.secondary_role = editHasSecondaryRole ? 'inventar' : null;
+      } else {
+        // Fallback - always set the value based on checkbox
+        console.warn('Unknown editingUserRole:', editingUserRole);
+        updates.secondary_role = editHasSecondaryRole ? 'prodajalec' : null;
       }
 
+      console.log('Updating user with:', updates);
       await updateProfile.mutateAsync({ id: userId, updates });
 
       toast({
@@ -144,9 +152,11 @@ export default function AccountsManagement() {
       });
 
       setEditingUser(null);
+      setEditingUserRole(null);
       setEditFirstName("");
       setEditLastName("");
       setEditPrefix("");
+      setEditHasSecondaryRole(false);
     } catch (error: any) {
       toast({
         title: "Napaka pri posodabljanju",
@@ -157,17 +167,22 @@ export default function AccountsManagement() {
   };
 
   const startEditUser = (user: Profile) => {
+    console.log('startEditUser: user=', user, 'role=', user.role, 'secondary_role=', user.secondary_role);
     setEditingUser(user.id);
+    setEditingUserRole(user.role);
     setEditFirstName(user.first_name);
     setEditLastName(user.last_name);
     setEditPrefix(user.code_prefix || "");
+    setEditHasSecondaryRole(!!user.secondary_role);
   };
 
   const cancelEdit = () => {
     setEditingUser(null);
+    setEditingUserRole(null);
     setEditFirstName("");
     setEditLastName("");
     setEditPrefix("");
+    setEditHasSecondaryRole(false);
   };
 
   const handleDeactivateUser = async (userId: string) => {
@@ -240,6 +255,20 @@ export default function AccountsManagement() {
               />
             </div>
           )}
+          {/* Checkbox for secondary role access */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id={`secondary-role-${user.id}`}
+              checked={editHasSecondaryRole}
+              onCheckedChange={(checked) => setEditHasSecondaryRole(checked === true)}
+            />
+            <label
+              htmlFor={`secondary-role-${user.id}`}
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              {user.role === 'inventar' ? 'Tudi dostop do Prodajalec panela' : 'Tudi dostop do Inventar panela'}
+            </label>
+          </div>
           <div className="flex gap-2">
             <Button
               onClick={() => handleUpdateUser(user.id)}
@@ -254,7 +283,14 @@ export default function AccountsManagement() {
       ) : (
         <div className="flex justify-between items-center">
           <div>
-            <p className="font-medium">{getFullName(user)}</p>
+            <p className="font-medium">
+              {getFullName(user)}
+              {user.secondary_role && (
+                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                  +{user.secondary_role === 'prodajalec' ? 'Prodajalec' : 'Inventar'}
+                </span>
+              )}
+            </p>
             <p className="text-sm text-muted-foreground">{user.email}</p>
             {showPrefix && user.code_prefix && (
               <p className="text-sm text-muted-foreground">QR: {user.code_prefix}</p>

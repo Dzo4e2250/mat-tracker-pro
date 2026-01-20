@@ -3,7 +3,7 @@
  * @description Kartica posamezne stranke v seznamu
  */
 
-import { Building2, MapPin, ChevronRight, Phone, Mail, Bell, ChevronDown, Check } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, Phone, Mail, Bell, ChevronDown, Check, User, UserPlus } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +40,7 @@ interface Company {
   delivery_address?: string;
   delivery_postal?: string;
   delivery_city?: string;
+  pipeline_status?: string;
   contacts: Contact[];
   cycles?: Cycle[];
   cycleStats: {
@@ -59,6 +60,50 @@ interface CompanyCardProps {
   onContactToggle: (contactId: string) => void;
   onAddReminder: () => void;
 }
+
+/**
+ * Generira vCard string za kontakt
+ */
+const generateVCard = (contact: Contact, companyName?: string): string => {
+  const lines = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${contact.last_name || ''};${contact.first_name};;;`,
+    `FN:${contact.first_name} ${contact.last_name || ''}`.trim(),
+  ];
+
+  if (companyName) {
+    lines.push(`ORG:${companyName}`);
+  }
+  if (contact.role) {
+    lines.push(`TITLE:${contact.role}`);
+  }
+  if (contact.phone) {
+    lines.push(`TEL;TYPE=CELL:${contact.phone}`);
+  }
+  if (contact.email) {
+    lines.push(`EMAIL:${contact.email}`);
+  }
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+};
+
+/**
+ * Prenese vCard datoteko
+ */
+const downloadVCard = (contact: Contact, companyName?: string) => {
+  const vcard = generateVCard(contact, companyName);
+  const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${contact.first_name}_${contact.last_name || 'kontakt'}.vcf`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 /**
  * Preveri ali je cikel v zamudi (test traja več kot 14 dni)
@@ -132,25 +177,64 @@ export default function CompanyCard({
       >
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="font-bold text-lg flex items-center gap-2">
-              <Building2 size={18} className="text-gray-400" />
-              {company.display_name || company.name}
-              {isRecent && showRecentBadge && (
-                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
-                  Nedavno
-                </span>
-              )}
-              {overdueCycle && (
-                <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
-                  {daysOverdue > 0 ? `${daysOverdue} dni zamude` : 'Zamuja'}
-                </span>
-              )}
-            </div>
-            {!selectionMode && primaryContact && (
-              <div className="text-sm text-gray-600 mt-1">
-                {primaryContact.first_name} {primaryContact.last_name}
-                {primaryContact.role && <span className="text-gray-400"> • {primaryContact.role}</span>}
-              </div>
+            {/* Za osnutke: kontaktna oseba kot glavni naslov */}
+            {company.pipeline_status === 'osnutek' && primaryContact ? (
+              <>
+                <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
+                  <User size={18} className="text-amber-500" />
+                  {primaryContact.first_name} {primaryContact.last_name}
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-300">
+                    Osnutek
+                  </span>
+                  {isRecent && showRecentBadge && (
+                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                      Nedavno
+                    </span>
+                  )}
+                </div>
+                {/* Lokacija/podjetje pod imenom kontakta */}
+                {(company.display_name || !company.name.startsWith('Osnutek:')) && (
+                  <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                    <Building2 size={14} className="text-gray-400" />
+                    {company.display_name || company.name}
+                    {primaryContact.role && <span className="text-gray-400"> • {primaryContact.role}</span>}
+                  </div>
+                )}
+                {!company.display_name && company.name.startsWith('Osnutek:') && primaryContact.role && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    {primaryContact.role}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Normalen prikaz za ostale stranke */}
+                <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
+                  <Building2 size={18} className="text-gray-400" />
+                  {company.display_name || company.name}
+                  {company.pipeline_status === 'osnutek' && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-300">
+                      Osnutek
+                    </span>
+                  )}
+                  {isRecent && showRecentBadge && (
+                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                      Nedavno
+                    </span>
+                  )}
+                  {overdueCycle && (
+                    <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                      {daysOverdue > 0 ? `${daysOverdue} dni zamude` : 'Zamuja'}
+                    </span>
+                  )}
+                </div>
+                {!selectionMode && primaryContact && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    {primaryContact.first_name} {primaryContact.last_name}
+                    {primaryContact.role && <span className="text-gray-400"> • {primaryContact.role}</span>}
+                  </div>
+                )}
+              </>
             )}
             {address && (
               <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
@@ -247,6 +331,40 @@ export default function CompanyCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             )
+          )}
+          {/* Shrani v telefon */}
+          {company.contacts.length === 1 ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadVCard(company.contacts[0], company.display_name || company.name);
+              }}
+              className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-green-600 hover:bg-green-50"
+            >
+              <UserPlus size={16} />
+              <span className="text-sm">Shrani</span>
+            </button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <button className="flex-1 py-2.5 flex items-center justify-center gap-1 text-green-600 hover:bg-green-50">
+                  <UserPlus size={16} />
+                  <span className="text-sm">Shrani</span>
+                  <ChevronDown size={12} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {company.contacts.map(contact => (
+                  <DropdownMenuItem
+                    key={contact.id}
+                    onClick={() => downloadVCard(contact, company.display_name || company.name)}
+                  >
+                    <UserPlus size={14} className="mr-2" />
+                    <span>{contact.first_name} {contact.last_name}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {/* Email */}
           {company.contacts.some(c => c.email) && (

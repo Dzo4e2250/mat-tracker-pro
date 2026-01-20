@@ -64,6 +64,60 @@ export function useCreateContact() {
   });
 }
 
+// Fetch company cycle history (past attempts with notes)
+export interface CompanyCycleHistory {
+  id: string;
+  status: string;
+  notes: string | null;
+  test_start_date: string | null;
+  test_end_date: string | null;
+  contract_signed: boolean;
+  salesperson: {
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
+}
+
+export function useCompanyHistory(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['company-history', companyId],
+    queryFn: async (): Promise<CompanyCycleHistory[]> => {
+      if (!companyId) return [];
+
+      const { data, error } = await supabase
+        .from('cycles')
+        .select(`
+          id,
+          status,
+          notes,
+          test_start_date,
+          test_end_date,
+          contract_signed,
+          profiles!cycles_salesperson_id_fkey(first_name, last_name)
+        `)
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      return (data || []).map((cycle: any) => ({
+        id: cycle.id,
+        status: cycle.status,
+        notes: cycle.notes,
+        test_start_date: cycle.test_start_date,
+        test_end_date: cycle.test_end_date,
+        contract_signed: cycle.contract_signed,
+        salesperson: cycle.profiles ? {
+          first_name: cycle.profiles.first_name,
+          last_name: cycle.profiles.last_name,
+        } : null,
+      }));
+    },
+    enabled: !!companyId,
+  });
+}
+
 // Create company with contact in one transaction
 export function useCreateCompanyWithContact() {
   const queryClient = useQueryClient();

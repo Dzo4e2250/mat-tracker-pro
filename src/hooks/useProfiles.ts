@@ -58,16 +58,20 @@ export function useProdajalecProfiles() {
   return useQuery({
     queryKey: ['profiles', 'prodajalec', 'with-counts'],
     queryFn: async () => {
-      // First get all prodajalec profiles
+      // Get all profiles that have prodajalec as primary OR secondary role
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'prodajalec')
         .eq('is_active', true)
+        .or('role.eq.prodajalec,secondary_role.eq.prodajalec')
         .order('last_name')
         .order('first_name');
 
-      if (profileError) throw profileError;
+      console.log('useProdajalecProfiles: fetched profiles', profiles);
+      if (profileError) {
+        console.error('useProdajalecProfiles error:', profileError);
+        throw profileError;
+      }
 
       // Get QR code counts for each profile
       const profilesWithCounts: ProfileWithQRCount[] = await Promise.all(
@@ -99,20 +103,27 @@ export function useUpdateProfile() {
       updates,
     }: {
       id: string;
-      updates: Partial<Profile>;
+      updates: Record<string, any>;
     }) => {
-      const { error } = await supabase
+      console.log('useUpdateProfile: updating', id, 'with', updates);
+      const { data, error } = await supabase
         .from('profiles')
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('useUpdateProfile error:', error);
+        throw error;
+      }
+      console.log('useUpdateProfile result:', data);
       return { id, ...updates };
     },
     onSuccess: () => {
+      // Invalidate all profile-related queries including prodajalec with counts
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
     },
   });

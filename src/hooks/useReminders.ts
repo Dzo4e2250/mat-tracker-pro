@@ -189,6 +189,7 @@ export function useUpdatePipelineStatus() {
 
 // Pipeline status options
 export const PIPELINE_STATUSES = [
+  { value: 'osnutek', label: 'Osnutek', color: 'bg-amber-100 text-amber-700 border border-amber-300' },
   { value: 'new', label: 'Nov kontakt', color: 'bg-gray-100 text-gray-800' },
   { value: 'contacted', label: 'Kontaktiran', color: 'bg-blue-100 text-blue-800' },
   { value: 'offer_sent', label: 'Poslana ponudba', color: 'bg-yellow-100 text-yellow-800' },
