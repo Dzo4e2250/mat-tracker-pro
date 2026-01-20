@@ -10,10 +10,11 @@
  * - Hitre akcije
  */
 
+import React from 'react';
 import {
   X, StickyNote, Plus, Trash2, User, Phone, Mail, Calendar,
   Package, Clock, CheckCircle, FileText, Euro, MapPin, Camera,
-  Pencil, FileSignature
+  Pencil, FileSignature, Check
 } from 'lucide-react';
 
 interface Contact {
@@ -51,6 +52,7 @@ interface CompanyNote {
   id: string;
   note_date: string;
   content: string;
+  created_at: string;
 }
 
 interface Cycle {
@@ -97,15 +99,17 @@ interface CompanyDetailModalProps {
   onEditAddress: () => void;
   onQuickNote: (content: string) => void;
   onAddNote: () => void;
+  onEditNote: (noteId: string, content: string, noteDate: string) => void;
   onDeleteNote: (noteId: string) => void;
   onShowAddContact: () => void;
-  onShowMeeting: (type: 'ponudba' | 'sestanek') => void;
+  onShowMeeting: (type: 'ponudba' | 'sestanek' | 'izris') => void;
   onEditContact: (contact: Contact) => void;
   onDeleteContact: (contactId: string) => void;
   onOpenOffer: () => void;
   onViewOffer: (offer: SentOffer) => void;
   onDeleteSentOffer: (offerId: string) => void;
   onNavigateToSeller: () => void;
+  onDeleteCompany?: () => void;
 }
 
 export default function CompanyDetailModal({
@@ -127,6 +131,7 @@ export default function CompanyDetailModal({
   onEditAddress,
   onQuickNote,
   onAddNote,
+  onEditNote,
   onDeleteNote,
   onShowAddContact,
   onShowMeeting,
@@ -136,7 +141,32 @@ export default function CompanyDetailModal({
   onViewOffer,
   onDeleteSentOffer,
   onNavigateToSeller,
+  onDeleteCompany,
 }: CompanyDetailModalProps) {
+  // State za urejanje opombe
+  const [editingNoteId, setEditingNoteId] = React.useState<string | null>(null);
+  const [editingContent, setEditingContent] = React.useState('');
+  const [editingDate, setEditingDate] = React.useState('');
+
+  const startEditing = (note: CompanyNote) => {
+    setEditingNoteId(note.id);
+    setEditingContent(note.content);
+    setEditingDate(note.note_date);
+  };
+
+  const cancelEditing = () => {
+    setEditingNoteId(null);
+    setEditingContent('');
+    setEditingDate('');
+  };
+
+  const saveEditing = () => {
+    if (editingNoteId && editingContent.trim()) {
+      onEditNote(editingNoteId, editingContent.trim(), editingDate);
+      cancelEditing();
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
@@ -232,6 +262,12 @@ export default function CompanyDetailModal({
                 Pošlji ponudbo do...
               </button>
               <button
+                onClick={() => onShowMeeting('izris')}
+                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-full text-xs font-medium"
+              >
+                Pošlji izris do...
+              </button>
+              <button
                 onClick={() => onShowMeeting('sestanek')}
                 className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-xs font-medium"
               >
@@ -273,23 +309,77 @@ export default function CompanyDetailModal({
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {companyNotes.map((note) => (
                   <div key={note.id} className="bg-gray-50 rounded-lg p-3 relative group">
-                    <div className="flex items-start justify-between">
-                      <div className="text-xs text-gray-500 font-medium mb-1">
-                        {new Date(note.note_date).toLocaleDateString('sl-SI', {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
+                    {editingNoteId === note.id ? (
+                      /* Edit mode */
+                      <div className="space-y-2">
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="date"
+                            value={editingDate}
+                            onChange={(e) => setEditingDate(e.target.value)}
+                            className="px-2 py-1 border rounded text-sm flex-1"
+                          />
+                          <button
+                            onClick={saveEditing}
+                            className="p-1.5 bg-green-500 text-white rounded hover:bg-green-600"
+                            title="Shrani"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            className="p-1.5 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                            title="Prekliči"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <textarea
+                          value={editingContent}
+                          onChange={(e) => setEditingContent(e.target.value)}
+                          className="w-full p-2 border rounded text-sm"
+                          rows={3}
+                          autoFocus
+                        />
                       </div>
-                      <button
-                        onClick={() => onDeleteNote(note.id)}
-                        className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</div>
+                    ) : (
+                      /* View mode */
+                      <>
+                        <div className="flex items-start justify-between">
+                          <div className="text-xs text-gray-500 font-medium mb-1">
+                            {new Date(note.note_date).toLocaleDateString('sl-SI', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                            <span className="text-gray-400 ml-2">
+                              {new Date(note.created_at).toLocaleTimeString('sl-SI', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => startEditing(note)}
+                              className="text-blue-400 hover:text-blue-600 p-1"
+                              title="Uredi"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => onDeleteNote(note.id)}
+                              className="text-red-400 hover:text-red-600 p-1"
+                              title="Izbriši"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -564,6 +654,18 @@ export default function CompanyDetailModal({
               </button>
             </div>
           </div>
+
+          {/* Delete Company */}
+          {onDeleteCompany && (
+            <div className="pt-4 border-t">
+              <button
+                onClick={onDeleteCompany}
+                className="w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors"
+              >
+                <Trash2 size={18} /> Izbriši stranko
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

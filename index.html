@@ -15,5 +15,37 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Auto-reload on chunk load failure (happens after new deployment)
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('dynamically imported module')) {
+          console.log('Chunk load failed, reloading...');
+          sessionStorage.setItem('chunk_reload', Date.now());
+          window.location.reload();
+        }
+      });
+      // Prevent infinite reload loop - show message if reload didn't help
+      (function() {
+        var lastReload = sessionStorage.getItem('chunk_reload');
+        if (lastReload && Date.now() - parseInt(lastReload) < 5000) {
+          sessionStorage.removeItem('chunk_reload');
+          var root = document.getElementById('root');
+          var container = document.createElement('div');
+          container.style.cssText = 'padding:40px;text-align:center;font-family:sans-serif;';
+          var title = document.createElement('h2');
+          title.textContent = 'Nova verzija aplikacije';
+          var msg = document.createElement('p');
+          msg.textContent = 'Prosim osvežite stran s Ctrl+Shift+R ali počistite cache.';
+          var btn = document.createElement('button');
+          btn.textContent = 'Osveži stran';
+          btn.style.cssText = 'padding:10px 20px;font-size:16px;cursor:pointer;';
+          btn.onclick = function() { location.reload(true); };
+          container.appendChild(title);
+          container.appendChild(msg);
+          container.appendChild(btn);
+          root.appendChild(container);
+        }
+      })();
+    </script>
   </body>
 </html>

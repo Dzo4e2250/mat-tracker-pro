@@ -33,7 +33,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Phone, MessageSquare, Mail, MapPin, Plus, ChevronRight, Home, Camera, Users, Building2, User, X, Trash2, Package, Calendar, CheckCircle, Clock, FileText, Euro, ChevronDown, MoreVertical, Download, Check, Square, CheckSquare, FileSignature, StickyNote, QrCode, Bell, AlertTriangle, Filter, Pencil } from 'lucide-react';
 import { useDueReminders, useContractPendingCompanies, useCreateReminder, useCompleteReminder, useUpdatePipelineStatus, PIPELINE_STATUSES, type ReminderWithCompany } from '@/hooks/useReminders';
 import { Html5Qrcode } from 'html5-qrcode';
-import { useCompanyContacts, useCompanyDetails, useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, CompanyWithContacts } from '@/hooks/useCompanyContacts';
+import { useCompanyContacts, useCompanyDetails, useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -205,6 +205,7 @@ export default function Contacts() {
   const updateCompany = useUpdateCompany();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const deleteCompany = useDeleteCompany();
 
   // Opomniki - nujne naloge za prodajalca
   const { data: dueReminders } = useDueReminders(user?.id);
@@ -212,6 +213,23 @@ export default function Contacts() {
   const createReminder = useCreateReminder();
   const completeReminder = useCompleteReminder();
   const updatePipelineStatus = useUpdatePipelineStatus();
+
+  // Podjetja z opombo "Ni interesa" - za filtriranje
+  const { data: noInterestCompanyIds } = useQuery({
+    queryKey: ['no-interest-companies', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return new Set<string>();
+      const { data, error } = await supabase
+        .from('company_notes')
+        .select('company_id')
+        .eq('created_by', user.id)
+        .ilike('content', '%Ni interesa%');
+      if (error) throw error;
+      return new Set((data || []).map(n => n.company_id));
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5, // 5 min
+  });
 
   // --------------------------------------------------------------------------
   // STATE - Stanje komponent (modali, filtri, forme, itd.)
@@ -226,8 +244,9 @@ export default function Contacts() {
 
   // Filter state
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'status'>('name');
-  const [periodFilter, setPeriodFilter] = useState<'all' | 'week' | 'month' | 'lastMonth'>('all');
+  const [periodFilter, setPeriodFilter] = useState<'all' | 'today' | 'week' | 'month' | 'lastMonth'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [hideNoInterest, setHideNoInterest] = useState(true); // Skrij "Ni interesa" podjetja (default: vklopljeno)
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
@@ -312,7 +331,7 @@ export default function Contacts() {
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [meetingDate, setMeetingDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [meetingTime, setMeetingTime] = useState<string>('10:00');
-  const [meetingType, setMeetingType] = useState<'sestanek' | 'ponudba'>('sestanek');
+  const [meetingType, setMeetingType] = useState<'sestanek' | 'ponudba' | 'izris'>('sestanek');
 
   // QR Scanner - za skeniranje vizitk (vCard)
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -551,8 +570,12 @@ export default function Contacts() {
       setReminderDate('');
       setReminderTime('09:00');
       setReminderNote('');
-    } catch (error) {
-      toast({ description: 'Napaka pri dodajanju opomnika', variant: 'destructive' });
+    } catch (error: any) {
+      console.error('Reminder creation error:', error);
+      toast({
+        description: `Napaka pri dodajanju opomnika: ${error?.message || 'Neznana napaka'}`,
+        variant: 'destructive'
+      });
     }
   };
 
@@ -614,6 +637,11 @@ export default function Contacts() {
       });
     }
 
+    // "Ni interesa" filter - skrij podjetja z to opombo
+    if (hideNoInterest && noInterestCompanyIds && noInterestCompanyIds.size > 0) {
+      filtered = filtered.filter(c => !noInterestCompanyIds.has(c.id));
+    }
+
     // Period filter - based on contact_since field
     if (periodFilter !== 'all') {
       const now = new Date();
@@ -621,6 +649,10 @@ export default function Contacts() {
       let endDate: Date | null = null;
 
       switch (periodFilter) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+          break;
         case 'week':
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 7);
@@ -818,7 +850,7 @@ export default function Contacts() {
         .from('company_notes')
         .select('*')
         .eq('company_id', selectedCompanyId)
-        .order('note_date', { ascending: false });
+        .order('created_at', { ascending: false }); // Najnovejše (nazadnje ustvarjene) na vrhu
       if (error) throw error;
       return data as CompanyNote[];
     },
@@ -832,11 +864,14 @@ export default function Contacts() {
   /** Današnji datum za primerjavo */
   const todayStr = new Date().toISOString().split('T')[0];
   const { data: todayTasks } = useQuery({
-    queryKey: ['today-tasks', todayStr],
+    queryKey: ['today-tasks', todayStr, user?.id],
     queryFn: async () => {
+      if (!user?.id) return { meetings: [], deadlines: [] };
+
       const { data, error } = await supabase
         .from('company_notes')
         .select('*, companies:company_id(id, name, display_name)')
+        .eq('created_by', user.id) // Samo opombe trenutnega uporabnika
         .or(`content.ilike.%sestanek%,content.ilike.%ponudbo do%`)
         .order('created_at', { ascending: false });
 
@@ -897,8 +932,12 @@ export default function Contacts() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['company-notes', selectedCompanyId] });
+      // Če opomba vsebuje "Ni interesa", osveži tudi filter
+      if (variables.content.toLowerCase().includes('ni interesa')) {
+        queryClient.invalidateQueries({ queryKey: ['no-interest-companies'] });
+      }
       setNewNoteContent('');
       toast({ description: 'Opomba dodana' });
     },
@@ -919,7 +958,35 @@ export default function Contacts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-notes', selectedCompanyId] });
+      // Osveži tudi "Ni interesa" filter (ne vemo kaj je bilo izbrisano)
+      queryClient.invalidateQueries({ queryKey: ['no-interest-companies'] });
       toast({ description: 'Opomba izbrisana' });
+    },
+  });
+
+  // Edit note mutation
+  const editNoteMutation = useMutation({
+    mutationFn: async ({ noteId, content, noteDate }: { noteId: string; content: string; noteDate: string }) => {
+      const { error } = await supabase
+        .from('company_notes')
+        .update({
+          content,
+          note_date: noteDate,
+        })
+        .eq('id', noteId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['company-notes', selectedCompanyId] });
+      // Če opomba vsebuje "Ni interesa", osveži tudi filter
+      if (variables.content.toLowerCase().includes('ni interesa')) {
+        queryClient.invalidateQueries({ queryKey: ['no-interest-companies'] });
+      }
+      toast({ description: 'Opomba posodobljena' });
+    },
+    onError: (error: any) => {
+      console.error('Error editing note:', error);
+      toast({ description: `Napaka pri urejanju opombe: ${error.message}`, variant: 'destructive' });
     },
   });
 
@@ -933,17 +1000,45 @@ export default function Contacts() {
   /**
    * Doda novo stranko v bazo
    * Hkrati doda tudi prvi kontakt če so podatki podani
+   * Omogoča shranjevanje "osnutkov" - nepopolnih strank za kasnejše dopolnjevanje
    */
   const handleAddCompany = async () => {
-    if (!formData.companyName || !user?.id) {
-      toast({ description: 'Ime podjetja je obvezno', variant: 'destructive' });
+    // Preveri da je vsaj nekaj podatkov vnesenih
+    const hasCompanyName = !!formData.companyName?.trim();
+    const hasDisplayName = !!formData.displayName?.trim();
+    const hasContact = !!formData.contactName?.trim();
+    const hasPhone = !!formData.contactPhone?.trim();
+
+    if (!user?.id) {
+      toast({ description: 'Napaka: uporabnik ni prijavljen', variant: 'destructive' });
       return;
+    }
+
+    // Zahtevaj vsaj eno od: ime podjetja, ime lokacije, ali kontakt s telefonom
+    if (!hasCompanyName && !hasDisplayName && !hasContact && !hasPhone) {
+      toast({ description: 'Vnesi vsaj ime podjetja, ime lokacije, ali kontaktno osebo', variant: 'destructive' });
+      return;
+    }
+
+    // Če ni imena podjetja, generiraj avtomatsko in označi kot osnutek
+    const isOsnutek = !hasCompanyName;
+    let companyName = formData.companyName?.trim();
+
+    if (!companyName) {
+      // Generiraj ime: "Osnutek: [lokacija]" ali "Osnutek: [kontakt]"
+      if (hasDisplayName) {
+        companyName = `Osnutek: ${formData.displayName?.trim()}`;
+      } else if (hasContact) {
+        companyName = `Osnutek: ${formData.contactName?.trim()}`;
+      } else if (hasPhone) {
+        companyName = `Osnutek: ${formData.contactPhone?.trim()}`;
+      }
     }
 
     try {
       await createCompany.mutateAsync({
         company: {
-          name: formData.companyName,
+          name: companyName!,
           display_name: formData.displayName,
           tax_number: formData.taxNumber,
           address_street: formData.addressStreet,
@@ -959,6 +1054,7 @@ export default function Contacts() {
           delivery_instructions: formData.deliveryInstructions,
           customer_number: formData.customerNumber,
           notes: formData.notes,
+          pipeline_status: isOsnutek ? 'osnutek' : undefined,
         },
         contact: formData.contactName ? {
           first_name: formData.contactName.split(' ')[0],
@@ -972,7 +1068,7 @@ export default function Contacts() {
         userId: user.id,
       });
 
-      toast({ description: '✅ Stranka dodana' });
+      toast({ description: isOsnutek ? '📋 Osnutek shranjen - dopolni kasneje' : '✅ Stranka dodana' });
       setShowAddModal(false);
       setFormData({});
     } catch (error) {
@@ -983,8 +1079,8 @@ export default function Contacts() {
   // Lookup company by tax number using EU VIES API
   const handleTaxLookup = async () => {
     const taxNumber = formData.taxNumber;
+    // Tiho preskoči če ni veljavnega formata (ne prikazuj napake)
     if (!taxNumber || !isValidTaxNumberFormat(taxNumber)) {
-      toast({ description: 'Vnesite veljavno davčno številko (8 števk)', variant: 'destructive' });
       return;
     }
 
@@ -1052,11 +1148,24 @@ export default function Contacts() {
   };
 
   const handleDeleteContact = async (contactId: string) => {
+    if (!window.confirm('Ali res želiš zbrisati ta kontakt?')) return;
+
     try {
+      console.log('Brišem kontakt:', contactId);
       await deleteContact.mutateAsync(contactId);
       toast({ description: '✅ Kontakt izbrisan' });
-    } catch (error) {
-      toast({ description: 'Napaka pri brisanju', variant: 'destructive' });
+
+      // Osveži selectedCompany če je odprt
+      if (selectedCompany) {
+        const updated = companies?.find(c => c.id === selectedCompany.id);
+        if (updated) setSelectedCompany(updated);
+      }
+    } catch (error: any) {
+      console.error('Napaka pri brisanju kontakta:', error);
+      toast({
+        description: `Napaka: ${error?.message || 'Ni mogoče zbrisati kontakta'}`,
+        variant: 'destructive'
+      });
     }
   };
 
@@ -1076,9 +1185,9 @@ export default function Contacts() {
    * @param company - Podjetje za katerega ustvarjamo dogodek
    * @param date - Datum sestanka/roka (YYYY-MM-DD)
    * @param time - Čas sestanka (HH:MM)
-   * @param type - Tip dogodka ('sestanek' ali 'ponudba')
+   * @param type - Tip dogodka ('sestanek', 'ponudba' ali 'izris')
    */
-  const generateICSFile = (company: CompanyWithContacts, date: string, time: string, type: 'sestanek' | 'ponudba') => {
+  const generateICSFile = (company: CompanyWithContacts, date: string, time: string, type: 'sestanek' | 'ponudba' | 'izris') => {
     const startDate = new Date(`${date}T${time}:00`);
     const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour
 
@@ -1099,11 +1208,15 @@ export default function Contacts() {
 
     const title = type === 'sestanek'
       ? `Sestanek - ${companyName}`
-      : `Poslati ponudbo - ${companyName}`;
+      : type === 'ponudba'
+      ? `Poslati ponudbo - ${companyName}`
+      : `Poslati izris - ${companyName}`;
 
     const description = type === 'sestanek'
       ? `Sestanek s stranko ${companyName}${contactName ? `\\nKontakt: ${contactName}` : ''}${primaryContact?.phone ? `\\nTel: ${primaryContact.phone}` : ''}`
-      : `Rok za pošiljanje ponudbe stranki ${companyName}`;
+      : type === 'ponudba'
+      ? `Rok za pošiljanje ponudbe stranki ${companyName}`
+      : `Rok za pošiljanje izrisa stranki ${companyName}`;
 
     const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -2218,6 +2331,9 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           pipelineStatuses={PIPELINE_STATUSES}
           filter={filter}
           onFilterChange={setFilter}
+          hideNoInterest={hideNoInterest}
+          onHideNoInterestChange={setHideNoInterest}
+          noInterestCount={noInterestCompanyIds?.size || 0}
           routeCompaniesCount={filteredCompanies.filter(c => getCompanyAddress(c)).length}
           onOpenRoute={openRouteInMaps}
           onAddCompany={() => setShowAddModal(true)}
@@ -2290,6 +2406,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           date={reminderDate}
           time={reminderTime}
           note={reminderNote}
+          companyName={companies?.find(c => c.id === reminderCompanyId)?.display_name || companies?.find(c => c.id === reminderCompanyId)?.name}
           isLoading={createReminder.isPending}
           onDateChange={setReminderDate}
           onTimeChange={setReminderTime}
@@ -2376,6 +2493,9 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           }}
           onEditAddress={() => {
             setEditAddressData({
+              companyName: selectedCompany.name || '',
+              displayName: selectedCompany.display_name || '',
+              taxNumber: selectedCompany.tax_number || '',
               addressStreet: selectedCompany.address_street || '',
               addressPostal: selectedCompany.address_postal || '',
               addressCity: selectedCompany.address_city || '',
@@ -2401,6 +2521,9 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                 content: newNoteContent.trim(),
               });
             }
+          }}
+          onEditNote={(noteId, content, noteDate) => {
+            editNoteMutation.mutate({ noteId, content, noteDate });
           }}
           onDeleteNote={(noteId) => deleteNoteMutation.mutate(noteId)}
           onShowAddContact={() => setShowAddContactModal(true)}
@@ -2440,6 +2563,20 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             setSelectedCompanyId(null);
             navigate('/prodajalec');
           }}
+          onDeleteCompany={() => {
+            if (window.confirm(`Ali ste prepričani, da želite izbrisati stranko "${selectedCompany.display_name || selectedCompany.name}"?\n\nTo bo izbrisalo tudi vse kontakte, opombe in opomnike.`)) {
+              deleteCompany.mutate(selectedCompany.id, {
+                onSuccess: () => {
+                  toast({ description: 'Stranka izbrisana' });
+                  setSelectedCompany(null);
+                  setSelectedCompanyId(null);
+                },
+                onError: (error: any) => {
+                  toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
+                }
+              });
+            }
+          }}
         />
       )}
 
@@ -2463,9 +2600,12 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           onDateChange={setMeetingDate}
           onTimeChange={setMeetingTime}
           onSaveWithICS={() => {
+            const formattedDate = new Date(meetingDate).toLocaleDateString('sl-SI');
             const content = meetingType === 'sestanek'
-              ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
-              : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
+              ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}`
+              : meetingType === 'ponudba'
+              ? `Pošlji ponudbo do ${formattedDate}`
+              : `Pošlji izris do ${formattedDate}`;
 
             addNoteMutation.mutate({
               companyId: selectedCompany.id,
@@ -2477,9 +2617,12 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             setShowMeetingModal(false);
           }}
           onSaveOnly={() => {
+            const formattedDate = new Date(meetingDate).toLocaleDateString('sl-SI');
             const content = meetingType === 'sestanek'
-              ? `Dogovorjen sestanek za ${new Date(meetingDate).toLocaleDateString('sl-SI')} ob ${meetingTime}`
-              : `Pošlji ponudbo do ${new Date(meetingDate).toLocaleDateString('sl-SI')}`;
+              ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}`
+              : meetingType === 'ponudba'
+              ? `Pošlji ponudbo do ${formattedDate}`
+              : `Pošlji izris do ${formattedDate}`;
 
             addNoteMutation.mutate({
               companyId: selectedCompany.id,
@@ -2500,15 +2643,29 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           onFormDataChange={setEditAddressData}
           onSave={async () => {
             try {
+              // Posodobi ime podjetja, če je bilo spremenjeno (in ni prazno)
+              const nameUpdate = editAddressData.companyName?.trim()
+                ? { name: editAddressData.companyName.trim() }
+                : {};
+
+              // Če je bilo osnutek in ima zdaj pravo ime, odstrani pipeline_status osnutek
+              const isNoLongerOsnutek = selectedCompany.name?.startsWith('Osnutek:') &&
+                editAddressData.companyName?.trim() &&
+                !editAddressData.companyName.startsWith('Osnutek:');
+
               const { error } = await supabase
                 .from('companies')
                 .update({
+                  ...nameUpdate,
+                  display_name: editAddressData.displayName || null,
+                  tax_number: editAddressData.taxNumber || null,
                   address_street: editAddressData.addressStreet || null,
                   address_postal: editAddressData.addressPostal || null,
                   address_city: editAddressData.addressCity || null,
                   delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
                   delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
                   delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                  ...(isNoLongerOsnutek ? { pipeline_status: null } : {}),
                 })
                 .eq('id', selectedCompany.id);
 
@@ -2516,6 +2673,9 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
               const updated = {
                 ...selectedCompany,
+                ...(editAddressData.companyName?.trim() ? { name: editAddressData.companyName.trim() } : {}),
+                display_name: editAddressData.displayName || null,
+                tax_number: editAddressData.taxNumber || null,
                 address_street: editAddressData.addressStreet || null,
                 address_postal: editAddressData.addressPostal || null,
                 address_city: editAddressData.addressCity || null,
@@ -2526,10 +2686,10 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
               setSelectedCompany(updated as any);
               queryClient.invalidateQueries({ queryKey: ['companies'] });
 
-              toast({ description: 'Naslovi posodobljeni' });
+              toast({ description: isNoLongerOsnutek ? 'Podjetje posodobljeno iz osnutka' : 'Podatki posodobljeni' });
               setShowEditAddressModal(false);
             } catch (error: any) {
-              console.error('Error updating address:', error);
+              console.error('Error updating company:', error);
               toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
             }
           }}
@@ -2614,6 +2774,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                   onPriceChange={(id, price) => handlePriceChange(id, price, 'nakup')}
                   onDiscountChange={(id, discount) => handleDiscountChange(id, discount, 'nakup')}
                   onCustomizedChange={(id, customized) => updateOfferItem(id, { customized }, 'nakup')}
+                  onOptibrushChange={(id, updates) => updateOfferItem(id, updates, 'nakup')}
                   onAddItem={() => addCustomOfferItem('nakup')}
                   onRemoveItem={(id) => removeOfferItem(id, 'nakup')}
                   onBack={() => setOfferStep('type')}
@@ -2723,6 +2884,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                   onReplacementCostChange={(itemId, cost) => updateOfferItem(itemId, { replacementCost: cost }, 'najem')}
                   onCustomizedChange={(itemId, customized) => updateOfferItem(itemId, { customized }, 'najem')}
                   onSeasonalToggle={handleSeasonalToggle}
+                  onOptibrushChange={(id, updates) => updateOfferItem(id, updates, 'najem')}
                   onNormalFrequencyChange={handleNormalFrequencyChange}
                   onNormalPriceChange={handleNormalPriceChange}
                   onNormalDiscountChange={handleNormalDiscountChange}

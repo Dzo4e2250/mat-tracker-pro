@@ -223,6 +223,7 @@ export function useCreateCompany() {
         delivery_instructions?: string;
         customer_number?: string;
         notes?: string;
+        pipeline_status?: string;
       };
       contact?: {
         first_name: string;
@@ -255,6 +256,7 @@ export function useCreateCompany() {
           delivery_instructions: company.delivery_instructions || null,
           customer_number: company.customer_number || null,
           notes: company.notes || null,
+          pipeline_status: company.pipeline_status || null,
           created_by: userId,
         })
         .select()
@@ -408,8 +410,50 @@ export function useDeleteContact() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalidate all company-contacts queries (with any userId)
       queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['company-details'] });
+    },
+  });
+}
+
+// Delete company (and all related data)
+export function useDeleteCompany() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (companyId: string) => {
+      // Najprej izbriši opombe (ignoriramo napake če tabela ne obstaja)
+      try {
+        await supabase.from('company_notes').delete().eq('company_id', companyId);
+      } catch (e) { /* ignore */ }
+
+      // Izbriši opomnike
+      try {
+        await supabase.from('reminders').delete().eq('company_id', companyId);
+      } catch (e) { /* ignore */ }
+
+      // Izbriši offer_items (ponudbe)
+      try {
+        await supabase.from('offer_items').delete().eq('company_id', companyId);
+      } catch (e) { /* ignore */ }
+
+      // Izbriši kontakte
+      await supabase.from('contacts').delete().eq('company_id', companyId);
+
+      // Nazadnje izbriši podjetje
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', companyId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['company-details'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
     },
   });
 }

@@ -20,6 +20,7 @@ export type Database = {
           last_name: string
           phone: string | null
           role: 'prodajalec' | 'inventar' | 'admin'
+          secondary_role: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix: string | null
           is_active: boolean
           created_at: string
@@ -32,6 +33,7 @@ export type Database = {
           last_name: string
           phone?: string | null
           role: 'prodajalec' | 'inventar' | 'admin'
+          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix?: string | null
           is_active?: boolean
           created_at?: string
@@ -44,6 +46,7 @@ export type Database = {
           last_name?: string
           phone?: string | null
           role?: 'prodajalec' | 'inventar' | 'admin'
+          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix?: string | null
           is_active?: boolean
           created_at?: string
@@ -801,6 +804,177 @@ export type Database = {
           }
         ]
       }
+      drivers: {
+        Row: {
+          id: string
+          name: string
+          phone: string | null
+          region: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone?: string | null
+          region?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone?: string | null
+          region?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      optibrush_prices: {
+        Row: {
+          id: string
+          has_edge: boolean
+          has_drainage: boolean
+          is_standard: boolean
+          is_large: boolean
+          color_count: '1' | '2-3'
+          price_per_m2: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          has_edge: boolean
+          has_drainage: boolean
+          is_standard: boolean
+          is_large: boolean
+          color_count: '1' | '2-3'
+          price_per_m2: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          has_edge?: boolean
+          has_drainage?: boolean
+          is_standard?: boolean
+          is_large?: boolean
+          color_count?: '1' | '2-3'
+          price_per_m2?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mat_prices: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          category: 'poslovni' | 'ergonomski' | 'zunanji' | 'design'
+          m2: number
+          dimensions: string
+          price_week_1: number
+          price_week_2: number
+          price_week_3: number
+          price_week_4: number
+          price_purchase: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          category: 'poslovni' | 'ergonomski' | 'zunanji' | 'design'
+          m2: number
+          dimensions: string
+          price_week_1: number
+          price_week_2: number
+          price_week_3: number
+          price_week_4: number
+          price_purchase: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          category?: 'poslovni' | 'ergonomski' | 'zunanji' | 'design'
+          m2?: number
+          dimensions?: string
+          price_week_1?: number
+          price_week_2?: number
+          price_week_3?: number
+          price_week_4?: number
+          price_purchase?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      custom_m2_prices: {
+        Row: {
+          id: string
+          size_category: 'small' | 'large'
+          frequency: '1' | '2' | '3' | '4'
+          price_per_m2: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          size_category: 'small' | 'large'
+          frequency: '1' | '2' | '3' | '4'
+          price_per_m2: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          size_category?: 'small' | 'large'
+          frequency?: '1' | '2' | '3' | '4'
+          price_per_m2?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      price_settings: {
+        Row: {
+          id: string
+          key: string
+          value: number
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value: number
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: number
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -842,6 +1016,13 @@ export type DriverPickup = MatTrackerTables['driver_pickups']['Row']
 export type DriverPickupItem = MatTrackerTables['driver_pickup_items']['Row']
 export type Reminder = MatTrackerTables['reminders']['Row']
 export type ReminderInsert = MatTrackerTables['reminders']['Insert']
+export type Driver = MatTrackerTables['drivers']['Row']
+export type DriverInsert = MatTrackerTables['drivers']['Insert']
+export type OptibrushPrice = MatTrackerTables['optibrush_prices']['Row']
+export type MatPriceDB = MatTrackerTables['mat_prices']['Row']
+export type CustomM2Price = MatTrackerTables['custom_m2_prices']['Row']
+export type PriceSetting = MatTrackerTables['price_settings']['Row']
+export type OptibrushStandardSize = MatTrackerTables['optibrush_standard_sizes']['Row']
 
 // Insert types
 export type ProfileInsert = MatTrackerTables['profiles']['Insert']

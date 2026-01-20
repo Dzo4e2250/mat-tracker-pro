@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Use mat_tracker schema
+const DB_SCHEMA = Deno.env.get('DB_SCHEMA') || 'mat_tracker';
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -19,6 +22,9 @@ Deno.serve(async (req) => {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
+        },
+        db: {
+          schema: DB_SCHEMA,
         },
       }
     );
@@ -45,15 +51,17 @@ Deno.serve(async (req) => {
 
     console.log('User authenticated:', user.email);
 
-    // Check if user has INVENTAR role
-    const { data: roleData, error: roleError } = await supabaseClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
+    // Check if user has inventar role (from profiles table) - either as primary or secondary role
+    const { data: profileData, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('role, secondary_role')
+      .eq('id', user.id)
       .single();
 
-    if (roleError || !roleData || roleData.role !== 'INVENTAR') {
-      console.error('User does not have INVENTAR role:', roleError);
+    const hasInventarRole = profileData?.role === 'inventar' || profileData?.secondary_role === 'inventar';
+
+    if (profileError || !profileData || !hasInventarRole) {
+      console.error('User does not have inventar role:', profileError, 'role:', profileData?.role, 'secondary_role:', profileData?.secondary_role);
       return new Response(JSON.stringify({ error: 'Only inventory managers can create users' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -89,67 +97,28 @@ Deno.serve(async (req) => {
 
     console.log('Creating user with role:', role);
 
+    // Convert role to lowercase for database (profiles.role uses lowercase)
+    const dbRole = role.toLowerCase();
+
     // Check if user with this email already exists
     const { data: existingUsers } = await supabaseClient.auth.admin.listUsers();
     const existingUser = existingUsers?.users.find((u) => u.email === email);
 
     if (existingUser) {
       console.log('User already exists:', existingUser.id);
-      
-      // Check current roles
-      const { data: existingRoles } = await supabaseClient
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', existingUser.id);
-
-      const hasRole = existingRoles?.some((r) => r.role === role);
-
-      if (hasRole) {
-        console.log('User already has this role');
-        return new Response(
-          JSON.stringify({ error: 'User with this email already exists with this role' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      // Add the new role
-      const { error: roleInsertError } = await supabaseClient
-        .from('user_roles')
-        .insert({ user_id: existingUser.id, role });
-
-      if (roleInsertError) {
-        console.error('Error adding role:', roleInsertError);
-        return new Response(JSON.stringify({ error: roleInsertError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Update profile if needed
-      const updateData: any = {};
-      if (role === 'PRODAJALEC' && qr_prefix) {
-        updateData.qr_prefix = qr_prefix;
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        await supabaseClient
-          .from('profiles')
-          .update(updateData)
-          .eq('id', existingUser.id);
-      }
-
-      console.log('Role added successfully');
       return new Response(
-        JSON.stringify({ message: 'Role added to existing user successfully' }),
+        JSON.stringify({ error: 'Uporabnik s tem emailom že obstaja' }),
         {
-          status: 200,
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
+
+    // Parse full_name into first_name and last_name
+    const nameParts = full_name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
 
     // Create new user
     console.log('Creating new user');
@@ -170,33 +139,36 @@ Deno.serve(async (req) => {
 
     console.log('User created:', newUser.user.id);
 
-    // Add role
-    const { error: roleInsertError } = await supabaseClient
-      .from('user_roles')
-      .insert({ user_id: newUser.user.id, role });
+    // Create profile for the new user (role is stored in profiles.role column)
+    const profileInsertData: any = {
+      id: newUser.user.id,
+      email: email,
+      first_name: firstName,
+      last_name: lastName,
+      role: dbRole,
+      is_active: true,
+    };
 
-    if (roleInsertError) {
-      console.error('Error inserting role:', roleInsertError);
-      return new Response(JSON.stringify({ error: roleInsertError.message }), {
+    // Add code_prefix for prodajalec
+    if (role === 'PRODAJALEC' && qr_prefix) {
+      profileInsertData.code_prefix = qr_prefix.toUpperCase();
+    }
+
+    const { error: profileInsertError } = await supabaseClient
+      .from('profiles')
+      .insert(profileInsertData);
+
+    if (profileInsertError) {
+      console.error('Error creating profile:', profileInsertError);
+      // If profile creation fails, we should delete the auth user
+      await supabaseClient.auth.admin.deleteUser(newUser.user.id);
+      return new Response(JSON.stringify({ error: profileInsertError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Update profile with role-specific data
-    const profileUpdateData: any = {};
-    if (role === 'PRODAJALEC' && qr_prefix) {
-      profileUpdateData.qr_prefix = qr_prefix;
-    }
-
-    if (Object.keys(profileUpdateData).length > 0) {
-      await supabaseClient
-        .from('profiles')
-        .update(profileUpdateData)
-        .eq('id', newUser.user.id);
-    }
-
-    console.log('User created successfully with role:', role);
+    console.log('User and profile created successfully with role:', role);
     return new Response(
       JSON.stringify({ message: `${role === 'INVENTAR' ? 'Inventar' : 'Prodajalec'} account created successfully` }),
       {

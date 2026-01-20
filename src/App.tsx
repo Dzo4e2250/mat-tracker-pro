@@ -19,6 +19,10 @@ const Prevzemi = lazy(() => import("./pages/inventar/Prevzemi"));
 const QRKode = lazy(() => import("./pages/inventar/QRKode"));
 const OrderManagement = lazy(() => import("./pages/inventar/OrderManagement"));
 const SellerPage = lazy(() => import("./pages/inventar/SellerPage"));
+const MapView = lazy(() => import("./pages/inventar/MapView"));
+const DriversManagement = lazy(() => import("./pages/inventar/DriversManagement"));
+const Analytics = lazy(() => import("./pages/inventar/Analytics"));
+const PriceManagement = lazy(() => import("./pages/inventar/PriceManagement"));
 const ProdajalecDashboard = lazy(() => import("./pages/ProdajalecDashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const OrderCodes = lazy(() => import("./pages/OrderCodes"));
@@ -71,6 +75,26 @@ const App = () => (
             <Route path="/inventar/prodajalec/:id" element={
               <ProtectedRoute allowedRoles={['inventar']}>
                 <SellerPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/zemljevid" element={
+              <ProtectedRoute allowedRoles={['inventar']}>
+                <MapView />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/dostavljalci" element={
+              <ProtectedRoute allowedRoles={['inventar']}>
+                <DriversManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/analitika" element={
+              <ProtectedRoute allowedRoles={['inventar']}>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/cenik" element={
+              <ProtectedRoute allowedRoles={['inventar']}>
+                <PriceManagement />
               </ProtectedRoute>
             } />
             <Route path="/prodajalec" element={

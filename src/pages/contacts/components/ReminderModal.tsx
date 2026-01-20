@@ -3,17 +3,93 @@
  * @description Modal za dodajanje opomnika za stranko
  */
 
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Calendar } from 'lucide-react';
+
+/**
+ * Generira ICS (iCalendar) datoteko za opomnik
+ */
+const generateICS = (
+  date: string,
+  time: string,
+  companyName: string,
+  note?: string
+): string => {
+  const startDate = new Date(`${date}T${time}:00`);
+  const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // +30 min
+
+  // Format: 20260119T090000
+  const formatDate = (d: Date) => {
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0];
+  };
+
+  const uid = `reminder-${Date.now()}@matpro.ristov.xyz`;
+  const summary = `Opomnik: ${companyName}`;
+  const description = note ? note.replace(/\n/g, '\\n') : '';
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Mat Tracker Pro//Reminder//SL',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${formatDate(new Date())}`,
+    `DTSTART:${formatDate(startDate)}`,
+    `DTEND:${formatDate(endDate)}`,
+    `SUMMARY:${summary}`,
+    description ? `DESCRIPTION:${description}` : '',
+    // Alarm 15 minut pred
+    'BEGIN:VALARM',
+    'TRIGGER:-PT15M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${summary}`,
+    'END:VALARM',
+    // Alarm ob času
+    'BEGIN:VALARM',
+    'TRIGGER:PT0M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${summary}`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean);
+
+  return lines.join('\r\n');
+};
+
+/**
+ * Prenese ICS datoteko
+ */
+const downloadICS = (
+  date: string,
+  time: string,
+  companyName: string,
+  note?: string
+) => {
+  const ics = generateICS(date, time, companyName, note);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `opomnik-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 interface ReminderModalProps {
   date: string;
   time: string;
   note: string;
+  companyName?: string;
   isLoading: boolean;
   onDateChange: (date: string) => void;
   onTimeChange: (time: string) => void;
   onNoteChange: (note: string) => void;
   onSave: () => void;
+  onSaveAndExport?: () => void;
   onClose: () => void;
 }
 
@@ -27,11 +103,13 @@ export default function ReminderModal({
   date,
   time,
   note,
+  companyName,
   isLoading,
   onDateChange,
   onTimeChange,
   onNoteChange,
   onSave,
+  onSaveAndExport,
   onClose,
 }: ReminderModalProps) {
   const today = new Date().toISOString().split('T')[0];
@@ -141,10 +219,17 @@ export default function ReminderModal({
               Prekliči
             </button>
             <button
-              onClick={onSave}
+              onClick={() => {
+                // Shrani in izvozi ICS
+                if (companyName && date && time) {
+                  downloadICS(date, time, companyName, note);
+                }
+                onSave();
+              }}
               disabled={!date || isLoading}
-              className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
+              className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
+              <Calendar size={18} />
               {isLoading ? 'Shranjujem...' : 'Shrani'}
             </button>
           </div>

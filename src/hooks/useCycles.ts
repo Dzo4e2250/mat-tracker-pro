@@ -167,6 +167,7 @@ export function useUpdateCycleStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }
@@ -239,6 +240,7 @@ export function usePutOnTest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }
@@ -393,6 +395,7 @@ export function useSignContract() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }
@@ -456,6 +459,7 @@ export function useExtendTest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }

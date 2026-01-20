@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { MapContainer, TileLayer, Polyline, Polygon, useMapEvents } from 'react-leaflet';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { InventarSidebar } from '@/components/InventarSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Map, Filter, RefreshCw, Route, Navigation, MapPin, AlertTriangle, ExternalLink, X } from 'lucide-react';
+import { Loader2, Map, Filter, RefreshCw, Route, Navigation, MapPin, AlertTriangle, ExternalLink, X, Pencil, Trash2, Building2, Truck } from 'lucide-react';
 import {
   useRouteOptimization,
   formatDistance,
@@ -28,9 +28,9 @@ import {
   groupLocationsByProximity,
   MapMarkerStatus,
   getMarkerColor,
-  getStatusLabel,
 } from '@/hooks/useMapLocations';
 import { useProfilesByRole } from '@/hooks/useProfiles';
+import { useDriverPickups } from '@/hooks/useDriverPickups';
 import { MapMarker, ClusterMarker } from '@/components/MapMarker';
 import 'leaflet/dist/leaflet.css';
 
@@ -55,8 +55,87 @@ const STATUS_OPTIONS: { value: MapMarkerStatus; label: string }[] = [
   { value: 'on_test', label: 'Na testu' },
   { value: 'contract_signed', label: 'Pogodba podpisana' },
   { value: 'waiting_driver', label: 'Čaka na prevzem' },
-  { value: 'dirty', label: 'Umazani' },
+  { value: 'dirty', label: 'Neuspeli prospect' },
 ];
+
+// Check if point is inside polygon
+function isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
+  if (polygon.length < 3) return false;
+
+  let inside = false;
+  const x = point[0], y = point[1];
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+// Drawing component for polygon selection
+function DrawingLayer({
+  isDrawing,
+  onPolygonComplete,
+  polygon,
+}: {
+  isDrawing: boolean;
+  onPolygonComplete: (points: [number, number][]) => void;
+  polygon: [number, number][];
+}) {
+  const [points, setPoints] = useState<[number, number][]>([]);
+
+  useMapEvents({
+    click(e) {
+      if (!isDrawing) return;
+      const newPoints = [...points, [e.latlng.lat, e.latlng.lng] as [number, number]];
+      setPoints(newPoints);
+    },
+    dblclick(e) {
+      if (!isDrawing || points.length < 3) return;
+      e.originalEvent.preventDefault();
+      onPolygonComplete(points);
+      setPoints([]);
+    },
+  });
+
+  // Reset points when drawing mode changes
+  useEffect(() => {
+    if (!isDrawing) {
+      setPoints([]);
+    }
+  }, [isDrawing]);
+
+  return (
+    <>
+      {/* Currently drawing polygon */}
+      {isDrawing && points.length > 0 && (
+        <Polyline
+          positions={points}
+          color="#f97316"
+          weight={2}
+          dashArray="5, 10"
+        />
+      )}
+      {/* Completed polygon */}
+      {polygon.length > 0 && (
+        <Polygon
+          positions={polygon}
+          pathOptions={{
+            color: '#f97316',
+            fillColor: '#f97316',
+            fillOpacity: 0.2,
+            weight: 2,
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 export default function MapView() {
   const [selectedStatuses, setSelectedStatuses] = useState<MapMarkerStatus[]>([
@@ -66,8 +145,14 @@ export default function MapView() {
     'dirty',
   ]);
   const [selectedSeller, setSelectedSeller] = useState<string>('all');
+  const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [selectedDriver, setSelectedDriver] = useState<string>('all');
   const [minDaysOnTest, setMinDaysOnTest] = useState<number>(0);
   const [showOnlyOverdue, setShowOnlyOverdue] = useState(false);
+
+  // Polygon drawing state
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawnPolygon, setDrawnPolygon] = useState<[number, number][]>([]);
 
   // Route optimization state
   const [showRoutePanel, setShowRoutePanel] = useState(false);
@@ -88,21 +173,65 @@ export default function MapView() {
   } = useRouteOptimization();
 
   const { data: sellers } = useProfilesByRole('prodajalec');
+  const { data: pickups } = useDriverPickups();
+
+  // Get unique drivers from pickups
+  const uniqueDrivers = useMemo(() => {
+    if (!pickups) return [];
+    const drivers = new Set<string>();
+    pickups.forEach(p => {
+      if (p.assignedDriver) drivers.add(p.assignedDriver);
+    });
+    return Array.from(drivers).sort();
+  }, [pickups]);
+
+  // Get cycle IDs assigned to selected driver
+  const driverCycleIds = useMemo(() => {
+    if (selectedDriver === 'all' || !pickups) return null;
+    const ids = new Set<string>();
+    pickups
+      .filter(p => p.assignedDriver === selectedDriver)
+      .forEach(p => {
+        p.items.forEach(item => ids.add(item.cycleId));
+      });
+    return ids;
+  }, [selectedDriver, pickups]);
 
   const filters = useMemo(
     () => ({
       status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
       salespersonId: selectedSeller !== 'all' ? selectedSeller : undefined,
+      includeDirty: selectedStatuses.includes('dirty'),
     }),
     [selectedStatuses, selectedSeller]
   );
 
   const { data: locations, isLoading, refetch } = useMapLocations(filters);
 
+  // Get unique cities from locations
+  const uniqueCities = useMemo(() => {
+    if (!locations) return [];
+    const cities = new Set<string>();
+    locations.forEach(loc => {
+      if (loc.companyCity) cities.add(loc.companyCity);
+    });
+    return Array.from(cities).sort();
+  }, [locations]);
+
   // Filter locations by additional criteria
   const filteredLocations = useMemo(() => {
     if (!locations) return [];
     let filtered = locations;
+
+    // Filter by city
+    if (selectedCity !== 'all') {
+      filtered = filtered.filter(loc => loc.companyCity === selectedCity);
+    }
+
+    // Filter by driver (show only cycles in their pickups)
+    if (driverCycleIds) {
+      filtered = filtered.filter(loc => driverCycleIds.has(loc.cycleId));
+    }
 
     // Filter by minimum days on test
     if (minDaysOnTest > 0) {
@@ -114,8 +243,15 @@ export default function MapView() {
       filtered = filtered.filter(loc => loc.status === 'on_test' && loc.daysOnTest > 20);
     }
 
+    // Filter by polygon
+    if (drawnPolygon.length >= 3) {
+      filtered = filtered.filter(loc =>
+        isPointInPolygon([loc.lat, loc.lng], drawnPolygon)
+      );
+    }
+
     return filtered;
-  }, [locations, minDaysOnTest, showOnlyOverdue]);
+  }, [locations, selectedCity, driverCycleIds, minDaysOnTest, showOnlyOverdue, drawnPolygon]);
 
   // Group nearby locations for clustering
   const groups = useMemo(() => {
@@ -185,6 +321,16 @@ export default function MapView() {
     if (!route) return [];
     return route.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
   }, [route]);
+
+  // Handle polygon drawing
+  const handlePolygonComplete = useCallback((points: [number, number][]) => {
+    setDrawnPolygon(points);
+    setIsDrawing(false);
+  }, []);
+
+  const clearPolygon = useCallback(() => {
+    setDrawnPolygon([]);
+  }, []);
 
   return (
     <SidebarProvider>
@@ -258,8 +404,8 @@ export default function MapView() {
             }
           `}</style>
 
-          <div className="p-6 flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-6">
+          <div className="p-1 -ml-3 flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Map className="h-6 w-6 text-gray-600" />
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -267,6 +413,31 @@ export default function MapView() {
                 </h1>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant={isDrawing ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    if (isDrawing) {
+                      setIsDrawing(false);
+                    } else {
+                      setDrawnPolygon([]);
+                      setIsDrawing(true);
+                    }
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  {isDrawing ? 'Prekliči risanje' : 'Označi območje'}
+                </Button>
+                {drawnPolygon.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearPolygon}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Pobriši območje
+                  </Button>
+                )}
                 <Button
                   variant={showRoutePanel ? 'default' : 'outline'}
                   size="sm"
@@ -287,26 +458,75 @@ export default function MapView() {
               </div>
             </div>
 
-            <div className="flex gap-6 flex-1">
+            {/* Drawing instructions */}
+            {isDrawing && (
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
+                <strong>Risanje območja:</strong> Klikni na zemljevid za dodajanje točk. Dvojni klik za zaključek poligona (min. 3 točke).
+              </div>
+            )}
+
+            <div className="flex gap-1 flex-1">
               {/* Sidebar filters */}
-              <Card className="w-64 shrink-0">
-                <CardHeader className="pb-3">
+              <Card className="w-56 shrink-0">
+                <CardHeader className="py-3 px-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Filter className="h-4 w-4" />
                     Filtri
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="px-3 pb-3 space-y-3">
+                  {/* City filter */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 mb-1 block flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      Mesto
+                    </label>
+                    <Select value={selectedCity} onValueChange={setSelectedCity}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Vsa mesta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Vsa mesta</SelectItem>
+                        {uniqueCities.map((city) => (
+                          <SelectItem key={city} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Driver filter */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 mb-1 block flex items-center gap-1">
+                      <Truck className="h-3 w-3" />
+                      Dostavljalec
+                    </label>
+                    <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Vsi dostavljalci" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Vsi dostavljalci</SelectItem>
+                        {uniqueDrivers.map((driver) => (
+                          <SelectItem key={driver} value={driver}>
+                            {driver}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Seller filter */}
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">
                       Prodajalec
                     </label>
                     <Select
                       value={selectedSeller}
                       onValueChange={setSelectedSeller}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Vsi prodajalci" />
                       </SelectTrigger>
                       <SelectContent>
@@ -322,27 +542,28 @@ export default function MapView() {
 
                   {/* Status filters */}
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-3 block">
+                    <label className="text-xs font-medium text-gray-700 mb-2 block">
                       Status
                     </label>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {STATUS_OPTIONS.map((option) => (
                         <div
                           key={option.value}
                           className="flex items-center justify-between"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Checkbox
                               id={option.value}
                               checked={selectedStatuses.includes(option.value)}
                               onCheckedChange={() => toggleStatus(option.value)}
+                              className="h-3.5 w-3.5"
                             />
                             <label
                               htmlFor={option.value}
-                              className="text-sm text-gray-600 cursor-pointer flex items-center gap-2"
+                              className="text-xs text-gray-600 cursor-pointer flex items-center gap-1.5"
                             >
                               <span
-                                className="w-3 h-3 rounded-full"
+                                className="w-2.5 h-2.5 rounded-full"
                                 style={{
                                   backgroundColor: getMarkerColor(option.value),
                                 }}
@@ -350,7 +571,7 @@ export default function MapView() {
                               {option.label}
                             </label>
                           </div>
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                             {statusCounts[option.value] || 0}
                           </Badge>
                         </div>
@@ -358,40 +579,15 @@ export default function MapView() {
                     </div>
                   </div>
 
-                  {/* Legend */}
-                  <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">
-                      Legenda
-                    </h4>
-                    <div className="space-y-2 text-xs">
-                      {STATUS_OPTIONS.map((option) => (
-                        <div key={option.value} className="flex items-center gap-2">
-                          <div
-                            className={`w-3 h-3 rounded-full ${
-                              option.value === 'on_test' ? 'animate-pulse' : ''
-                            }`}
-                            style={{
-                              backgroundColor: getMarkerColor(option.value),
-                            }}
-                          />
-                          <span className="text-gray-600">
-                            {option.label}
-                            {option.value === 'on_test' && ' (utripajoča)'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Advanced filters */}
-                  <div className="pt-4 border-t space-y-3">
-                    <label className="text-sm font-medium text-gray-700 block">
+                  <div className="pt-2 border-t space-y-2">
+                    <label className="text-xs font-medium text-gray-700 block">
                       Napredni filtri
                     </label>
 
                     {/* Min days on test */}
                     <div className="space-y-1">
-                      <label className="text-xs text-gray-600">
+                      <label className="text-[10px] text-gray-600">
                         Min. dni na testu: {minDaysOnTest > 0 ? minDaysOnTest : 'Vsi'}
                       </label>
                       <Input
@@ -401,35 +597,31 @@ export default function MapView() {
                         step={5}
                         value={minDaysOnTest}
                         onChange={(e) => setMinDaysOnTest(parseInt(e.target.value))}
-                        className="w-full h-2"
+                        className="w-full h-1.5"
                       />
-                      <div className="flex justify-between text-xs text-gray-400">
-                        <span>0</span>
-                        <span>30</span>
-                        <span>60</span>
-                      </div>
                     </div>
 
                     {/* Quick filters */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Checkbox
                         id="overdue"
                         checked={showOnlyOverdue}
                         onCheckedChange={(checked) => setShowOnlyOverdue(!!checked)}
+                        className="h-3.5 w-3.5"
                       />
                       <label
                         htmlFor="overdue"
-                        className="text-sm text-gray-600 cursor-pointer flex items-center gap-1"
+                        className="text-xs text-gray-600 cursor-pointer flex items-center gap-1"
                       >
                         <AlertTriangle className="h-3 w-3 text-red-500" />
-                        Samo prekoračeni (&gt;20 dni)
+                        Prekoračeni (&gt;20 dni)
                       </label>
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <div className="pt-4 border-t">
-                    <div className="text-sm text-gray-600 space-y-1">
+                  <div className="pt-2 border-t">
+                    <div className="text-xs text-gray-600 space-y-0.5">
                       <div>
                         Filtrirano:{' '}
                         <span className="font-semibold">
@@ -439,9 +631,9 @@ export default function MapView() {
                           <span className="text-gray-400"> / {locations.length}</span>
                         )}
                       </div>
-                      {filteredLocations && filteredLocations.length > 0 && (
-                        <div className="text-xs text-gray-500">
-                          Prekoračenih: {filteredLocations.filter(l => l.status === 'on_test' && l.daysOnTest > 20).length}
+                      {drawnPolygon.length > 0 && (
+                        <div className="text-orange-600">
+                          V označenem območju
                         </div>
                       )}
                     </div>
@@ -451,31 +643,31 @@ export default function MapView() {
 
               {/* Route Panel */}
               {showRoutePanel && (
-                <Card className="w-72 shrink-0">
-                  <CardHeader className="pb-3">
+                <Card className="w-64 shrink-0">
+                  <CardHeader className="py-3 px-3">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Route className="h-4 w-4" />
                       Optimizacija poti
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="px-3 pb-3 space-y-3">
                     {/* Route calculation */}
                     <div className="space-y-2">
-                      <Label className="text-sm">Izračunaj pot</Label>
-                      <p className="text-xs text-gray-500">
-                        Izračunaj optimalno pot med {routePoints.length} lokacijami
+                      <Label className="text-xs">Izračunaj pot</Label>
+                      <p className="text-[10px] text-gray-500">
+                        Optimalna pot med {routePoints.length} lokacijami
                       </p>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           onClick={handleCalculateRoute}
                           disabled={isCalculating || routePoints.length < 2}
-                          className="flex-1"
+                          className="flex-1 h-8 text-xs"
                         >
                           {isCalculating ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           ) : (
-                            <Navigation className="h-4 w-4 mr-1" />
+                            <Navigation className="h-3 w-3 mr-1" />
                           )}
                           Izračunaj
                         </Button>
@@ -484,27 +676,28 @@ export default function MapView() {
                           variant="outline"
                           onClick={handleOpenGoogleMaps}
                           disabled={routePoints.length < 1}
+                          className="h-8"
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <ExternalLink className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
 
                     {/* Route result */}
                     {route && (
-                      <div className="p-3 bg-blue-50 rounded-lg space-y-2">
+                      <div className="p-2 bg-blue-50 rounded-lg space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-blue-800">Rezultat poti</span>
+                          <span className="text-xs font-medium text-blue-800">Rezultat poti</span>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0"
+                            className="h-5 w-5 p-0"
                             onClick={clearRoute}
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3 w-3" />
                           </Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
                             <span className="text-gray-600">Razdalja:</span>
                             <div className="font-semibold">{formatDistance(route.distance)}</div>
@@ -518,26 +711,23 @@ export default function MapView() {
                     )}
 
                     {/* Location check */}
-                    <div className="pt-4 border-t space-y-2">
-                      <Label className="text-sm flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
+                    <div className="pt-2 border-t space-y-2">
+                      <Label className="text-xs flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
                         Preveri novo lokacijo
                       </Label>
-                      <p className="text-xs text-gray-500">
-                        Preveri razdaljo do najbližje obstoječe stranke
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-1">
                         <Input
-                          placeholder="Lat (46.05)"
+                          placeholder="Lat"
                           value={checkLocationLat}
                           onChange={(e) => setCheckLocationLat(e.target.value)}
-                          className="text-sm"
+                          className="text-xs h-7"
                         />
                         <Input
-                          placeholder="Lng (14.50)"
+                          placeholder="Lng"
                           value={checkLocationLng}
                           onChange={(e) => setCheckLocationLng(e.target.value)}
-                          className="text-sm"
+                          className="text-xs h-7"
                         />
                       </div>
                       <Button
@@ -545,7 +735,7 @@ export default function MapView() {
                         variant="outline"
                         onClick={handleCheckLocation}
                         disabled={!checkLocationLat || !checkLocationLng}
-                        className="w-full"
+                        className="w-full h-7 text-xs"
                       >
                         Preveri oddaljenost
                       </Button>
@@ -553,30 +743,30 @@ export default function MapView() {
                       {/* Location check result */}
                       {locationCheckResult && (
                         <div
-                          className={`p-3 rounded-lg ${
+                          className={`p-2 rounded-lg text-xs ${
                             locationCheckResult.isWithinRange
                               ? 'bg-green-50'
                               : 'bg-red-50'
                           }`}
                         >
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-1 mb-1">
                             {locationCheckResult.isWithinRange ? (
-                              <Badge className="bg-green-500">V dosegu</Badge>
+                              <Badge className="bg-green-500 text-[10px]">V dosegu</Badge>
                             ) : (
                               <>
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
-                                <Badge variant="destructive">Predaleč!</Badge>
+                                <AlertTriangle className="h-3 w-3 text-red-500" />
+                                <Badge variant="destructive" className="text-[10px]">Predaleč!</Badge>
                               </>
                             )}
                           </div>
-                          <p className="text-sm">
+                          <p>
                             <span className="text-gray-600">Razdalja: </span>
                             <span className="font-semibold">
                               {locationCheckResult.distanceKm} km
                             </span>
                           </p>
                           {locationCheckResult.nearestPoint && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-[10px] text-gray-500 mt-0.5">
                               Najbližja: {locationCheckResult.nearestPoint.name}
                             </p>
                           )}
@@ -600,11 +790,20 @@ export default function MapView() {
                       zoom={DEFAULT_ZOOM}
                       className="h-full w-full"
                       style={{ minHeight: '600px' }}
+                      doubleClickZoom={!isDrawing}
                     >
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
+
+                      {/* Drawing layer */}
+                      <DrawingLayer
+                        isDrawing={isDrawing}
+                        onPolygonComplete={handlePolygonComplete}
+                        polygon={drawnPolygon}
+                      />
+
                       {/* Route polyline */}
                       {routeLatLngs.length > 0 && (
                         <Polyline

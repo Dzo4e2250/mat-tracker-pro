@@ -72,6 +72,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useDirtyMatsByUser } from '@/hooks/useInventoryStats';
 import { useProfilesByRole } from '@/hooks/useProfiles';
+import { useDrivers } from '@/hooks/useDrivers';
 import {
   useDriverPickups,
   useUpdatePickupStatus,
@@ -102,6 +103,7 @@ export default function Prevzemi() {
   const [isCreatePickupOpen, setIsCreatePickupOpen] = useState(false);
   const [pickupNotes, setPickupNotes] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState<string>('');
   const [expandedPickups, setExpandedPickups] = useState<Set<string>>(new Set());
   const [confirmComplete, setConfirmComplete] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export default function Prevzemi() {
   const queryClient = useQueryClient();
 
   const { data: sellers } = useProfilesByRole('prodajalec');
+  const { data: drivers } = useDrivers();
   const { data: dirtyMats, isLoading: loadingDirty } = useDirtyMatsByUser();
   const { data: allPickups, isLoading: loadingPickups } = useDriverPickups();
 
@@ -222,11 +225,15 @@ export default function Prevzemi() {
   // Create pickup mutation
   const createPickup = useMutation({
     mutationFn: async (cycleIds: string[]) => {
+      // Find driver name if selected
+      const driverName = selectedDriver ? drivers?.find(d => d.id === selectedDriver)?.name : null;
+
       const { data: pickup, error: pickupError } = await supabase
         .from('driver_pickups')
         .insert({
           status: 'pending',
           scheduled_date: scheduledDate || null,
+          assigned_driver: driverName || null,
           notes: pickupNotes || null,
           created_by: profile?.id,
         })
@@ -254,6 +261,7 @@ export default function Prevzemi() {
       setIsCreatePickupOpen(false);
       setPickupNotes('');
       setScheduledDate('');
+      setSelectedDriver('');
       setActiveTab('aktivni');
     },
     onError: (error: any) => {
@@ -426,6 +434,7 @@ export default function Prevzemi() {
             </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-2">
+            {pickup.assignedDriver && <span><strong>Dostavljalec:</strong> {pickup.assignedDriver}</span>}
             <span><strong>Datum:</strong> {formatDate(pickup.scheduledDate)}</span>
             <span><strong>Predpražniki:</strong> {pickedUpCount}/{pickup.items.length}</span>
             {pickup.notes && <span><strong>Opombe:</strong> {pickup.notes}</span>}
@@ -801,6 +810,22 @@ export default function Prevzemi() {
                 <DialogDescription>Ustvari nov prevzem za {selectedMats.size} izbranih predpražnikov.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="driver">Dostavljalec</Label>
+                  <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Izberi dostavljalca..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {drivers?.map(driver => (
+                        <SelectItem key={driver.id} value={driver.id}>
+                          {driver.name}
+                          {driver.region && <span className="text-gray-400 ml-2">({driver.region})</span>}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="scheduled_date">Datum prevzema</Label>
                   <Input id="scheduled_date" type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />

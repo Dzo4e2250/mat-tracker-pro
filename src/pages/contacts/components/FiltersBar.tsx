@@ -3,11 +3,11 @@
  * @description Iskalno polje in filtri za seznam strank
  */
 
-import { Search, X, MapPin, Plus } from 'lucide-react';
+import { Search, X, MapPin, Plus, EyeOff, Eye } from 'lucide-react';
 
 type FilterType = 'all' | 'active' | 'signed' | 'inactive' | 'overdue';
 type SortType = 'name' | 'date' | 'status';
-type PeriodType = 'all' | 'week' | 'month' | 'lastMonth';
+type PeriodType = 'all' | 'today' | 'week' | 'month' | 'lastMonth';
 
 interface PipelineStatus {
   value: string;
@@ -31,6 +31,10 @@ interface FiltersBarProps {
   // Quick filter
   filter: FilterType;
   onFilterChange: (filter: FilterType) => void;
+  // "Ni interesa" filter
+  hideNoInterest: boolean;
+  onHideNoInterestChange: (hide: boolean) => void;
+  noInterestCount: number;
   // Route planning
   routeCompaniesCount: number;
   onOpenRoute: () => void;
@@ -60,6 +64,9 @@ export default function FiltersBar({
   pipelineStatuses,
   filter,
   onFilterChange,
+  hideNoInterest,
+  onHideNoInterestChange,
+  noInterestCount,
   routeCompaniesCount,
   onOpenRoute,
   onAddCompany,
@@ -113,6 +120,7 @@ export default function FiltersBar({
           className="px-3 py-2 rounded-lg border bg-white text-sm"
         >
           <option value="all">Vsa obdobja</option>
+          <option value="today">Danes</option>
           <option value="week">Ta teden</option>
           <option value="month">Ta mesec</option>
           <option value="lastMonth">Prejšnji mesec</option>
@@ -146,6 +154,22 @@ export default function FiltersBar({
             </button>
           ))}
         </div>
+
+        {/* "Ni interesa" filter toggle */}
+        {noInterestCount > 0 && (
+          <button
+            onClick={() => onHideNoInterestChange(!hideNoInterest)}
+            className={`px-2 py-1 rounded-full text-xs whitespace-nowrap flex items-center gap-1 ${
+              hideNoInterest
+                ? 'bg-gray-200 text-gray-600 border border-gray-300'
+                : 'bg-red-100 text-red-700 border border-red-300'
+            }`}
+            title={hideNoInterest ? 'Prikaži tudi "Ni interesa"' : 'Skrij "Ni interesa"'}
+          >
+            {hideNoInterest ? <EyeOff size={12} /> : <Eye size={12} />}
+            Ni interesa ({noInterestCount})
+          </button>
+        )}
 
         {/* Route planning button */}
         {routeCompaniesCount > 1 && (

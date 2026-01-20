@@ -1,13 +1,16 @@
 /**
  * @file EditAddressModal.tsx
- * @description Modal za urejanje naslova podjetja in poslovalnice
+ * @description Modal za urejanje podjetja - ime, naslov in poslovalnica
  */
 
-import { X } from 'lucide-react';
+import { X, Building2, MapPin } from 'lucide-react';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 
-// Form data za urejanje naslovov
+// Form data za urejanje podjetja
 export interface EditAddressFormData {
+  companyName?: string;
+  displayName?: string;
+  taxNumber?: string;
   addressStreet?: string;
   addressPostal?: string;
   addressCity?: string;
@@ -22,10 +25,12 @@ interface EditAddressModalProps {
   onFormDataChange: (data: EditAddressFormData) => void;
   onSave: () => void;
   onClose: () => void;
+  showCompanyFields?: boolean; // Za prikaz polj za urejanje imena podjetja
 }
 
 /**
- * Modal za urejanje naslovov
+ * Modal za urejanje podjetja
+ * - Ime podjetja (za osnutke)
  * - Sedež podjetja (registrirani naslov)
  * - Poslovalnica (opcijski drugi naslov za dostavo)
  */
@@ -34,6 +39,7 @@ export default function EditAddressModal({
   onFormDataChange,
   onSave,
   onClose,
+  showCompanyFields = false,
 }: EditAddressModalProps) {
 
   const handlePostalChange = (postal: string, isDelivery: boolean = false) => {
@@ -53,20 +59,74 @@ export default function EditAddressModal({
     }
   };
 
+  // Preveri če je osnutek (ime se začne z "Osnutek:")
+  const isOsnutek = formData.companyName?.startsWith('Osnutek:') || formData.displayName?.startsWith('Osnutek:');
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="font-bold">Uredi naslove</h3>
+          <h3 className="font-bold">{showCompanyFields || isOsnutek ? 'Uredi podjetje' : 'Uredi naslove'}</h3>
           <button onClick={onClose} className="p-1">
             <X size={24} />
           </button>
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Podatki podjetja - prikazani za osnutke ali če je showCompanyFields true */}
+          {(showCompanyFields || isOsnutek) && (
+            <div className="bg-blue-50 rounded-lg p-3 space-y-3">
+              <h4 className="font-medium text-sm text-blue-700 flex items-center gap-2">
+                <Building2 size={16} />
+                Podatki podjetja
+              </h4>
+              {isOsnutek && (
+                <p className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                  To je osnutek. Dopolnite ime podjetja, da ga pretvorite v pravo stranko.
+                </p>
+              )}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Uradno ime podjetja</label>
+                  <input
+                    type="text"
+                    value={formData.companyName || ''}
+                    onChange={(e) => onFormDataChange({ ...formData, companyName: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    placeholder="npr. PODJETJE d.o.o."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Prikazno ime (opcijsko)</label>
+                  <input
+                    type="text"
+                    value={formData.displayName || ''}
+                    onChange={(e) => onFormDataChange({ ...formData, displayName: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    placeholder="npr. Gostilna Pri Franciju"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Krajše ime za lažje iskanje</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Davčna številka</label>
+                  <input
+                    type="text"
+                    value={formData.taxNumber || ''}
+                    onChange={(e) => onFormDataChange({ ...formData, taxNumber: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    placeholder="SI12345678"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Sedež podjetja */}
           <div>
-            <h4 className="font-medium text-sm text-gray-600 mb-2">Sedež podjetja (registrirani naslov)</h4>
+            <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center gap-2">
+              <MapPin size={16} />
+              Sedež podjetja (registrirani naslov)
+            </h4>
             <div className="space-y-3">
               <input
                 type="text"

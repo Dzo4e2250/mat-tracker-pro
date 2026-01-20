@@ -174,6 +174,7 @@ export function useCreateDriverPickup() {
       queryClient.invalidateQueries({ queryKey: ['driver-pickups'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }
@@ -327,6 +328,7 @@ export function useCompletePickup() {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['qr_codes'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }
@@ -380,6 +382,7 @@ export function useDeletePickup() {
       queryClient.invalidateQueries({ queryKey: ['driver-pickups'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
 }

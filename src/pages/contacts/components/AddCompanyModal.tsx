@@ -94,15 +94,21 @@ export default function AddCompanyModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Navodilo za hiter vnos */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            <strong>Hiter vnos:</strong> Vnesi samo kar veš - ime lokacije in/ali kontakt s telefonom. Dopolniš lahko kasneje.
+          </div>
+
           <div>
-            <label className="block text-sm font-medium mb-1">Ime podjetja *</label>
+            <label className="block text-sm font-medium mb-1">Ime podjetja</label>
             <input
               type="text"
               value={formData.companyName || ''}
               onChange={(e) => updateField('companyName', e.target.value)}
               className="w-full p-3 border rounded-lg"
-              placeholder="ABC d.o.o."
+              placeholder="ABC d.o.o. (če veš)"
             />
+            <p className="text-xs text-gray-500 mt-1">Če ne veš, pusti prazno - shrani se kot osnutek</p>
           </div>
 
           <div>
@@ -112,9 +118,9 @@ export default function AddCompanyModal({
               value={formData.displayName || ''}
               onChange={(e) => updateField('displayName', e.target.value)}
               className="w-full p-3 border rounded-lg"
-              placeholder="Hotel Draš (če se razlikuje od uradnega imena)"
+              placeholder="Hotel Lipa, Gostilna pri Marici..."
             />
-            <p className="text-xs text-gray-500 mt-1">Opcijsko - prikazano ime, če se razlikuje od uradnega</p>
+            <p className="text-xs text-gray-500 mt-1">Ime poslovalnice, lokala, hotela...</p>
           </div>
 
           <div>

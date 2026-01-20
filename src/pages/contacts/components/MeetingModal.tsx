@@ -1,11 +1,11 @@
 /**
  * @file MeetingModal.tsx
- * @description Modal za dodajanje sestanka ali roka za ponudbo
+ * @description Modal za dodajanje sestanka, roka za ponudbo ali izris
  */
 
 import { X, Calendar } from 'lucide-react';
 
-type MeetingType = 'sestanek' | 'ponudba';
+type MeetingType = 'sestanek' | 'ponudba' | 'izris';
 
 interface MeetingModalProps {
   type: MeetingType;
@@ -19,7 +19,7 @@ interface MeetingModalProps {
 }
 
 /**
- * Modal za sestanek ali rok ponudbe
+ * Modal za sestanek, rok ponudbe ali izris
  * - Izbira datuma (in časa za sestanek)
  * - Preview kaj bo shranjeno
  * - Možnost prenosa .ics datoteke
@@ -37,13 +37,29 @@ export default function MeetingModal({
   const isSestanek = type === 'sestanek';
   const formattedDate = date ? new Date(date).toLocaleDateString('sl-SI') : '';
 
+  const getTitle = () => {
+    switch (type) {
+      case 'sestanek': return 'Dogovorjen sestanek';
+      case 'ponudba': return 'Pošlji ponudbo do';
+      case 'izris': return 'Pošlji izris do';
+      default: return 'Opomnik';
+    }
+  };
+
+  const getPreviewText = () => {
+    switch (type) {
+      case 'sestanek': return `Dogovorjen sestanek za ${formattedDate} ob ${time}`;
+      case 'ponudba': return `Pošlji ponudbo do ${formattedDate}`;
+      case 'izris': return `Pošlji izris do ${formattedDate}`;
+      default: return `Opomnik za ${formattedDate}`;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm">
         <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="font-bold">
-            {isSestanek ? 'Dogovorjen sestanek' : 'Pošlji ponudbo do'}
-          </h3>
+          <h3 className="font-bold">{getTitle()}</h3>
           <button onClick={onClose} className="p-1">
             <X size={24} />
           </button>
@@ -73,17 +89,8 @@ export default function MeetingModal({
           )}
 
           <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
-            {isSestanek ? (
-              <>
-                <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
-                <p>Dogovorjen sestanek za {formattedDate} ob {time}</p>
-              </>
-            ) : (
-              <>
-                <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
-                <p>Pošlji ponudbo do {formattedDate}</p>
-              </>
-            )}
+            <p className="font-medium text-gray-700 mb-1">Bo shranjeno:</p>
+            <p>{getPreviewText()}</p>
           </div>
 
           <div className="flex gap-2">
