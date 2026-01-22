@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ZoomIn, ArrowRightLeft, Key } from 'lucide-react';
+import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ZoomIn, ArrowRightLeft, Key, Navigation } from 'lucide-react';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
@@ -11,16 +11,17 @@ import { useMapLocations, groupLocationsByProximity, getMarkerColor, getStatusLa
 
 import { useMatTypes } from '@/hooks/useMatTypes';
 import { useQRCodes, useAvailableQRCodes } from '@/hooks/useQRCodes';
-import { useCycles, useCycleHistory, useCreateCycle, useUpdateCycleStatus, usePutOnTest, useSignContract, useExtendTest, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, CycleWithRelations } from '@/hooks/useCycles';
+import { useCycles, useCycleHistory, useCreateCycle, useUpdateCycleStatus, usePutOnTest, useSignContract, useExtendTest, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, CycleWithRelations } from '@/hooks/useCycles';
 import { useCreateCompanyWithContact, useCreateContact, useCompanyHistory } from '@/hooks/useCompanies';
 import { useCompanyContacts, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import CompanySelectModal from '@/components/CompanySelectModal';
+import CompanyMatsModal from '@/components/CompanyMatsModal';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
 
 // Ekstrahirane komponente
-import { HomeView, ScanView, MapView, HistoryView, StatisticsView } from './prodajalec/components';
+import { HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView } from './prodajalec/components';
 import { STATUSES, type StatusKey } from './prodajalec/utils/constants';
 import { getTimeRemaining, formatCountdown } from './prodajalec/utils/timeHelpers';
 
@@ -95,6 +96,9 @@ export default function ProdajalecDashboard() {
   const updateTestStartDate = useUpdateTestStartDate();
   const updateCycleLocation = useUpdateCycleLocation();
   const markContractSigned = useMarkContractSigned();
+  const batchSignContracts = useBatchSignContracts();
+  const batchPickupSelf = useBatchPickupSelf();
+  const batchExtendTest = useBatchExtendTest();
   const createCompanyWithContact = useCreateCompanyWithContact();
   const createContact = useCreateContact();
 
@@ -128,7 +132,17 @@ export default function ProdajalecDashboard() {
   const [zoomSupported, setZoomSupported] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  // Company Mats Modal state
+  const [showCompanyMatsModal, setShowCompanyMatsModal] = useState(false);
+  const [selectedCompanyForMats, setSelectedCompanyForMats] = useState<{
+    companyId: string;
+    companyName: string;
+    companyAddress?: string;
+    cycles: CycleWithRelations[];
+  } | null>(null);
 
   // Fetch company history when a company is selected (for showing previous notes)
   const { data: companyHistoryData } = useCompanyHistory(formData.companyId);
@@ -585,14 +599,14 @@ export default function ProdajalecDashboard() {
       const absDiff = Math.abs(diffTime);
       const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      return { expired: true, days, hours, minutes: 0 };
+      return { expired: true, days, hours, minutes: 0, totalHours: -(days * 24 + hours) };
     }
 
     const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
 
-    return { expired: false, days, hours, minutes };
+    return { expired: false, days, hours, minutes, totalHours: days * 24 + hours };
   };
 
   const formatCountdown = (timeRemaining: ReturnType<typeof getTimeRemaining>) => {
@@ -720,6 +734,14 @@ export default function ProdajalecDashboard() {
                 </button>
 
                 <button
+                  onClick={() => { setView('tracking'); setMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'tracking' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
+                >
+                  <Navigation size={20} />
+                  <span>Moja pot</span>
+                </button>
+
+                <button
                   onClick={() => { setView('history'); setMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 p-3 rounded ${view === 'history' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
                 >
@@ -795,22 +817,36 @@ export default function ProdajalecDashboard() {
       <div className="max-w-4xl mx-auto p-4">
         {view === 'home' && (
           <div>
-            {/* Opozorila za teste ki se iztečejo */}
-            {cycles?.filter(c => c.status === 'on_test').map(cycle => {
+            {/* Opozorila za teste ki se iztečejo - sortirano od najstarejše položitve */}
+            {cycles?.filter(c => c.status === 'on_test')
+              .sort((a, b) => new Date(a.test_start_date || 0).getTime() - new Date(b.test_start_date || 0).getTime())
+              .map(cycle => {
               const timeRemaining = getTimeRemaining(cycle.test_start_date);
               if (!timeRemaining || timeRemaining.expired || timeRemaining.days > 3) return null;
+              if (dismissedAlerts.has(cycle.id)) return null;
+
+              // Utripaj rdeče ko je manj kot 1 dan
+              const isUrgent = timeRemaining.days === 0;
 
               return (
-                <div key={cycle.id} className="bg-red-50 border-2 border-red-400 rounded-lg p-3 mb-4">
+                <div key={cycle.id} className={`border-2 border-red-400 rounded-lg p-3 mb-4 ${isUrgent ? 'animate-pulse-red' : 'bg-red-50'}`}>
                   <div className="flex justify-between items-center">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <span className="font-bold">{cycle.mat_type?.code || cycle.mat_type?.name}</span>
                       <span className="text-sm text-gray-500 ml-2 font-mono">{cycle.qr_code?.code}</span>
                       <span className="text-sm text-gray-600 ml-2">{cycle.company?.display_name || cycle.company?.name}</span>
                     </div>
-                    <span className="font-bold text-red-600">
-                      {formatCountdown(timeRemaining)?.text}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-red-600">
+                        {formatCountdown(timeRemaining)?.text}
+                      </span>
+                      <button
+                        onClick={() => setDismissedAlerts(prev => new Set([...prev, cycle.id]))}
+                        className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -908,10 +944,31 @@ export default function ProdajalecDashboard() {
                   });
                 };
 
+                // Sort companies by urgency (most urgent first)
+                const sortedCompanies = Array.from(onTestByCompany.entries()).sort((a, b) => {
+                  const aUrgent = a[1].reduce((most, curr) => {
+                    const mostTime = getTimeRemaining(most.test_start_date);
+                    const currTime = getTimeRemaining(curr.test_start_date);
+                    if (!mostTime) return curr;
+                    if (!currTime) return most;
+                    return currTime.totalHours < mostTime.totalHours ? curr : most;
+                  }, a[1][0]);
+                  const bUrgent = b[1].reduce((most, curr) => {
+                    const mostTime = getTimeRemaining(most.test_start_date);
+                    const currTime = getTimeRemaining(curr.test_start_date);
+                    if (!mostTime) return curr;
+                    if (!currTime) return most;
+                    return currTime.totalHours < mostTime.totalHours ? curr : most;
+                  }, b[1][0]);
+                  const aTime = getTimeRemaining(aUrgent.test_start_date);
+                  const bTime = getTimeRemaining(bUrgent.test_start_date);
+                  return (aTime?.totalHours || 0) - (bTime?.totalHours || 0);
+                });
+
                 return (
                   <div className="space-y-2">
-                    {/* Grouped on_test cycles by company */}
-                    {Array.from(onTestByCompany.entries()).map(([companyId, companyCycles]) => {
+                    {/* Grouped on_test cycles by company - sorted by urgency */}
+                    {sortedCompanies.map(([companyId, companyCycles]) => {
                       const isExpanded = expandedCompanies.has(companyId);
                       const companyName = companyCycles[0]?.company?.display_name || companyCycles[0]?.company?.name || 'Neznano podjetje';
 
@@ -924,12 +981,16 @@ export default function ProdajalecDashboard() {
                         return currTime.totalHours < mostTime.totalHours ? curr : most;
                       }, companyCycles[0]);
                       const urgentCountdown = formatCountdown(getTimeRemaining(urgentCycle.test_start_date));
+                      const urgentTime = getTimeRemaining(urgentCycle.test_start_date);
+                      const isUrgent = urgentTime && (urgentTime.expired || urgentTime.days === 0);
+
+                      const companyAddress = companyCycles[0]?.company?.address_city || '';
 
                       return (
-                        <div key={companyId} className="border rounded-lg overflow-hidden">
+                        <div key={companyId} className={`border rounded-lg overflow-hidden ${isUrgent ? 'border-red-400 border-2 animate-pulse-red' : ''}`}>
                           <button
                             onClick={() => toggleCompany(companyId)}
-                            className="w-full p-3 bg-blue-50 flex items-center justify-between"
+                            className={`w-full p-3 flex items-center justify-between ${isUrgent ? '' : 'bg-blue-50'}`}
                           >
                             <div className="flex items-center gap-2">
                               <span className="text-lg">🏢</span>
@@ -980,6 +1041,24 @@ export default function ProdajalecDashboard() {
                                   </div>
                                 );
                               })}
+                              {/* Action button at the end of the list */}
+                              <div className="p-3 bg-gray-50">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCompanyForMats({
+                                      companyId,
+                                      companyName,
+                                      companyAddress,
+                                      cycles: companyCycles,
+                                    });
+                                    setShowCompanyMatsModal(true);
+                                  }}
+                                  className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:scale-[0.98] transition-all"
+                                >
+                                  ⚡ Ukrep za vse ({companyCycles.length})
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1035,6 +1114,10 @@ export default function ProdajalecDashboard() {
           <StatisticsView cycleHistory={cycleHistory} />
         )}
 
+        {view === 'tracking' && (
+          <TrackingView userId={user?.id} />
+        )}
+
         {view === 'map' && (
           <div>
             <h2 className="text-xl font-bold mb-4">🗺️ Moji predpražniki na zemljevidu</h2>
@@ -1062,21 +1145,6 @@ export default function ProdajalecDashboard() {
               <div className="text-xs text-gray-500 mt-2">
                 Skupaj na zemljevidu: {mapLocations?.length || 0}
               </div>
-              <button
-                onClick={() => setMapEditMode(!mapEditMode)}
-                className={`mt-3 w-full py-2 rounded text-sm font-medium ${
-                  mapEditMode
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {mapEditMode ? '🎯 Način urejanja AKTIVEN' : '✏️ Uredi lokacije'}
-              </button>
-              {mapEditMode && (
-                <p className="text-xs text-orange-600 mt-1">
-                  Klikni na zemljevid kjer je predpražnik
-                </p>
-              )}
             </div>
 
             {/* Map */}
@@ -1382,10 +1450,10 @@ export default function ProdajalecDashboard() {
                               <label className="text-xs text-gray-500">Lat</label>
                               <input
                                 type="number"
-                                step="0.0001"
+                                step="any"
                                 value={newLocationLat}
                                 onChange={(e) => setNewLocationLat(e.target.value)}
-                                placeholder="46.2361"
+                                placeholder="46.236134"
                                 className="w-full border rounded px-2 py-1.5 text-sm"
                               />
                             </div>
@@ -1393,10 +1461,10 @@ export default function ProdajalecDashboard() {
                               <label className="text-xs text-gray-500">Lng</label>
                               <input
                                 type="number"
-                                step="0.0001"
+                                step="any"
                                 value={newLocationLng}
                                 onChange={(e) => setNewLocationLng(e.target.value)}
-                                placeholder="15.2677"
+                                placeholder="15.267745"
                                 className="w-full border rounded px-2 py-1.5 text-sm"
                               />
                             </div>
@@ -1447,7 +1515,7 @@ export default function ProdajalecDashboard() {
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
                             >
-                              {(selectedCycle as any).location_lat.toFixed(4)}, {(selectedCycle as any).location_lng.toFixed(4)} 🗺️
+                              {(selectedCycle as any).location_lat.toFixed(6)}, {(selectedCycle as any).location_lng.toFixed(6)} 🗺️
                             </a>
                           ) : (
                             <span className="text-xs text-gray-500">Ni nastavljeno</span>
@@ -2480,6 +2548,80 @@ export default function ProdajalecDashboard() {
           setShowCompanySelectModal(false);
         }}
       />
+
+      {/* Company Mats Modal - for batch contract signing */}
+      {selectedCompanyForMats && (
+        <CompanyMatsModal
+          isOpen={showCompanyMatsModal}
+          onClose={() => {
+            setShowCompanyMatsModal(false);
+            setSelectedCompanyForMats(null);
+          }}
+          companyName={selectedCompanyForMats.companyName}
+          companyAddress={selectedCompanyForMats.companyAddress}
+          cycles={selectedCompanyForMats.cycles}
+          onSignContracts={async (signedCycleIds, remainingAction, remainingCycleIds) => {
+            try {
+              await batchSignContracts.mutateAsync({
+                signedCycleIds,
+                remainingAction,
+                remainingCycleIds,
+                userId: user?.id || '',
+              });
+              toast({
+                title: 'Uspeh',
+                description: `Pogodba podpisana za ${signedCycleIds.length} predpražnik${signedCycleIds.length > 1 ? 'ov' : ''}`,
+              });
+            } catch (error) {
+              toast({
+                title: 'Napaka',
+                description: 'Napaka pri shranjevanju',
+                variant: 'destructive',
+              });
+              throw error;
+            }
+          }}
+          onPickupAll={async (cycleIds) => {
+            try {
+              await batchPickupSelf.mutateAsync({
+                cycleIds,
+                userId: user?.id || '',
+              });
+              toast({
+                title: 'Uspeh',
+                description: `${cycleIds.length} predpražnik${cycleIds.length > 1 ? 'ov' : ''} označenih kot pobrano`,
+              });
+            } catch (error) {
+              toast({
+                title: 'Napaka',
+                description: 'Napaka pri shranjevanju',
+                variant: 'destructive',
+              });
+              throw error;
+            }
+          }}
+          onExtendAll={async (cycleIds) => {
+            try {
+              await batchExtendTest.mutateAsync({
+                cycleIds,
+                userId: user?.id || '',
+              });
+              toast({
+                title: 'Uspeh',
+                description: `Test podaljšan za ${cycleIds.length} predpražnik${cycleIds.length > 1 ? 'ov' : ''} (+7 dni)`,
+              });
+            } catch (error) {
+              toast({
+                title: 'Napaka',
+                description: 'Napaka pri shranjevanju',
+                variant: 'destructive',
+              });
+              throw error;
+            }
+          }}
+          isLoading={batchSignContracts.isPending || batchPickupSelf.isPending || batchExtendTest.isPending}
+        />
+      )}
     </div>
   );
 }

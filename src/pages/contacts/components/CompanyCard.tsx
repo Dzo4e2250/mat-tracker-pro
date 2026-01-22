@@ -3,7 +3,7 @@
  * @description Kartica posamezne stranke v seznamu
  */
 
-import { Building2, MapPin, ChevronRight, Phone, Mail, Bell, ChevronDown, Check, User, UserPlus } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, Phone, Mail, Bell, ChevronDown, Check, User, UserPlus, GitBranch } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,13 +41,21 @@ interface Company {
   delivery_postal?: string;
   delivery_city?: string;
   pipeline_status?: string;
+  parent_company_id?: string;
   contacts: Contact[];
   cycles?: Cycle[];
   cycleStats: {
     total: number;
     onTest: number;
     signed: number;
+    offerSent?: boolean;
   };
+}
+
+// Hierarhija info
+interface HierarchyInfo {
+  parentCompany?: { id: string; name: string; display_name?: string };
+  childrenCount: number;
 }
 
 interface CompanyCardProps {
@@ -56,6 +64,8 @@ interface CompanyCardProps {
   showRecentBadge: boolean;
   selectionMode: boolean;
   selectedContacts: Set<string>;
+  hasReminder?: boolean;
+  hierarchyInfo?: HierarchyInfo;
   onCompanyClick: () => void;
   onContactToggle: (contactId: string) => void;
   onAddReminder: () => void;
@@ -141,6 +151,8 @@ export default function CompanyCard({
   showRecentBadge,
   selectionMode,
   selectedContacts,
+  hasReminder = false,
+  hierarchyInfo,
   onCompanyClick,
   onContactToggle,
   onAddReminder,
@@ -227,11 +239,29 @@ export default function CompanyCard({
                       {daysOverdue > 0 ? `${daysOverdue} dni zamude` : 'Zamuja'}
                     </span>
                   )}
+                  {hierarchyInfo?.parentCompany && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <GitBranch size={10} />
+                      Podružnica
+                    </span>
+                  )}
+                  {hierarchyInfo && hierarchyInfo.childrenCount > 0 && (
+                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Building2 size={10} />
+                      +{hierarchyInfo.childrenCount}
+                    </span>
+                  )}
                 </div>
                 {!selectionMode && primaryContact && (
                   <div className="text-sm text-gray-600 mt-1">
                     {primaryContact.first_name} {primaryContact.last_name}
                     {primaryContact.role && <span className="text-gray-400"> • {primaryContact.role}</span>}
+                  </div>
+                )}
+                {hierarchyInfo?.parentCompany && (
+                  <div className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                    <GitBranch size={12} />
+                    Matično: {hierarchyInfo.parentCompany.display_name || hierarchyInfo.parentCompany.name}
                   </div>
                 )}
               </>
@@ -284,8 +314,11 @@ export default function CompanyCard({
         )}
 
         {/* Stats - only show when not in selection mode */}
-        {!selectionMode && company.cycleStats.total > 0 && (
-          <div className="flex gap-3 mt-3 text-sm">
+        {!selectionMode && (company.cycleStats.total > 0 || company.cycleStats.offerSent) && (
+          <div className="flex gap-3 mt-3 text-sm flex-wrap">
+            {company.cycleStats.offerSent && (
+              <span className="text-purple-600">📨 Ponudba</span>
+            )}
             {company.cycleStats.onTest > 0 && (
               <span className="text-blue-600">🔵 {company.cycleStats.onTest} na testu</span>
             )}
@@ -418,9 +451,14 @@ export default function CompanyCard({
               e.stopPropagation();
               onAddReminder();
             }}
-            className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-amber-600 hover:bg-amber-50"
+            className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 hover:bg-amber-50 ${hasReminder ? 'text-amber-600 bg-amber-50' : 'text-amber-600'}`}
           >
-            <Bell size={16} />
+            <div className="relative">
+              <Bell size={16} className={hasReminder ? 'fill-amber-200' : ''} />
+              {hasReminder && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
+              )}
+            </div>
             <span className="text-sm">Opomni</span>
           </button>
         </div>

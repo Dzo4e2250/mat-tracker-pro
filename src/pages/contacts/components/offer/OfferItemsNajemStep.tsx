@@ -293,8 +293,21 @@ export default function OfferItemsNajemStep({
                     <input
                       type="number"
                       min="1"
-                      value={item.quantity}
-                      onChange={(e) => onQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                      value={item.quantity || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          onQuantityChange(item.id, 0);
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) onQuantityChange(item.id, num);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!item.quantity || item.quantity < 1) {
+                          onQuantityChange(item.id, 1);
+                        }
+                      }}
                       className="w-full p-2 border rounded text-sm"
                     />
                   </div>
@@ -692,8 +705,21 @@ export default function OfferItemsNajemStep({
                     <input
                       type="number"
                       min="1"
-                      value={item.quantity}
-                      onChange={(e) => onQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                      value={item.quantity || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          onQuantityChange(item.id, 0);
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) onQuantityChange(item.id, num);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!item.quantity || item.quantity < 1) {
+                          onQuantityChange(item.id, 1);
+                        }
+                      }}
                       className="w-full p-2 border rounded text-sm"
                     />
                   </div>

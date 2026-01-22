@@ -9,6 +9,13 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// GPS Point type for tracking sessions
+export interface GpsPoint {
+  lat: number
+  lng: number
+  timestamp: string
+}
+
 export type Database = {
   mat_tracker: {
     Tables: {
@@ -132,6 +139,7 @@ export type Database = {
           updated_at: string
           pipeline_status: string | null
           contract_sent_at: string | null
+          parent_company_id: string | null
         }
         Insert: {
           id?: string
@@ -159,6 +167,7 @@ export type Database = {
           updated_at?: string
           pipeline_status?: string | null
           contract_sent_at?: string | null
+          parent_company_id?: string | null
         }
         Update: {
           id?: string
@@ -186,8 +195,17 @@ export type Database = {
           updated_at?: string
           pipeline_status?: string | null
           contract_sent_at?: string | null
+          parent_company_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_parent_company_id_fkey"
+            columns: ["parent_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       company_notes: {
         Row: {
@@ -975,6 +993,36 @@ export type Database = {
         }
         Relationships: []
       }
+      gps_tracking_sessions: {
+        Row: {
+          id: string
+          salesperson_id: string
+          started_at: string
+          ended_at: string | null
+          total_km: number | null
+          points: GpsPoint[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          salesperson_id: string
+          started_at?: string
+          ended_at?: string | null
+          total_km?: number | null
+          points?: GpsPoint[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          salesperson_id?: string
+          started_at?: string
+          ended_at?: string | null
+          total_km?: number | null
+          points?: GpsPoint[]
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1023,6 +1071,9 @@ export type MatPriceDB = MatTrackerTables['mat_prices']['Row']
 export type CustomM2Price = MatTrackerTables['custom_m2_prices']['Row']
 export type PriceSetting = MatTrackerTables['price_settings']['Row']
 export type OptibrushStandardSize = MatTrackerTables['optibrush_standard_sizes']['Row']
+export type GpsTrackingSession = MatTrackerTables['gps_tracking_sessions']['Row']
+export type GpsTrackingSessionInsert = MatTrackerTables['gps_tracking_sessions']['Insert']
+export type GpsTrackingSessionUpdate = MatTrackerTables['gps_tracking_sessions']['Update']
 
 // Insert types
 export type ProfileInsert = MatTrackerTables['profiles']['Insert']

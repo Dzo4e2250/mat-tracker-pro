@@ -1,9 +1,9 @@
 /**
  * @file EditAddressModal.tsx
- * @description Modal za urejanje podjetja - ime, naslov in poslovalnica
+ * @description Modal za urejanje podjetja - ime, naslov, poslovalnica in hierarhija
  */
 
-import { X, Building2, MapPin } from 'lucide-react';
+import { X, Building2, MapPin, GitBranch } from 'lucide-react';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 
 // Form data za urejanje podjetja
@@ -18,6 +18,14 @@ export interface EditAddressFormData {
   deliveryAddress?: string;
   deliveryPostal?: string;
   deliveryCity?: string;
+  parentCompanyId?: string | null;
+}
+
+// Tip za izbiro matičnega podjetja
+interface ParentCompanyOption {
+  id: string;
+  name: string;
+  display_name?: string;
 }
 
 interface EditAddressModalProps {
@@ -26,6 +34,10 @@ interface EditAddressModalProps {
   onSave: () => void;
   onClose: () => void;
   showCompanyFields?: boolean; // Za prikaz polj za urejanje imena podjetja
+  taxLookupLoading?: boolean;
+  onTaxLookup?: () => void;
+  availableParentCompanies?: ParentCompanyOption[]; // Seznam podjetij za izbiro matičnega
+  currentCompanyId?: string; // ID trenutnega podjetja (da ga izključimo iz seznama)
 }
 
 /**
@@ -40,6 +52,10 @@ export default function EditAddressModal({
   onSave,
   onClose,
   showCompanyFields = false,
+  taxLookupLoading = false,
+  onTaxLookup,
+  availableParentCompanies = [],
+  currentCompanyId,
 }: EditAddressModalProps) {
 
   const handlePostalChange = (postal: string, isDelivery: boolean = false) => {
@@ -73,50 +89,98 @@ export default function EditAddressModal({
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Podatki podjetja - prikazani za osnutke ali če je showCompanyFields true */}
-          {(showCompanyFields || isOsnutek) && (
-            <div className="bg-blue-50 rounded-lg p-3 space-y-3">
-              <h4 className="font-medium text-sm text-blue-700 flex items-center gap-2">
-                <Building2 size={16} />
-                Podatki podjetja
-              </h4>
-              {isOsnutek && (
-                <p className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
-                  To je osnutek. Dopolnite ime podjetja, da ga pretvorite v pravo stranko.
-                </p>
-              )}
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Uradno ime podjetja</label>
-                  <input
-                    type="text"
-                    value={formData.companyName || ''}
-                    onChange={(e) => onFormDataChange({ ...formData, companyName: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="npr. PODJETJE d.o.o."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Prikazno ime (opcijsko)</label>
-                  <input
-                    type="text"
-                    value={formData.displayName || ''}
-                    onChange={(e) => onFormDataChange({ ...formData, displayName: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="npr. Gostilna Pri Franciju"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Krajše ime za lažje iskanje</p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Davčna številka</label>
+          {/* Podatki podjetja - vedno prikazani */}
+          <div className="bg-blue-50 rounded-lg p-3 space-y-3">
+            <h4 className="font-medium text-sm text-blue-700 flex items-center gap-2">
+              <Building2 size={16} />
+              Podatki podjetja
+            </h4>
+            {isOsnutek && (
+              <p className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                To je osnutek. Dopolnite ime podjetja, da ga pretvorite v pravo stranko.
+              </p>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Davčna številka</label>
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={formData.taxNumber || ''}
-                    onChange={(e) => onFormDataChange({ ...formData, taxNumber: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="SI12345678"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/^SI/i, '').replace(/\s/g, '');
+                      onFormDataChange({ ...formData, taxNumber: value });
+                      // Avtomatsko poišči ko je 8 števk
+                      if (/^\d{8}$/.test(value) && !taxLookupLoading && onTaxLookup) {
+                        setTimeout(() => onTaxLookup(), 100);
+                      }
+                    }}
+                    className="flex-1 p-3 border rounded-lg"
+                    placeholder="12345678"
                   />
+                  {onTaxLookup && (
+                    <button
+                      type="button"
+                      onClick={onTaxLookup}
+                      disabled={taxLookupLoading || !formData.taxNumber}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm disabled:bg-gray-300"
+                    >
+                      {taxLookupLoading ? '...' : 'Izpolni'}
+                    </button>
+                  )}
                 </div>
+                <p className="text-xs text-gray-400 mt-1">Vnesi davčno in klikni "Izpolni" za avtomatsko izpolnitev</p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Uradno ime podjetja</label>
+                <input
+                  type="text"
+                  value={formData.companyName || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, companyName: e.target.value })}
+                  className="w-full p-3 border rounded-lg"
+                  placeholder="npr. PODJETJE d.o.o."
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Prikazno ime (opcijsko)</label>
+                <input
+                  type="text"
+                  value={formData.displayName || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, displayName: e.target.value })}
+                  className="w-full p-3 border rounded-lg"
+                  placeholder="npr. Gostilna Pri Franciju"
+                />
+                <p className="text-xs text-gray-400 mt-1">Krajše ime za lažje iskanje</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Hierarhija podjetja */}
+          {availableParentCompanies.length > 0 && (
+            <div className="bg-purple-50 rounded-lg p-3 space-y-3">
+              <h4 className="font-medium text-sm text-purple-700 flex items-center gap-2">
+                <GitBranch size={16} />
+                Hierarhija podjetja
+              </h4>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Matično podjetje</label>
+                <select
+                  value={formData.parentCompanyId || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, parentCompanyId: e.target.value || null })}
+                  className="w-full p-3 border rounded-lg bg-white"
+                >
+                  <option value="">Brez matičnega podjetja</option>
+                  {availableParentCompanies
+                    .filter(c => c.id !== currentCompanyId) // Izključi samega sebe
+                    .map(company => (
+                      <option key={company.id} value={company.id}>
+                        {company.display_name || company.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Izberi matično podjetje če je to hčerinsko podjetje / podružnica
+                </p>
               </div>
             </div>
           )}
