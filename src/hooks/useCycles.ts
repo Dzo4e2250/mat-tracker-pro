@@ -463,3 +463,224 @@ export function useExtendTest() {
     },
   });
 }
+
+// Batch sign contracts for multiple cycles at once
+export function useBatchSignContracts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      signedCycleIds,
+      remainingAction,
+      remainingCycleIds,
+      frequency,
+      userId,
+    }: {
+      signedCycleIds: string[];
+      remainingAction: 'keep_on_test' | 'pickup_self';
+      remainingCycleIds: string[];
+      frequency?: string;
+      userId: string;
+    }) => {
+      const results: any[] = [];
+
+      // 1. Update signed cycles to waiting_driver
+      for (const cycleId of signedCycleIds) {
+        const { data: currentCycle } = await supabase
+          .from('cycles')
+          .select('status')
+          .eq('id', cycleId)
+          .single();
+
+        const { data, error } = await supabase
+          .from('cycles')
+          .update({
+            status: 'waiting_driver',
+            contract_signed: true,
+            contract_frequency: frequency || null,
+            contract_signed_at: new Date().toISOString(),
+            pickup_requested_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', cycleId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        results.push(data);
+
+        // Add to history
+        await supabase.from('cycle_history').insert({
+          cycle_id: cycleId,
+          action: 'contract_signed',
+          old_status: currentCycle?.status,
+          new_status: 'waiting_driver',
+          metadata: { frequency, batch_operation: true },
+          performed_by: userId,
+        });
+      }
+
+      // 2. Handle remaining cycles based on action
+      if (remainingAction === 'pickup_self' && remainingCycleIds.length > 0) {
+        for (const cycleId of remainingCycleIds) {
+          const { data: currentCycle } = await supabase
+            .from('cycles')
+            .select('status')
+            .eq('id', cycleId)
+            .single();
+
+          const { data, error } = await supabase
+            .from('cycles')
+            .update({
+              status: 'dirty',
+              test_end_date: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', cycleId)
+            .select()
+            .single();
+
+          if (error) throw error;
+          results.push(data);
+
+          // Add to history
+          await supabase.from('cycle_history').insert({
+            cycle_id: cycleId,
+            action: 'pickup_self',
+            old_status: currentCycle?.status,
+            new_status: 'dirty',
+            metadata: { batch_operation: true },
+            performed_by: userId,
+          });
+        }
+      }
+      // If remainingAction === 'keep_on_test', do nothing - they stay on_test
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
+    },
+  });
+}
+
+// Batch pickup - move all cycles to dirty (user picked them up)
+export function useBatchPickupSelf() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cycleIds,
+      userId,
+    }: {
+      cycleIds: string[];
+      userId: string;
+    }) => {
+      const results: any[] = [];
+
+      for (const cycleId of cycleIds) {
+        const { data: currentCycle } = await supabase
+          .from('cycles')
+          .select('status')
+          .eq('id', cycleId)
+          .single();
+
+        const { data, error } = await supabase
+          .from('cycles')
+          .update({
+            status: 'dirty',
+            test_end_date: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', cycleId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        results.push(data);
+
+        await supabase.from('cycle_history').insert({
+          cycle_id: cycleId,
+          action: 'pickup_self_batch',
+          old_status: currentCycle?.status,
+          new_status: 'dirty',
+          metadata: { batch_operation: true },
+          performed_by: userId,
+        });
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
+    },
+  });
+}
+
+// Batch extend test - extend all cycles by 7 days
+export function useBatchExtendTest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cycleIds,
+      userId,
+    }: {
+      cycleIds: string[];
+      userId: string;
+    }) => {
+      const results: any[] = [];
+
+      for (const cycleId of cycleIds) {
+        const { data: currentCycle, error: fetchError } = await supabase
+          .from('cycles')
+          .select('test_start_date, extensions_count')
+          .eq('id', cycleId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // Calculate new test date (extend by 7 days)
+        const currentStart = new Date(currentCycle.test_start_date);
+        const newStart = new Date(currentStart.getTime() + (7 * 24 * 60 * 60 * 1000));
+
+        const { data, error } = await supabase
+          .from('cycles')
+          .update({
+            test_start_date: newStart.toISOString(),
+            extensions_count: (currentCycle.extensions_count || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', cycleId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        results.push(data);
+
+        await supabase.from('cycle_history').insert({
+          cycle_id: cycleId,
+          action: 'test_extended_batch',
+          old_status: 'on_test',
+          new_status: 'on_test',
+          metadata: {
+            extensions_count: (currentCycle.extensions_count || 0) + 1,
+            batch_operation: true,
+          },
+          performed_by: userId,
+        });
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
+    },
+  });
+}

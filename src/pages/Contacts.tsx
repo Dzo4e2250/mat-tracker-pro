@@ -27,11 +27,11 @@
 // IMPORTS
 // ============================================================================
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Phone, MessageSquare, Mail, MapPin, Plus, ChevronRight, Home, Camera, Users, Building2, User, X, Trash2, Package, Calendar, CheckCircle, Clock, FileText, Euro, ChevronDown, MoreVertical, Download, Check, Square, CheckSquare, FileSignature, StickyNote, QrCode, Bell, AlertTriangle, Filter, Pencil } from 'lucide-react';
-import { useDueReminders, useContractPendingCompanies, useCreateReminder, useCompleteReminder, useUpdatePipelineStatus, PIPELINE_STATUSES, type ReminderWithCompany } from '@/hooks/useReminders';
+import { useDueReminders, useReminders, useContractPendingCompanies, useCreateReminder, useCompleteReminder, useUpdatePipelineStatus, PIPELINE_STATUSES, type ReminderWithCompany } from '@/hooks/useReminders';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useCompanyContacts, useCompanyDetails, useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
@@ -56,7 +56,7 @@ import {
 } from '@/utils/priceList';
 
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders, FiltersBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal, QRScannerModal, ContractConfirmDialog } from '@/pages/contacts/components';
+import { TodaySection, SelectionModeBar, UrgentReminders, StickySearchBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal, QRScannerModal, ContractConfirmDialog, AlphabetSidebar } from '@/pages/contacts/components';
 import { type FrequencyType } from '@/pages/contacts/components/offer';
 
 // Lazy loaded Offer komponente - naložijo se šele ko se odpre ponudba
@@ -209,6 +209,12 @@ export default function Contacts() {
 
   // Opomniki - nujne naloge za prodajalca
   const { data: dueReminders } = useDueReminders(user?.id);
+  const { data: allReminders } = useReminders(user?.id);
+
+  // Set company IDs that have active reminders
+  const companiesWithReminders = useMemo(() => {
+    return new Set(allReminders?.map(r => r.company_id).filter(Boolean) || []);
+  }, [allReminders]);
   const { data: contractPendingCompanies } = useContractPendingCompanies(user?.id, 3);
   const createReminder = useCreateReminder();
   const completeReminder = useCompleteReminder();
@@ -574,6 +580,70 @@ export default function Contacts() {
       console.error('Reminder creation error:', error);
       toast({
         description: `Napaka pri dodajanju opomnika: ${error?.message || 'Neznana napaka'}`,
+        variant: 'destructive'
+      });
+    }
+  };
+
+  /**
+   * Hitra akcija: Pogodba poslana - ustvari opombo in 3 opomnike
+   * 1. Takoj - pokliči stranko
+   * 2. Naslednji dan - followup
+   * 3. Čez 3 dni - followup
+   */
+  const handleContractSent = async () => {
+    if (!selectedCompany || !user?.id) return;
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const companyName = selectedCompany.display_name || selectedCompany.name;
+
+    try {
+      // 1. Dodaj opombo
+      await addNoteMutation.mutateAsync({
+        companyId: selectedCompany.id,
+        noteDate: today,
+        content: '📄 Pogodba/aneks poslan, čakam na vrnitev podpisane pogodbe',
+      });
+
+      // 2. Opomnik TAKOJ (čez 1 minuto) - pokliči stranko
+      const reminderNow = new Date(now.getTime() + 60 * 1000); // +1 minuta
+      await createReminder.mutateAsync({
+        company_id: selectedCompany.id,
+        user_id: user.id,
+        reminder_at: reminderNow.toISOString(),
+        note: `📞 Pokliči stranko - pogodba poslana na email`,
+      });
+
+      // 3. Opomnik NASLEDNJI DAN ob 9:00
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      await createReminder.mutateAsync({
+        company_id: selectedCompany.id,
+        user_id: user.id,
+        reminder_at: tomorrow.toISOString(),
+        note: `📋 Followup - pogodba poslana včeraj`,
+      });
+
+      // 4. Opomnik ČEZ 3 DNI ob 9:00
+      const in3Days = new Date(now);
+      in3Days.setDate(in3Days.getDate() + 3);
+      in3Days.setHours(9, 0, 0, 0);
+      await createReminder.mutateAsync({
+        company_id: selectedCompany.id,
+        user_id: user.id,
+        reminder_at: in3Days.toISOString(),
+        note: `📋 Followup - pogodba poslana pred 3 dnevi`,
+      });
+
+      toast({
+        description: '✅ Opomba dodana + 3 opomniki ustvarjeni (takoj, jutri, čez 3 dni)'
+      });
+    } catch (error: any) {
+      console.error('Contract sent error:', error);
+      toast({
+        description: `Napaka: ${error?.message || 'Neznana napaka'}`,
         variant: 'destructive'
       });
     }
@@ -993,6 +1063,89 @@ export default function Contacts() {
   // Filtriran seznam strank za prikaz
   const filteredCompanies = getFilteredCompanies();
 
+  // Hierarhija podjetij - parent/children relacije
+  const companyHierarchy = useMemo(() => {
+    if (!companies) return new Map<string, { parentCompany?: { id: string; name: string; display_name?: string }; childrenCount: number }>();
+
+    // Najprej preštej children za vsako podjetje
+    const childrenCountMap = new Map<string, number>();
+    companies.forEach(company => {
+      if (company.parent_company_id) {
+        const count = childrenCountMap.get(company.parent_company_id) || 0;
+        childrenCountMap.set(company.parent_company_id, count + 1);
+      }
+    });
+
+    // Ustvari mapo z vsemi podatki o hierarhiji
+    const hierarchyMap = new Map<string, { parentCompany?: { id: string; name: string; display_name?: string }; childrenCount: number }>();
+    companies.forEach(company => {
+      const parentCompany = company.parent_company_id
+        ? companies.find(c => c.id === company.parent_company_id)
+        : undefined;
+
+      hierarchyMap.set(company.id, {
+        parentCompany: parentCompany ? {
+          id: parentCompany.id,
+          name: parentCompany.name,
+          display_name: parentCompany.display_name || undefined,
+        } : undefined,
+        childrenCount: childrenCountMap.get(company.id) || 0,
+      });
+    });
+
+    return hierarchyMap;
+  }, [companies]);
+
+  // Abecedna navigacija - dostopne črke in scroll funkcija
+  const availableLetters = useMemo(() => {
+    const letters = new Set<string>();
+    filteredCompanies.forEach(company => {
+      const name = (company.display_name || company.name || '').trim().toUpperCase();
+      if (name) {
+        let firstChar = name.charAt(0);
+        // Preslikaj posebne slovenske črke
+        if (firstChar === 'Č') firstChar = 'Č';
+        else if (firstChar === 'Š') firstChar = 'Š';
+        else if (firstChar === 'Ž') firstChar = 'Ž';
+        // Če ni črka, uporabi #
+        if (!/[A-ZČŠŽ]/.test(firstChar)) firstChar = '#';
+        letters.add(firstChar);
+      }
+    });
+    return letters;
+  }, [filteredCompanies]);
+
+  const scrollToLetter = useCallback((letter: string) => {
+    const element = document.querySelector(`[data-first-letter="${letter}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  // Pomožna funkcija za določitev prve črke podjetja
+  const getCompanyFirstLetter = (company: CompanyWithContacts): string => {
+    const name = (company.display_name || company.name || '').trim().toUpperCase();
+    if (!name) return '#';
+    let firstChar = name.charAt(0);
+    if (firstChar === 'Č') return 'Č';
+    if (firstChar === 'Š') return 'Š';
+    if (firstChar === 'Ž') return 'Ž';
+    if (!/[A-ZČŠŽ]/.test(firstChar)) return '#';
+    return firstChar;
+  };
+
+  // Določi katera podjetja so prva za svojo črko (za data-first-letter atribut)
+  const firstCompanyForLetter = useMemo(() => {
+    const map = new Map<string, string>(); // letter -> company id
+    filteredCompanies.forEach(company => {
+      const letter = getCompanyFirstLetter(company);
+      if (!map.has(letter)) {
+        map.set(letter, company.id);
+      }
+    });
+    return map;
+  }, [filteredCompanies]);
+
   // --------------------------------------------------------------------------
   // CRUD OPERACIJE - Dodajanje, urejanje, brisanje strank in kontaktov
   // --------------------------------------------------------------------------
@@ -1055,6 +1208,7 @@ export default function Contacts() {
           customer_number: formData.customerNumber,
           notes: formData.notes,
           pipeline_status: isOsnutek ? 'osnutek' : undefined,
+          parent_company_id: formData.parentCompanyId || undefined,
         },
         contact: formData.contactName ? {
           first_name: formData.contactName.split(' ')[0],
@@ -1100,6 +1254,44 @@ export default function Contacts() {
 
       // Auto-fill form fields
       setFormData((prev: any) => ({
+        ...prev,
+        companyName: companyData.name || prev.companyName,
+        addressStreet: companyData.street || prev.addressStreet,
+        addressCity: companyData.city || prev.addressCity,
+        addressPostal: companyData.postalCode || prev.addressPostal,
+      }));
+
+      toast({ description: `Podjetje najdeno: ${companyData.name}` });
+    } catch (error) {
+      toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
+    } finally {
+      setTaxLookupLoading(false);
+    }
+  };
+
+  // Lookup company by tax number for Edit Address Modal
+  const handleEditAddressTaxLookup = async () => {
+    const taxNumber = editAddressData.taxNumber;
+    if (!taxNumber || !isValidTaxNumberFormat(taxNumber)) {
+      return;
+    }
+
+    setTaxLookupLoading(true);
+    try {
+      const companyData = await lookupCompanyByTaxNumber(taxNumber);
+
+      if (!companyData) {
+        toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
+        return;
+      }
+
+      if (!companyData.isValid) {
+        toast({ description: 'Davčna številka ni veljavna ali podjetje ni DDV zavezanec', variant: 'destructive' });
+        return;
+      }
+
+      // Auto-fill edit address form fields
+      setEditAddressData((prev) => ({
         ...prev,
         companyName: companyData.name || prev.companyName,
         addressStreet: companyData.street || prev.addressStreet,
@@ -1705,11 +1897,11 @@ END:VCALENDAR`;
 
   const updateOfferItem = (id: string, updates: Partial<OfferItem>, type: 'nakup' | 'najem') => {
     if (type === 'nakup') {
-      setOfferItemsNakup(offerItemsNakup.map(item =>
+      setOfferItemsNakup(prev => prev.map(item =>
         item.id === id ? { ...item, ...updates } : item
       ));
     } else {
-      setOfferItemsNajem(offerItemsNajem.map(item =>
+      setOfferItemsNajem(prev => prev.map(item =>
         item.id === id ? { ...item, ...updates } : item
       ));
     }
@@ -1764,23 +1956,43 @@ END:VCALENDAR`;
     const items = offerType === 'nakup' ? offerItemsNakup : offerItemsNajem;
     const item = items.find(i => i.id === itemId);
     if (!item) return;
+    // Vedno uporabi shranjeno originalPrice, nikoli trenutno pricePerUnit
     const originalPrice = item.originalPrice || item.pricePerUnit;
     const discount = originalPrice > 0 ? Math.round((1 - newPrice / originalPrice) * 100) : 0;
-    updateOfferItem(itemId, { pricePerUnit: newPrice, discount: discount > 0 ? discount : 0 }, offerType);
+    // Shrani tudi originalPrice če ga še ni
+    updateOfferItem(itemId, {
+      pricePerUnit: newPrice,
+      discount: discount > 0 ? discount : 0,
+      originalPrice: item.originalPrice || originalPrice // Ohrani originalno ceno
+    }, offerType);
   };
 
   const handleDiscountChange = (itemId: string, discount: number, offerType: 'nakup' | 'najem') => {
     const items = offerType === 'nakup' ? offerItemsNakup : offerItemsNajem;
     const item = items.find(i => i.id === itemId);
     if (!item) return;
-    const originalPrice = item.originalPrice || item.pricePerUnit;
+
+    // POMEMBNO: Vedno uporabi shranjeno originalPrice, ne trenutno pricePerUnit
+    // Če originalPrice ni nastavljen, ga nastavi na trenutno ceno SAMO če ni popusta
+    const originalPrice = item.originalPrice || (item.discount === 0 ? item.pricePerUnit : item.pricePerUnit);
+
     // If discount is 0 or cleared, reset to original price
     if (!discount || discount === 0) {
-      updateOfferItem(itemId, { pricePerUnit: originalPrice, discount: 0 }, offerType);
+      updateOfferItem(itemId, {
+        pricePerUnit: originalPrice,
+        discount: 0,
+        originalPrice: originalPrice // Ohrani originalPrice
+      }, offerType);
       return;
     }
+
+    // Izračunaj novo ceno iz ORIGINALNE cene
     const newPrice = Math.round(originalPrice * (1 - discount / 100) * 100) / 100;
-    updateOfferItem(itemId, { pricePerUnit: newPrice, discount }, offerType);
+    updateOfferItem(itemId, {
+      pricePerUnit: newPrice,
+      discount,
+      originalPrice: originalPrice // Vedno shrani originalPrice
+    }, offerType);
   };
 
   const handleSeasonalToggle = (itemId: string, enabled: boolean) => {
@@ -1855,15 +2067,34 @@ END:VCALENDAR`;
     if (!item) return;
     const originalPrice = item.seasonalOriginalPrice || newPrice;
     const discount = originalPrice > 0 ? Math.round((1 - newPrice / originalPrice) * 100) : 0;
-    updateOfferItem(itemId, { seasonalPrice: newPrice, seasonalDiscount: discount > 0 ? discount : 0 }, 'najem');
+    updateOfferItem(itemId, {
+      seasonalPrice: newPrice,
+      seasonalDiscount: discount > 0 ? discount : 0,
+      seasonalOriginalPrice: item.seasonalOriginalPrice || originalPrice
+    }, 'najem');
   };
 
   const handleSeasonalDiscountChange = (itemId: string, discount: number) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
     if (!item) return;
     const originalPrice = item.seasonalOriginalPrice || item.seasonalPrice || 0;
+
+    // Če ni popusta, resetiraj na originalno ceno
+    if (!discount || discount === 0) {
+      updateOfferItem(itemId, {
+        seasonalPrice: originalPrice,
+        seasonalDiscount: 0,
+        seasonalOriginalPrice: originalPrice
+      }, 'najem');
+      return;
+    }
+
     const newPrice = Math.round(originalPrice * (1 - discount / 100) * 100) / 100;
-    updateOfferItem(itemId, { seasonalPrice: newPrice, seasonalDiscount: discount }, 'najem');
+    updateOfferItem(itemId, {
+      seasonalPrice: newPrice,
+      seasonalDiscount: discount,
+      seasonalOriginalPrice: originalPrice
+    }, 'najem');
   };
 
   // Handlers za normalno obdobje
@@ -1886,15 +2117,34 @@ END:VCALENDAR`;
     if (!item) return;
     const originalPrice = item.normalOriginalPrice || newPrice;
     const discount = originalPrice > 0 ? Math.round((1 - newPrice / originalPrice) * 100) : 0;
-    updateOfferItem(itemId, { normalPrice: newPrice, normalDiscount: discount > 0 ? discount : 0 }, 'najem');
+    updateOfferItem(itemId, {
+      normalPrice: newPrice,
+      normalDiscount: discount > 0 ? discount : 0,
+      normalOriginalPrice: item.normalOriginalPrice || originalPrice
+    }, 'najem');
   };
 
   const handleNormalDiscountChange = (itemId: string, discount: number) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
     if (!item) return;
     const originalPrice = item.normalOriginalPrice || item.normalPrice || 0;
+
+    // Če ni popusta, resetiraj na originalno ceno
+    if (!discount || discount === 0) {
+      updateOfferItem(itemId, {
+        normalPrice: originalPrice,
+        normalDiscount: 0,
+        normalOriginalPrice: originalPrice
+      }, 'najem');
+      return;
+    }
+
     const newPrice = Math.round(originalPrice * (1 - discount / 100) * 100) / 100;
-    updateOfferItem(itemId, { normalPrice: newPrice, normalDiscount: discount }, 'najem');
+    updateOfferItem(itemId, {
+      normalPrice: newPrice,
+      normalDiscount: discount,
+      normalOriginalPrice: originalPrice
+    }, 'najem');
   };
 
   const calculateOfferTotals = (type: 'nakup' | 'najem') => {
@@ -2305,21 +2555,8 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Urgent Reminders - Red Cards */}
-        <UrgentReminders
-          dueReminders={dueReminders}
-          contractPendingCompanies={contractPendingCompanies}
-          onOpenCompany={(companyId) => {
-            setSelectedCompanyId(companyId);
-            const company = companies?.find(c => c.id === companyId);
-            if (company) setSelectedCompany(company);
-          }}
-          onCompleteReminder={handleCompleteReminder}
-          onAddReminder={openReminderModal}
-        />
-
-        {/* Search and Filters */}
-        <FiltersBar
+        {/* Sticky Search Bar z zložljivimi filtri */}
+        <StickySearchBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           sortBy={sortBy}
@@ -2337,6 +2574,19 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           routeCompaniesCount={filteredCompanies.filter(c => getCompanyAddress(c)).length}
           onOpenRoute={openRouteInMaps}
           onAddCompany={() => setShowAddModal(true)}
+        />
+
+        {/* Urgent Reminders - Red Cards */}
+        <UrgentReminders
+          dueReminders={dueReminders}
+          contractPendingCompanies={contractPendingCompanies}
+          onOpenCompany={(companyId) => {
+            setSelectedCompanyId(companyId);
+            const company = companies?.find(c => c.id === companyId);
+            if (company) setSelectedCompany(company);
+          }}
+          onCompleteReminder={handleCompleteReminder}
+          onAddReminder={openReminderModal}
         />
 
         {/* TODAY Section - Meetings and Deadlines */}
@@ -2378,27 +2628,45 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             {searchQuery ? 'Ni rezultatov iskanja' : 'Ni strank'}
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredCompanies.map(company => (
-              <CompanyCard
-                key={company.id}
-                company={company}
-                isRecent={recentCompanyIds.includes(company.id)}
-                showRecentBadge={!searchQuery}
-                selectionMode={selectionMode}
-                selectedContacts={selectedContacts}
-                onCompanyClick={() => {
-                  setSelectedCompany(company);
-                  setSelectedCompanyId(company.id);
-                  addToRecent(company.id);
-                }}
-                onContactToggle={toggleContactSelection}
-                onAddReminder={() => openReminderModal(company.id)}
-              />
-            ))}
+          <div className="space-y-3 pr-6"> {/* pr-6 za prostor za abecedo */}
+            {filteredCompanies.map(company => {
+              const letter = getCompanyFirstLetter(company);
+              const isFirstForLetter = firstCompanyForLetter.get(letter) === company.id;
+              return (
+                <div
+                  key={company.id}
+                  data-first-letter={isFirstForLetter ? letter : undefined}
+                >
+                  <CompanyCard
+                    company={company}
+                    isRecent={recentCompanyIds.includes(company.id)}
+                    showRecentBadge={!searchQuery}
+                    selectionMode={selectionMode}
+                    selectedContacts={selectedContacts}
+                    hasReminder={companiesWithReminders.has(company.id)}
+                    hierarchyInfo={companyHierarchy.get(company.id)}
+                    onCompanyClick={() => {
+                      setSelectedCompany(company);
+                      setSelectedCompanyId(company.id);
+                      addToRecent(company.id);
+                    }}
+                    onContactToggle={toggleContactSelection}
+                    onAddReminder={() => openReminderModal(company.id)}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Abecedna navigacija */}
+      {!isLoading && filteredCompanies.length > 10 && sortBy === 'name' && (
+        <AlphabetSidebar
+          availableLetters={availableLetters}
+          onLetterSelect={scrollToLetter}
+        />
+      )}
 
       {/* Reminder Modal */}
       {showReminderModal && (
@@ -2467,6 +2735,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           onSubmit={handleAddCompany}
           onOpenQRScanner={() => setShowQRScanner(true)}
           onClose={() => setShowAddModal(false)}
+          availableParentCompanies={companies?.map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined })) || []}
         />
       )}
 
@@ -2485,6 +2754,8 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
           newNoteContent={newNoteContent}
           isAddingNote={addNoteMutation.isPending}
           googleMapsUrl={getGoogleMapsUrl(selectedCompany)}
+          parentCompany={companyHierarchy.get(selectedCompany.id)?.parentCompany}
+          childCompanies={companies?.filter(c => c.parent_company_id === selectedCompany.id).map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined }))}
           onNewNoteDateChange={setNewNoteDate}
           onNewNoteContentChange={setNewNoteContent}
           onClose={() => {
@@ -2503,6 +2774,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
               deliveryPostal: (selectedCompany as any).delivery_postal || '',
               deliveryCity: (selectedCompany as any).delivery_city || '',
               hasDifferentDeliveryAddress: !!(selectedCompany as any).delivery_address,
+              parentCompanyId: (selectedCompany as any).parent_company_id || null,
             });
             setShowEditAddressModal(true);
           }}
@@ -2577,6 +2849,14 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
               });
             }
           }}
+          onContractSent={handleContractSent}
+          onSelectCompany={(companyId) => {
+            const newCompany = companies?.find(c => c.id === companyId);
+            if (newCompany) {
+              setSelectedCompany(newCompany);
+              setSelectedCompanyId(companyId);
+            }
+          }}
         />
       )}
 
@@ -2641,6 +2921,10 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
         <EditAddressModal
           formData={editAddressData}
           onFormDataChange={setEditAddressData}
+          taxLookupLoading={taxLookupLoading}
+          onTaxLookup={handleEditAddressTaxLookup}
+          availableParentCompanies={companies?.map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined })) || []}
+          currentCompanyId={selectedCompany.id}
           onSave={async () => {
             try {
               // Posodobi ime podjetja, če je bilo spremenjeno (in ni prazno)
@@ -2665,6 +2949,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                   delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
                   delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
                   delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                  parent_company_id: editAddressData.parentCompanyId || null,
                   ...(isNoLongerOsnutek ? { pipeline_status: null } : {}),
                 })
                 .eq('id', selectedCompany.id);
@@ -3032,17 +3317,50 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
             // Add the contract to saved contracts list
             setSavedContracts(prev => [...prev, contract]);
           }}
+          parentCompany={(() => {
+            // Poišči matično podjetje če obstaja
+            const parentId = (selectedCompany as any).parent_company_id;
+            if (!parentId) return undefined;
+            const parent = companies?.find(c => c.id === parentId);
+            if (!parent) return undefined;
+            return {
+              id: parent.id,
+              name: parent.name,
+              tax_number: parent.tax_number,
+              address_street: parent.address_street,
+              address_postal: parent.address_postal,
+              address_city: parent.address_city,
+              contacts: parent.contacts.map(c => ({
+                id: c.id,
+                first_name: c.first_name,
+                last_name: c.last_name,
+                email: c.email,
+                phone: c.phone,
+                role: c.role,
+                is_billing_contact: (c as any).is_billing_contact,
+                is_service_contact: (c as any).is_service_contact,
+              })),
+            };
+          })()}
+          childCompanies={companies
+            ?.filter(c => c.parent_company_id === selectedCompany.id)
+            .map(child => ({
+              id: child.id,
+              name: child.display_name || child.name,
+              contacts: child.contacts.map(c => ({
+                id: c.id,
+                first_name: c.first_name,
+                last_name: c.last_name,
+                email: c.email,
+                phone: c.phone,
+                role: c.role,
+                is_billing_contact: (c as any).is_billing_contact,
+                is_service_contact: (c as any).is_service_contact,
+              })),
+            })) || []}
         />
         </Suspense>
       )}
-
-      {/* Floating Action Button - Add Company */}
-      <button
-        onClick={() => setShowAddModal(true)}
-        className="fixed bottom-20 right-4 w-14 h-14 bg-green-500 text-white rounded-full shadow-lg flex items-center justify-center z-40 hover:bg-green-600 active:bg-green-700"
-      >
-        <Plus size={28} />
-      </button>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">

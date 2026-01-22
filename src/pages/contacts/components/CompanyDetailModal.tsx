@@ -14,7 +14,7 @@ import React from 'react';
 import {
   X, StickyNote, Plus, Trash2, User, Phone, Mail, Calendar,
   Package, Clock, CheckCircle, FileText, Euro, MapPin, Camera,
-  Pencil, FileSignature, Check
+  Pencil, FileSignature, Check, GitBranch, Building2
 } from 'lucide-react';
 
 interface Contact {
@@ -80,6 +80,12 @@ interface SavedContract {
   generated_at: string;
 }
 
+interface HierarchyCompany {
+  id: string;
+  name: string;
+  display_name?: string;
+}
+
 interface CompanyDetailModalProps {
   company: Company;
   companyNotes: CompanyNote[] | undefined;
@@ -93,6 +99,8 @@ interface CompanyDetailModalProps {
   newNoteContent: string;
   isAddingNote: boolean;
   googleMapsUrl: string | null;
+  parentCompany?: HierarchyCompany;
+  childCompanies?: HierarchyCompany[];
   onNewNoteDateChange: (date: string) => void;
   onNewNoteContentChange: (content: string) => void;
   onClose: () => void;
@@ -110,6 +118,8 @@ interface CompanyDetailModalProps {
   onDeleteSentOffer: (offerId: string) => void;
   onNavigateToSeller: () => void;
   onDeleteCompany?: () => void;
+  onContractSent?: () => void;
+  onSelectCompany?: (companyId: string) => void;
 }
 
 export default function CompanyDetailModal({
@@ -125,6 +135,8 @@ export default function CompanyDetailModal({
   newNoteContent,
   isAddingNote,
   googleMapsUrl,
+  parentCompany,
+  childCompanies,
   onNewNoteDateChange,
   onNewNoteContentChange,
   onClose,
@@ -142,6 +154,8 @@ export default function CompanyDetailModal({
   onDeleteSentOffer,
   onNavigateToSeller,
   onDeleteCompany,
+  onContractSent,
+  onSelectCompany,
 }: CompanyDetailModalProps) {
   // State za urejanje opombe
   const [editingNoteId, setEditingNoteId] = React.useState<string | null>(null);
@@ -232,6 +246,49 @@ export default function CompanyDetailModal({
             </div>
           </div>
 
+          {/* Hierarhija podjetja */}
+          {(parentCompany || (childCompanies && childCompanies.length > 0)) && (
+            <div className="bg-purple-50 rounded-lg p-3 space-y-2">
+              <h4 className="font-medium text-sm text-purple-700 flex items-center gap-2">
+                <GitBranch size={16} />
+                Hierarhija podjetja
+              </h4>
+
+              {/* Matično podjetje */}
+              {parentCompany && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Matično:</span>
+                  <button
+                    onClick={() => onSelectCompany?.(parentCompany.id)}
+                    className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 hover:underline"
+                  >
+                    <Building2 size={14} />
+                    {parentCompany.display_name || parentCompany.name}
+                  </button>
+                </div>
+              )}
+
+              {/* Hčerinska podjetja */}
+              {childCompanies && childCompanies.length > 0 && (
+                <div>
+                  <span className="text-xs text-gray-500 block mb-1">Podružnice ({childCompanies.length}):</span>
+                  <div className="space-y-1 pl-2 border-l-2 border-purple-200">
+                    {childCompanies.map(child => (
+                      <button
+                        key={child.id}
+                        onClick={() => onSelectCompany?.(child.id)}
+                        className="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1 hover:underline"
+                      >
+                        <GitBranch size={12} />
+                        {child.display_name || child.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Dated Notes Section */}
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-3">
@@ -273,6 +330,14 @@ export default function CompanyDetailModal({
               >
                 Dogovorjen sestanek...
               </button>
+              {onContractSent && (
+                <button
+                  onClick={onContractSent}
+                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-full text-xs font-medium"
+                >
+                  📄 Čakam na pogodbo/aneks
+                </button>
+              )}
             </div>
 
             {/* Add new note */}

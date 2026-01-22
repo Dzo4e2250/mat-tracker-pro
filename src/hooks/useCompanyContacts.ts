@@ -16,6 +16,7 @@ export type CompanyWithContacts = Company & {
     onTest: number;
     signed: number;
     total: number;
+    offerSent: boolean;
   };
   lastActivity?: string;
 };
@@ -86,12 +87,32 @@ export function useCompanyContacts(userId?: string) {
 
       if (contactsError) throw contactsError;
 
-      // Group contacts by company
+      // Get sent emails to check which companies have offers sent
+      const { data: sentEmails, error: sentEmailsError } = await supabase
+        .from('sent_emails')
+        .select('company_id')
+        .in('company_id', companyIds);
+
+      if (sentEmailsError) throw sentEmailsError;
+
+      // Create set of company IDs that have offers sent
+      const companiesWithOffers = new Set(
+        sentEmails?.map(e => e.company_id).filter(Boolean) || []
+      );
+
+      // Group contacts by company and sort by created_at (newest first)
       const contactsByCompany = new Map<string, Contact[]>();
       contacts?.forEach(contact => {
         const existing = contactsByCompany.get(contact.company_id) || [];
         existing.push(contact);
         contactsByCompany.set(contact.company_id, existing);
+      });
+
+      // Sort contacts within each company (newest first)
+      contactsByCompany.forEach((companyContacts, companyId) => {
+        companyContacts.sort((a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       });
 
       // Calculate stats for each company
@@ -112,6 +133,7 @@ export function useCompanyContacts(userId?: string) {
         const onTest = companyCycles.filter(c => c.status === 'on_test').length;
         const signed = companyCycles.filter(c => c.contract_signed).length;
         const total = companyCycles.length;
+        const offerSent = companiesWithOffers.has(company.id);
 
         // Find last activity
         const sortedCycles = [...companyCycles].sort((a, b) =>
@@ -129,7 +151,7 @@ export function useCompanyContacts(userId?: string) {
             created_at: c.created_at,
             test_start_date: c.test_start_date,
           })),
-          cycleStats: { onTest, signed, total },
+          cycleStats: { onTest, signed, total, offerSent },
           lastActivity,
         };
       });
@@ -164,11 +186,12 @@ export function useCompanyDetails(companyId?: string, userId?: string) {
 
       if (companyError) throw companyError;
 
-      // Get contacts
+      // Get contacts (sorted by created_at, newest first)
       const { data: contacts, error: contactsError } = await supabase
         .from('contacts')
         .select('*')
-        .eq('company_id', companyId);
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
 
       if (contactsError) throw contactsError;
 
@@ -224,6 +247,7 @@ export function useCreateCompany() {
         customer_number?: string;
         notes?: string;
         pipeline_status?: string;
+        parent_company_id?: string;
       };
       contact?: {
         first_name: string;
@@ -257,6 +281,7 @@ export function useCreateCompany() {
           customer_number: company.customer_number || null,
           notes: company.notes || null,
           pipeline_status: company.pipeline_status || null,
+          parent_company_id: company.parent_company_id || null,
           created_by: userId,
         })
         .select()

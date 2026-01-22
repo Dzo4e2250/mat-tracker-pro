@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, FileSignature, Plus, Trash2, FileText, Send, Download, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { supabase } from '@/integrations/supabase/client';
+import { getCityByPostalCode } from '@/utils/postalCodes';
 
 interface Contact {
   id: string;
@@ -68,9 +69,11 @@ interface ContractFormData {
   deliveryAddress: string;
   deliveryPostal: string;
   deliveryCity: string;
+  deliveryAddressSource: 'current' | 'parent'; // Iz katerega podjetja je naslov za dostavo
   billingAddress: string;
   billingPostal: string;
   billingCity: string;
+  billingAddressSource: 'current' | 'parent'; // Iz katerega podjetja je naslov za račun
   useSameAsBilling: boolean;
   billingContactId: string;
   billingContactName: string;
@@ -106,12 +109,24 @@ interface ContractFormData {
   referenceNumber: string;
 }
 
+interface ParentCompanyData {
+  id: string;
+  name: string;
+  tax_number: string | null;
+  address_street: string | null;
+  address_postal: string | null;
+  address_city: string | null;
+  contacts: Contact[];
+}
+
 interface ContractModalProps {
   isOpen: boolean;
   onClose: () => void;
   company: Company;
   offer: Offer;
   onContractSaved?: (contract: { offer_id: string; generated_at: string }) => void;
+  parentCompany?: ParentCompanyData; // Matično podjetje za račun
+  childCompanies?: { id: string; name: string; contacts: Contact[] }[]; // Hčerinska podjetja
 }
 
 type ModalStep = 'edit' | 'confirm-send';
@@ -119,12 +134,13 @@ type ModalStep = 'edit' | 'confirm-send';
 // Debug/calibration mode - set to true to show coordinate grid
 const DEBUG_COORDINATES = false;
 
-export default function ContractModal({ isOpen, onClose, company, offer, onContractSaved }: ContractModalProps) {
+export default function ContractModal({ isOpen, onClose, company, offer, onContractSaved, parentCompany, childCompanies }: ContractModalProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<ModalStep>('edit');
   const [generatedPdfBlob, setGeneratedPdfBlob] = useState<Blob | null>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+  const isFormInitializedRef = useRef(false);
 
   const [formData, setFormData] = useState<ContractFormData>({
     companyName: '',
@@ -133,9 +149,11 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
     deliveryAddress: '',
     deliveryPostal: '',
     deliveryCity: '',
+    deliveryAddressSource: 'current',
     billingAddress: '',
     billingPostal: '',
     billingCity: '',
+    billingAddressSource: 'parent',
     useSameAsBilling: true,
     billingContactId: '',
     billingContactName: '',
@@ -166,13 +184,53 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
       setStep('edit');
       setGeneratedPdfBlob(null);
       setPdfFileName('');
+      // Reset initialization flag when modal opens fresh
+      isFormInitializedRef.current = false;
     }
   }, [isOpen]);
 
+  // Združi vse kontakte iz hierarhije (matično + trenutno + hčerinska podjetja)
+  const allContacts = (() => {
+    const contacts: (Contact & { companyLabel?: string })[] = [];
+
+    // Kontakti iz matičnega podjetja
+    if (parentCompany?.contacts) {
+      parentCompany.contacts.forEach(c => {
+        contacts.push({ ...c, companyLabel: `${parentCompany.name} (matično)` });
+      });
+    }
+
+    // Kontakti iz trenutnega podjetja
+    if (company?.contacts) {
+      company.contacts.forEach(c => {
+        contacts.push({ ...c, companyLabel: company.name });
+      });
+    }
+
+    // Kontakti iz hčerinskih podjetij
+    childCompanies?.forEach(child => {
+      if (child?.contacts) {
+        child.contacts.forEach(c => {
+          contacts.push({ ...c, companyLabel: `${child.name} (podružnica)` });
+        });
+      }
+    });
+
+    return contacts;
+  })();
+
   useEffect(() => {
-    if (isOpen && company && offer) {
-      const billingContact = company.contacts.find(c => c.is_billing_contact) || company.contacts[0];
-      const serviceContact = company.contacts.find(c => c.is_service_contact) || billingContact;
+    // Only initialize form data once when modal opens - don't overwrite user edits
+    if (isOpen && company && offer && !isFormInitializedRef.current) {
+      isFormInitializedRef.current = true;
+
+      // Če ima matično podjetje, poišči kontakt za račun iz matičnega
+      const billingSourceContacts = parentCompany?.contacts?.length ? parentCompany.contacts : (company?.contacts || []);
+      const billingContact = billingSourceContacts.find(c => c.is_billing_contact) || billingSourceContacts[0];
+
+      // Servisni kontakt iz trenutnega podjetja
+      const companyContacts = company?.contacts || [];
+      const serviceContact = companyContacts.find(c => c.is_service_contact) || companyContacts[0];
 
       const contractItems: any[] = [];
 
@@ -226,17 +284,22 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
         }
       });
 
+      // Če ima matično podjetje, uporabi podatke matičnega za račun
+      const billingCompany = parentCompany || company;
+
       setFormData({
-        companyName: company.name || '',
+        companyName: billingCompany.name || '', // Ime za račun = matično če obstaja
         customerNumber: company.customer_number || '',
-        taxNumber: company.tax_number || '',
-        deliveryAddress: company.delivery_address || company.address_street || '',
+        taxNumber: billingCompany.tax_number || '', // Davčna = matično če obstaja
+        deliveryAddress: company.delivery_address || company.address_street || '', // Dostava = vedno trenutno podjetje
         deliveryPostal: company.delivery_postal || company.address_postal || '',
         deliveryCity: company.delivery_city || company.address_city || '',
-        billingAddress: company.billing_address || '',
-        billingPostal: company.billing_postal || '',
-        billingCity: company.billing_city || '',
-        useSameAsBilling: !company.billing_address,
+        deliveryAddressSource: 'current', // Privzeto dostava iz hčerinskega
+        billingAddress: billingCompany.address_street || company.billing_address || '', // Račun = matično če obstaja
+        billingPostal: billingCompany.address_postal || company.billing_postal || '',
+        billingCity: billingCompany.address_city || company.billing_city || '',
+        billingAddressSource: parentCompany ? 'parent' : 'current', // Privzeto račun iz matičnega če obstaja
+        useSameAsBilling: !parentCompany && !company.billing_address, // Ne enako če imamo parent
         billingContactId: billingContact?.id || '',
         billingContactName: billingContact ? `${billingContact.first_name} ${billingContact.last_name}` : '',
         billingContactPhone: billingContact?.phone || '',
@@ -265,6 +328,20 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
 
   const updateField = (field: keyof ContractFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePostalChange = (postalField: 'deliveryPostal' | 'billingPostal', cityField: 'deliveryCity' | 'billingCity', value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, [postalField]: value };
+      // Auto-fill city when postal code is 4 digits
+      if (value.length === 4) {
+        const city = getCityByPostalCode(value);
+        if (city) {
+          newData[cityField] = city;
+        }
+      }
+      return newData;
+    });
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -299,7 +376,8 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
   };
 
   const handleContactChange = (type: 'billing' | 'service', contactId: string) => {
-    const contact = company.contacts.find(c => c.id === contactId);
+    // Poišči kontakt v vseh kontaktih hierarhije
+    const contact = allContacts.find(c => c.id === contactId);
     if (type === 'billing') {
       updateField('billingContactId', contactId);
       updateField('billingContactName', contact ? `${contact.first_name} ${contact.last_name}` : '');
@@ -310,6 +388,32 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
       updateField('serviceContactName', contact ? `${contact.first_name} ${contact.last_name}` : '');
       updateField('serviceContactPhone', contact?.phone || '');
       updateField('serviceContactEmail', contact?.email || '');
+    }
+  };
+
+  // Handler za spremembo vira naslova (matično/hčerinsko podjetje)
+  const handleAddressSourceChange = (type: 'delivery' | 'billing', source: 'current' | 'parent') => {
+    const sourceCompany = source === 'parent' && parentCompany ? parentCompany : company;
+
+    if (type === 'delivery') {
+      setFormData(prev => ({
+        ...prev,
+        deliveryAddressSource: source,
+        deliveryAddress: sourceCompany?.delivery_address || sourceCompany?.address_street || '',
+        deliveryPostal: sourceCompany?.delivery_postal || sourceCompany?.address_postal || '',
+        deliveryCity: sourceCompany?.delivery_city || sourceCompany?.address_city || '',
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        billingAddressSource: source,
+        billingAddress: sourceCompany?.address_street || '',
+        billingPostal: sourceCompany?.address_postal || '',
+        billingCity: sourceCompany?.address_city || '',
+        // Tudi ime in davčna iz izbranega podjetja
+        companyName: sourceCompany?.name || '',
+        taxNumber: sourceCompany?.tax_number || '',
+      }));
     }
   };
 
@@ -540,8 +644,8 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
     drawText(page1, formData.deliveryPostal || '', col2X, row2Y, fontSize);
     drawText(page1, formData.deliveryCity || '', col3X, row2Y, fontSize);
 
-    // Billing address (if different)
-    if (!formData.useSameAsBilling) {
+    // Billing address (if different from delivery - when parent company exists or useSameAsBilling is false)
+    if (parentCompany || !formData.useSameAsBilling) {
       drawText(page1, formData.billingAddress || '', col1X, row3Y, fontSize);
       drawText(page1, formData.billingPostal || '', col2X, row3Y, fontSize);
       drawText(page1, formData.billingCity || '', col3X, row3Y, fontSize);
@@ -956,7 +1060,19 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-bold mb-3 text-purple-700">Naslov za dostavo</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-purple-700">Naslov za dostavo</h4>
+              {parentCompany && (
+                <select
+                  value={formData.deliveryAddressSource}
+                  onChange={(e) => handleAddressSourceChange('delivery', e.target.value as 'current' | 'parent')}
+                  className="text-sm px-2 py-1 border rounded-lg bg-white"
+                >
+                  <option value="current">{company?.display_name || company?.name} (hčerinsko)</option>
+                  <option value="parent">{parentCompany.name} (matično)</option>
+                </select>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">Ulica</label>
@@ -973,8 +1089,9 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
                   <input
                     type="text"
                     value={formData.deliveryPostal}
-                    onChange={(e) => updateField('deliveryPostal', e.target.value)}
+                    onChange={(e) => handlePostalChange('deliveryPostal', 'deliveryCity', e.target.value)}
                     className={getInputClass(formData.deliveryPostal)}
+                    maxLength={4}
                   />
                 </div>
                 <div>
@@ -992,18 +1109,29 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
 
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-purple-700">Naslov za racun</h4>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.useSameAsBilling}
-                  onChange={(e) => updateField('useSameAsBilling', e.target.checked)}
-                  className="rounded"
-                />
-                Enak kot za dostavo
-              </label>
+              <h4 className="font-bold text-purple-700">Naslov za račun</h4>
+              {parentCompany ? (
+                <select
+                  value={formData.billingAddressSource}
+                  onChange={(e) => handleAddressSourceChange('billing', e.target.value as 'current' | 'parent')}
+                  className="text-sm px-2 py-1 border rounded-lg bg-white"
+                >
+                  <option value="parent">{parentCompany.name} (matično)</option>
+                  <option value="current">{company?.display_name || company?.name} (hčerinsko)</option>
+                </select>
+              ) : (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.useSameAsBilling}
+                    onChange={(e) => updateField('useSameAsBilling', e.target.checked)}
+                    className="rounded"
+                  />
+                  Enak kot za dostavo
+                </label>
+              )}
             </div>
-            {!formData.useSameAsBilling && (
+            {(parentCompany || !formData.useSameAsBilling) && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">Ulica</label>
@@ -1020,8 +1148,9 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
                     <input
                       type="text"
                       value={formData.billingPostal}
-                      onChange={(e) => updateField('billingPostal', e.target.value)}
+                      onChange={(e) => handlePostalChange('billingPostal', 'billingCity', e.target.value)}
                       className={getInputClass(formData.billingPostal)}
+                      maxLength={4}
                     />
                   </div>
                   <div>
@@ -1050,8 +1179,10 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
                   className="px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="">Izberi...</option>
-                  {company.contacts.map(c => (
-                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                  {allContacts.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name}{c.companyLabel ? ` (${c.companyLabel})` : ''}
+                    </option>
                   ))}
                 </select>
                 <input
@@ -1104,8 +1235,10 @@ export default function ContractModal({ isOpen, onClose, company, offer, onContr
                     className="px-3 py-2 border rounded-lg text-sm"
                   >
                     <option value="">Izberi...</option>
-                    {company.contacts.map(c => (
-                      <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                    {allContacts.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.first_name} {c.last_name}{c.companyLabel ? ` (${c.companyLabel})` : ''}
+                      </option>
                     ))}
                   </select>
                   <input

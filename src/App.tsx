@@ -2,10 +2,13 @@ import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { queryClient } from "./lib/queryClient";
+import { useNetworkStatus } from "./hooks/useNetworkStatus";
 
 // Eager loaded - small pages needed immediately
 import Index from "./pages/Index";
@@ -34,11 +37,24 @@ const PageLoader = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
+// Offline banner component
+const OfflineBanner = () => {
+  const isOnline = useNetworkStatus();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+  if (isOnline) return null;
+
+  return (
+    <div className="bg-red-500 text-white text-center py-2 fixed top-0 left-0 right-0 z-50 text-sm">
+      Ni internetne povezave - nekatere funkcije morda ne bodo delovale
+    </div>
+  );
+};
+
+// App content with hooks
+const AppContent = () => {
+  return (
+    <>
+      <OfflineBanner />
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -118,8 +134,18 @@ const App = () => (
           </Suspense>
         </AuthProvider>
       </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+    </>
+  );
+};
+
+const App = () => (
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppContent />
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

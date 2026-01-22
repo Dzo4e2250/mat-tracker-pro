@@ -3,7 +3,7 @@
  * @description Modal za dodajanje nove stranke (podjetja) s kontaktno osebo
  */
 
-import { X, QrCode } from 'lucide-react';
+import { X, QrCode, GitBranch } from 'lucide-react';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 
 // Form data za novo stranko
@@ -22,6 +22,14 @@ export interface AddCompanyFormData {
   contactRole?: string;
   contactPhone?: string;
   contactEmail?: string;
+  parentCompanyId?: string | null;
+}
+
+// Tip za izbiro matičnega podjetja
+interface ParentCompanyOption {
+  id: string;
+  name: string;
+  display_name?: string;
 }
 
 interface AddCompanyModalProps {
@@ -33,6 +41,7 @@ interface AddCompanyModalProps {
   onSubmit: () => void;
   onOpenQRScanner: () => void;
   onClose: () => void;
+  availableParentCompanies?: ParentCompanyOption[];
 }
 
 /**
@@ -51,6 +60,7 @@ export default function AddCompanyModal({
   onSubmit,
   onOpenQRScanner,
   onClose,
+  availableParentCompanies = [],
 }: AddCompanyModalProps) {
 
   const updateField = (field: keyof AddCompanyFormData, value: string | boolean) => {
@@ -236,6 +246,34 @@ export default function AddCompanyModal({
               </div>
             )}
           </div>
+
+          {/* Hierarhija podjetja */}
+          {availableParentCompanies.length > 0 && (
+            <div className="bg-purple-50 rounded-lg p-3">
+              <h4 className="font-medium text-sm text-purple-700 flex items-center gap-2 mb-2">
+                <GitBranch size={16} />
+                Hierarhija podjetja
+              </h4>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Matično podjetje</label>
+                <select
+                  value={formData.parentCompanyId || ''}
+                  onChange={(e) => updateField('parentCompanyId', e.target.value || null)}
+                  className="w-full p-3 border rounded-lg bg-white"
+                >
+                  <option value="">Brez matičnega podjetja</option>
+                  {availableParentCompanies.map(company => (
+                    <option key={company.id} value={company.id}>
+                      {company.display_name || company.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Izberi če je to hčerinsko podjetje / podružnica
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="border-t pt-4">
             <h4 className="font-medium mb-3">Kontaktna oseba</h4>

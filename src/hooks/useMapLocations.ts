@@ -30,10 +30,12 @@ export interface MapLocationGroup {
 }
 
 // Helper to determine the marker status
+// PRIORITETA: contract_signed (zelena) > waiting_driver (vijolična) > dirty > on_test
 function getMarkerStatus(cycle: any): MapMarkerStatus {
+  // Pogodba podpisana ima najvišjo prioriteto - zelena
+  if (cycle.contract_signed) return 'contract_signed';
   if (cycle.status === 'waiting_driver') return 'waiting_driver';
   if (cycle.status === 'dirty') return 'dirty';
-  if (cycle.contract_signed) return 'contract_signed';
   return 'on_test';
 }
 
