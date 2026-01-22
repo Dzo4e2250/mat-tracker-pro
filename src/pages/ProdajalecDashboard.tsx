@@ -682,11 +682,12 @@ export default function ProdajalecDashboard() {
             </div>
           </div>
           <button
-            onClick={() => signOut()}
-            className="p-2 hover:bg-blue-700 rounded"
-            title="Odjava"
+            onClick={() => setView('tracking')}
+            className={`p-2 rounded flex items-center gap-1 ${view === 'tracking' ? 'bg-blue-700' : 'hover:bg-blue-700'}`}
+            title="Moja pot"
           >
-            <LogOut size={20} />
+            <Navigation size={20} />
+            <span className="text-sm hidden sm:inline">Pot</span>
           </button>
         </div>
       </div>
