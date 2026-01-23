@@ -22,6 +22,3 @@ Dockerfile izvaja `npm run build` na strežniku iz source kode. Če kopiramo sam
 ## Pomembno
 - Container MORA biti na `npm_npm_network` omrežju, sicer NPM ne more doseči containerja in vrne 502 Bad Gateway
 - Ime containerja mora biti `mat-tracker-pro` (tako je nastavljeno v NPM konfiguraciji)
-
-## Screenshoti
-- Uporabnik shranjuje screenshote v: ~/Pictures/Screenshots
