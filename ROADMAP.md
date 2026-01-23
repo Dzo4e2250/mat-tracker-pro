@@ -1,120 +1,108 @@
 # Mat Tracker Pro - Načrt razvoja
 
-## Danes opravljeno (2026-01-22)
+## Trenutno stanje: 7.5/10
 
-### Hierarhija podjetij
-- [x] Dodano `parent_company_id` polje v companies tabelo
-- [x] Migracija za hierarhijo podjetij
-- [x] Prikaz hierarhije v CompanyCard (oznake matično/hčerinsko)
-- [x] Izbira matičnega podjetja pri ustvarjanju/urejanju podjetja
-- [x] ContractModal - izbira naslova za dostavo/račun iz hierarhije
-- [x] Združevanje kontaktov iz celotne hierarhije v pogodbi
+Aplikacija je funkcionalna in v produkciji. Ta dokument vsebuje načrt za izboljšave.
 
-### GPS Tracking (Moja pot)
-- [x] Tabela `gps_tracking_sessions` z RLS politikami
-- [x] TrackingView komponenta
-- [x] useGpsTracking hook
-- [x] Gumb "Pot" v zgornjem navbaru (namesto logout)
+---
 
-### Ostale izboljšave
+## Nedavno opravljeno
+
+### 2026-01-22/23
+- [x] Hierarhija podjetij (parent_company_id)
+- [x] GPS Tracking (Moja pot) - TrackingView, useGpsTracking
+- [x] Potni nalogi - TravelLogView, useTravelLog
+- [x] Gumb "Pot" v zgornjem navbaru
 - [x] Error boundary komponenta
 - [x] Network status hook
 - [x] Alphabet sidebar za kontakte
-- [x] Izboljšani filtri
+- [x] Izboljšani filtri v Contacts
+
+### Refaktorirano
+- [x] ProdajalecDashboard - modali izvlečeni v /modals/
+- [x] MapView izvlečen v samostojno komponento
+- [x] useCameraScanner hook izvlečen
+
+---
+
+## Tehnični dolg (KRITIČNO)
+
+| Datoteka | Problem | Prioriteta |
+|----------|---------|------------|
+| `Contacts.tsx` | 3392 vrstic | **KRITIČNO** |
+| `ProdajalecDashboard.tsx` | Duplikati funkcij | VISOKA |
+| `SellerPage.tsx` | 1214 vrstic | SREDNJA |
+| `ContractModal.tsx` | 1570 vrstic | SREDNJA |
+| `tsconfig.json` | Loose mode | VISOKA |
+| Testi | 0 testov | VISOKA |
 
 ---
 
 ## Naslednji koraki
 
-### Prioriteta 1 - Kritično
+### FAZA 1 - Čiščenje kode (ta teden)
 
-#### Push notifikacije
-- [ ] Service worker setup
-- [ ] Notification permissions
-- [ ] Backend trigger za opomnike
-- [ ] UI za upravljanje notifikacij
+1. **Refaktoriraj Contacts.tsx**
+   - Izvleci: CompanyList, CompanyFilters, ContactModals
+   - Uporabi vzorec iz ProdajalecDashboard
 
-#### Offline podpora
-- [ ] Service worker caching strategija
-- [ ] IndexedDB za lokalne podatke
-- [ ] Sync queue za offline akcije
-- [ ] UI indikator offline stanja
+2. **Počisti ProdajalecDashboard**
+   - Odstrani duplikate: getTimeRemaining, formatCountdown
+   - Odstrani lokalne konstante: SLOVENIA_CENTER, DEFAULT_ZOOM
 
-### Prioriteta 2 - Pomembno
+3. **TypeScript strict mode**
+   - Vklopi: noImplicitAny, strictNullChecks
+   - Popravi napake
 
-#### Testi
-- [ ] Setup Jest + React Testing Library
-- [ ] Unit testi za `src/utils/priceList.ts`
-- [ ] Unit testi za `src/utils/postalCodes.ts`
-- [ ] Integration testi za hlavne hooks
-- [ ] E2E testi za kritične user flows
+### FAZA 2 - Stabilnost
 
-#### TypeScript cleanup
-- [ ] Odstrani vse `as any` (trenutno ~50+)
-- [ ] Definiraj tipe za API responses
-- [ ] Vklopi strict mode
+4. **Dodaj teste**
+   - Vitest + React Testing Library
+   - Testi za: priceList.ts, postalCodes.ts
+   - Integration testi za hooks
 
-#### Reporti in analytics
-- [ ] Export kontaktov v CSV/Excel
-- [ ] Export ponudb v PDF
-- [ ] Dashboard z grafi (recharts)
-- [ ] KPI tracking za prodajalce
+5. **Error tracking**
+   - Implementiraj Sentry
+   - Dokonči ErrorBoundary TODO
 
-### Prioriteta 3 - Nice to have
+### FAZA 3 - Nove funkcije
 
-#### UX izboljšave
-- [ ] Dark mode
-- [ ] Keyboard shortcuts (Ctrl+K za search, etc.)
-- [ ] Bulk operacije (izbriši več, uredi več)
-- [ ] Fuzzy search
-- [ ] Drag & drop za sortiranje
+6. **Push notifikacije**
+   - Service worker
+   - Notification permissions
+   - Backend trigger za opomnike
 
-#### Integracije
-- [ ] Google Calendar sync za opomnike
-- [ ] Email integration (SMTP za direktno pošiljanje)
-- [ ] e-Račun integracija
-
-#### Mobile app
-- [ ] React Native setup
-- [ ] Shared business logic
-- [ ] Native GPS tracking
-- [ ] Native QR scanner
+7. **Offline podpora**
+   - Service worker caching
+   - IndexedDB za lokalne podatke
+   - Sync queue
 
 ---
 
-## Tehnični dolg
+## Arhitektura
 
-| Datoteka | Problem | Rešitev |
-|----------|---------|---------|
-| `ContractModal.tsx` | 1500+ vrstic | Razbij na manjše komponente |
-| `Contacts.tsx` | 3300+ vrstic | Razbij na manjše komponente |
-| `ProdajalecDashboard.tsx` | Veliko `as any` | Definiraj ustrezne tipe |
-| Various | `console.log` v produkciji | Odstrani ali uporabi logger |
-
----
-
-## Arhitekturne izboljšave
-
-### Kratkoročno
-1. **Centraliziran error handling** - že začeto z ErrorBoundary
-2. **Loading states** - konsistenten pristop (skeleton loaders)
-3. **Form validation** - zod ali yup schema validation
-
-### Dolgoročno
-1. **Monorepo** - če pride mobile app (Turborepo)
-2. **API layer** - če Supabase postane omejitveni faktor
-3. **Caching strategy** - Redis za session data
+```
+src/
+├── components/       # UI komponente (48)
+│   └── ui/           # shadcn/ui (45)
+├── hooks/            # Data hooks (20+)
+├── contexts/         # Auth context
+├── integrations/     # Supabase
+├── lib/              # Query client, utils
+├── utils/            # Helpers
+└── pages/
+    ├── inventar/     # Admin (15 strani)
+    ├── prodajalec/   # Salesperson portal
+    │   ├── components/
+    │   ├── hooks/
+    │   └── utils/
+    └── contacts/     # CRM
+```
 
 ---
 
-## Beležke
+## Deployment
 
-### Supabase
-- Schema: `mat_tracker`
-- Self-hosted na: `api-matpro.ristov.xyz`
-- DB container: `supabase-db`
-
-### Deploy
 ```bash
 # Sync + build + deploy
 rsync -avz --exclude 'node_modules' --exclude '.git' \
@@ -125,23 +113,11 @@ rsync -avz --exclude 'node_modules' --exclude '.git' \
 ssh -i ~/.ssh/id_ed25519 root@148.230.109.77 \
   "cd /root/mat-tracker-pro && \
    docker build -t mat-tracker-pro . && \
-   docker stop mat-tracker-pro && \
-   docker rm mat-tracker-pro && \
+   docker stop mat-tracker-pro && docker rm mat-tracker-pro && \
    docker run -d --name mat-tracker-pro \
      --network npm_npm_network -p 3000:80 mat-tracker-pro"
 ```
 
-### Migracije
-```bash
-# Pognati SQL migracijo
-ssh -i ~/.ssh/id_ed25519 root@148.230.109.77 \
-  "docker exec supabase-db psql -U postgres -d postgres -c \"<SQL>\""
-
-# Reload PostgREST schema
-ssh -i ~/.ssh/id_ed25519 root@148.230.109.77 \
-  "docker restart supabase-rest"
-```
-
 ---
 
-*Zadnja posodobitev: 2026-01-22*
+*Zadnja posodobitev: 2026-01-23*

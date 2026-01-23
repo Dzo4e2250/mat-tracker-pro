@@ -28,3 +28,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User data files
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.docx
+*.doc
