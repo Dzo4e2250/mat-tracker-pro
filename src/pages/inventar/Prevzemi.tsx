@@ -1,3 +1,8 @@
+/**
+ * @file Prevzemi.tsx
+ * @description Stran za upravljanje prevzemov umazanih predpražnikov
+ */
+
 import { useState, useMemo } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { InventarSidebar } from '@/components/InventarSidebar';
@@ -26,27 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2,
   Truck,
@@ -56,12 +41,6 @@ import {
   Plus,
   ExternalLink,
   CheckCircle,
-  Clock,
-  Play,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  Printer,
   Package,
   FileDown,
   Calendar,
@@ -69,27 +48,23 @@ import {
   ChevronRight,
   TrendingUp,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { useDirtyMatsByUser } from '@/hooks/useInventoryStats';
-import { useProfilesByRole } from '@/hooks/useProfiles';
-import { useDrivers } from '@/hooks/useDrivers';
-import {
-  useDriverPickups,
-  useUpdatePickupStatus,
-  useMarkItemPickedUp,
-  useCompletePickup,
-  useDeletePickup,
-  generatePickupPDF,
-  generateMapsUrl,
-  DriverPickup,
-  PickupStatus,
-} from '@/hooks/useDriverPickups';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { generatePickupPDF, generateMapsUrl, type DriverPickup } from '@/hooks/useDriverPickups';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  PickupCard,
+  CreatePickupDialog,
+  ConfirmDialog,
+  calculateHistoryStats,
+  exportHistoryToExcel,
+  generateMapsUrlFromMats,
+  usePrevzemiQueries,
+  usePrevzemiMutations,
+  useFilteredData,
+  type StatusFilter,
+} from './prevzemi';
 
-type StatusFilter = 'all' | 'dirty' | 'waiting_driver';
+const HISTORY_PAGE_SIZE = 10;
 
 export default function Prevzemi() {
   const [activeTab, setActiveTab] = useState<'cakajo' | 'aktivni' | 'zakljuceni'>('cakajo');
@@ -112,37 +87,37 @@ export default function Prevzemi() {
   const [historyDateFrom, setHistoryDateFrom] = useState<string>('');
   const [historyDateTo, setHistoryDateTo] = useState<string>('');
   const [historyPage, setHistoryPage] = useState(1);
-  const HISTORY_PAGE_SIZE = 10;
 
   const { profile } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: sellers } = useProfilesByRole('prodajalec');
-  const { data: drivers } = useDrivers();
-  const { data: dirtyMats, isLoading: loadingDirty } = useDirtyMatsByUser();
-  const { data: allPickups, isLoading: loadingPickups } = useDriverPickups();
+  // Data queries
+  const { sellers, drivers, dirtyMats, allPickups, isLoading, loadingPickups } = usePrevzemiQueries();
 
-  const activePickups = allPickups?.filter(p => p.status === 'pending' || p.status === 'in_progress') || [];
-  const allCompletedPickups = allPickups?.filter(p => p.status === 'completed') || [];
+  // Mutations
+  const {
+    createPickup,
+    updateStatus,
+    markItemPickedUp,
+    completePickup,
+    deletePickup,
+    handleStartPickup,
+    handleCompletePickup,
+    handleDeletePickup,
+    handleToggleItem,
+  } = usePrevzemiMutations();
 
-  // Filter completed pickups by date
-  const filteredCompletedPickups = useMemo(() => {
-    let filtered = allCompletedPickups;
-    if (historyDateFrom) {
-      const fromDate = new Date(historyDateFrom);
-      fromDate.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(p => p.completedAt && new Date(p.completedAt) >= fromDate);
-    }
-    if (historyDateTo) {
-      const toDate = new Date(historyDateTo);
-      toDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(p => p.completedAt && new Date(p.completedAt) <= toDate);
-    }
-    return filtered;
-  }, [allCompletedPickups, historyDateFrom, historyDateTo]);
+  // Filtered data
+  const {
+    activePickups,
+    allCompletedPickups,
+    filteredCompletedPickups,
+    filteredDirtyData,
+    allMats,
+    totalCounts,
+  } = useFilteredData(dirtyMats, allPickups, selectedSeller, statusFilter, historyDateFrom, historyDateTo);
 
-  // Pagination for completed pickups
+  // Pagination
   const totalHistoryPages = Math.ceil(filteredCompletedPickups.length / HISTORY_PAGE_SIZE);
   const paginatedCompletedPickups = filteredCompletedPickups.slice(
     (historyPage - 1) * HISTORY_PAGE_SIZE,
@@ -150,65 +125,7 @@ export default function Prevzemi() {
   );
 
   // History statistics
-  const historyStats = useMemo(() => {
-    if (allCompletedPickups.length === 0) return null;
-
-    let totalItems = 0;
-    let totalDurationMs = 0;
-    let validDurations = 0;
-
-    allCompletedPickups.forEach(pickup => {
-      totalItems += pickup.items.length;
-      if (pickup.createdAt && pickup.completedAt) {
-        const duration = new Date(pickup.completedAt).getTime() - new Date(pickup.createdAt).getTime();
-        if (duration > 0) {
-          totalDurationMs += duration;
-          validDurations++;
-        }
-      }
-    });
-
-    const avgDurationMs = validDurations > 0 ? totalDurationMs / validDurations : 0;
-    const avgDurationDays = Math.round(avgDurationMs / (1000 * 60 * 60 * 24) * 10) / 10;
-
-    return {
-      totalPickups: allCompletedPickups.length,
-      totalItems,
-      avgDurationDays,
-    };
-  }, [allCompletedPickups]);
-
-  const updateStatus = useUpdatePickupStatus();
-  const markItemPickedUp = useMarkItemPickedUp();
-  const completePickup = useCompletePickup();
-  const deletePickup = useDeletePickup();
-
-  // Filter dirty mats
-  const filteredDirtyData = useMemo(() => {
-    if (!dirtyMats) return [];
-    return dirtyMats
-      .filter(seller => selectedSeller === 'all' || seller.sellerId === selectedSeller)
-      .map(seller => ({
-        ...seller,
-        mats: seller.mats.filter(mat => statusFilter === 'all' || mat.status === statusFilter),
-      }))
-      .filter(seller => seller.mats.length > 0);
-  }, [dirtyMats, selectedSeller, statusFilter]);
-
-  const allMats = useMemo(() => filteredDirtyData.flatMap(seller => seller.mats), [filteredDirtyData]);
-
-  // Counts
-  const totalCounts = useMemo(() => {
-    if (!dirtyMats) return { dirty: 0, waitingDriver: 0, total: 0 };
-    let dirty = 0, waitingDriver = 0;
-    dirtyMats.forEach(seller => {
-      seller.mats.forEach(mat => {
-        if (mat.status === 'dirty') dirty++;
-        if (mat.status === 'waiting_driver') waitingDriver++;
-      });
-    });
-    return { dirty, waitingDriver, total: dirty + waitingDriver };
-  }, [dirtyMats]);
+  const historyStats = useMemo(() => calculateHistoryStats(allCompletedPickups), [allCompletedPickups]);
 
   // Selection handlers
   const toggleMat = (cycleId: string) => {
@@ -222,53 +139,6 @@ export default function Prevzemi() {
   const selectAll = () => setSelectedMats(new Set(allMats.map(mat => mat.cycleId)));
   const clearSelection = () => setSelectedMats(new Set());
 
-  // Create pickup mutation
-  const createPickup = useMutation({
-    mutationFn: async (cycleIds: string[]) => {
-      // Find driver name if selected
-      const driverName = selectedDriver ? drivers?.find(d => d.id === selectedDriver)?.name : null;
-
-      const { data: pickup, error: pickupError } = await supabase
-        .from('driver_pickups')
-        .insert({
-          status: 'pending',
-          scheduled_date: scheduledDate || null,
-          assigned_driver: driverName || null,
-          notes: pickupNotes || null,
-          created_by: profile?.id,
-        })
-        .select()
-        .single();
-      if (pickupError) throw pickupError;
-
-      const items = cycleIds.map(cycleId => ({ pickup_id: pickup.id, cycle_id: cycleId, picked_up: false }));
-      const { error: itemsError } = await supabase.from('driver_pickup_items').insert(items);
-      if (itemsError) throw itemsError;
-
-      const { error: updateError } = await supabase
-        .from('cycles')
-        .update({ status: 'waiting_driver', pickup_requested_at: new Date().toISOString() })
-        .in('id', cycleIds);
-      if (updateError) throw updateError;
-
-      return pickup;
-    },
-    onSuccess: () => {
-      toast({ title: 'Prevzem ustvarjen', description: `Ustvarjen prevzem za ${selectedMats.size} predpražnikov.` });
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['driver-pickups'] });
-      setSelectedMats(new Set());
-      setIsCreatePickupOpen(false);
-      setPickupNotes('');
-      setScheduledDate('');
-      setSelectedDriver('');
-      setActiveTab('aktivni');
-    },
-    onError: (error: any) => {
-      toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
-    },
-  });
-
   // Pickup handlers
   const toggleExpand = (pickupId: string) => {
     setExpandedPickups(prev => {
@@ -278,41 +148,28 @@ export default function Prevzemi() {
     });
   };
 
-  const handleStartPickup = async (pickupId: string) => {
-    try {
-      await updateStatus.mutateAsync({ pickupId, status: 'in_progress' });
-      toast({ title: 'Prevzem začet', description: 'Prevzem je bil označen kot v teku.' });
-    } catch (error: any) {
-      toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const handleCompletePickup = async (pickupId: string) => {
-    try {
-      await completePickup.mutateAsync(pickupId);
-      toast({ title: 'Prevzem zaključen', description: 'Prevzem je bil uspešno zaključen.' });
-      setConfirmComplete(null);
-    } catch (error: any) {
-      toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const handleDeletePickup = async (pickupId: string) => {
-    try {
-      await deletePickup.mutateAsync(pickupId);
-      toast({ title: 'Prevzem izbrisan', description: 'Prevzem je bil izbrisan.' });
-      setConfirmDelete(null);
-    } catch (error: any) {
-      toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const handleToggleItem = async (itemId: string, currentValue: boolean) => {
-    try {
-      await markItemPickedUp.mutateAsync({ itemId, pickedUp: !currentValue });
-    } catch (error: any) {
-      toast({ title: 'Napaka', description: error.message, variant: 'destructive' });
-    }
+  const handleCreatePickup = () => {
+    const driverName = selectedDriver ? drivers?.find(d => d.id === selectedDriver)?.name ?? null : null;
+    createPickup.mutate(
+      {
+        cycleIds: Array.from(selectedMats),
+        driverName,
+        scheduledDate,
+        notes: pickupNotes,
+        createdBy: profile?.id,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: 'Prevzem ustvarjen', description: `Ustvarjen prevzem za ${selectedMats.size} predpražnikov.` });
+          setSelectedMats(new Set());
+          setIsCreatePickupOpen(false);
+          setPickupNotes('');
+          setScheduledDate('');
+          setSelectedDriver('');
+          setActiveTab('aktivni');
+        },
+      }
+    );
   };
 
   const handlePrint = (pickup: DriverPickup) => {
@@ -331,160 +188,26 @@ export default function Prevzemi() {
     else toast({ title: 'Ni naslovov', description: 'Nobena lokacija nima naslova.', variant: 'destructive' });
   };
 
-  const generateMapsUrlFromSelection = () => {
-    const selectedMatsList = allMats.filter(mat => selectedMats.has(mat.cycleId));
-    const addresses = selectedMatsList.filter(mat => mat.companyAddress).map(mat => encodeURIComponent(mat.companyAddress!));
-    return addresses.length > 0 ? `https://www.google.com/maps/dir/${addresses.join('/')}` : null;
-  };
-
-  // Export history to Excel
   const handleExportHistory = () => {
     if (filteredCompletedPickups.length === 0) {
       toast({ title: 'Ni podatkov', description: 'Ni zaključenih prevzemov za izvoz.', variant: 'destructive' });
       return;
     }
-
-    const exportData: any[] = [];
-    filteredCompletedPickups.forEach(pickup => {
-      pickup.items.forEach(item => {
-        exportData.push({
-          'ID Prevzema': pickup.id.slice(0, 8),
-          'Datum ustvarjanja': pickup.createdAt ? new Date(pickup.createdAt).toLocaleDateString('sl-SI') : '-',
-          'Datum zaključka': pickup.completedAt ? new Date(pickup.completedAt).toLocaleDateString('sl-SI') : '-',
-          'QR Koda': item.qrCode,
-          'Tip predpražnika': item.matTypeName,
-          'Podjetje': item.companyName || '-',
-          'Naslov': item.companyAddress || '-',
-          'Kontakt': item.contactName || '-',
-          'Telefon': item.contactPhone || '-',
-          'Opombe': pickup.notes || '-',
-        });
-      });
-    });
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Zgodovina prevzemov');
-
-    const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `zgodovina_prevzemov_${dateStr}.xlsx`);
-
-    toast({ title: 'Izvoz uspešen', description: `Izvoženo ${exportData.length} zapisov.` });
+    const count = exportHistoryToExcel(filteredCompletedPickups);
+    toast({ title: 'Izvoz uspešen', description: `Izvoženo ${count} zapisov.` });
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const onCompletePickup = async (pickupId: string) => {
+    const success = await handleCompletePickup(pickupId);
+    if (success) setConfirmComplete(null);
   };
 
-  const getStatusBadge = (status: PickupStatus) => {
-    const configs = {
-      pending: { className: 'bg-yellow-100 text-yellow-800', icon: Clock, label: 'Čaka' },
-      in_progress: { className: 'bg-blue-100 text-blue-800', icon: Play, label: 'V teku' },
-      completed: { className: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Zaključen' },
-    };
-    const config = configs[status];
-    return (
-      <Badge variant="secondary" className={config.className}>
-        <config.icon className="h-3 w-3 mr-1" />
-        {config.label}
-      </Badge>
-    );
+  const onDeletePickup = async (pickupId: string) => {
+    const success = await handleDeletePickup(pickupId);
+    if (success) setConfirmDelete(null);
   };
 
-  const renderPickupCard = (pickup: DriverPickup, showActions = true) => {
-    const isExpanded = expandedPickups.has(pickup.id);
-    const pickedUpCount = pickup.items.filter(i => i.pickedUp).length;
-
-    return (
-      <Card key={pickup.id} className="mb-4">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CardTitle className="text-lg">Prevzem #{pickup.id.slice(0, 8)}</CardTitle>
-              {getStatusBadge(pickup.status)}
-            </div>
-            <div className="flex items-center gap-2">
-              {showActions && pickup.status !== 'completed' && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenMaps(pickup)}>
-                    <ExternalLink className="h-4 w-4 mr-1" />Pot
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handlePrint(pickup)}>
-                    <Printer className="h-4 w-4 mr-1" />Natisni
-                  </Button>
-                  {pickup.status === 'pending' && (
-                    <Button size="sm" onClick={() => handleStartPickup(pickup.id)} disabled={updateStatus.isPending}>
-                      <Play className="h-4 w-4 mr-1" />Začni
-                    </Button>
-                  )}
-                  {pickup.status === 'in_progress' && (
-                    <Button size="sm" onClick={() => setConfirmComplete(pickup.id)} disabled={completePickup.isPending}>
-                      <CheckCircle className="h-4 w-4 mr-1" />Zaključi
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setConfirmDelete(pickup.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => toggleExpand(pickup.id)}>
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-2">
-            {pickup.assignedDriver && <span><strong>Dostavljalec:</strong> {pickup.assignedDriver}</span>}
-            <span><strong>Datum:</strong> {formatDate(pickup.scheduledDate)}</span>
-            <span><strong>Predpražniki:</strong> {pickedUpCount}/{pickup.items.length}</span>
-            {pickup.notes && <span><strong>Opombe:</strong> {pickup.notes}</span>}
-          </div>
-        </CardHeader>
-        {isExpanded && (
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">{pickup.status !== 'completed' && 'Pobrano'}</TableHead>
-                  <TableHead>QR koda</TableHead>
-                  <TableHead>Tip</TableHead>
-                  <TableHead>Podjetje / Naslov</TableHead>
-                  <TableHead>Kontakt</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pickup.items.map(item => (
-                  <TableRow key={item.id} className={item.pickedUp ? 'bg-green-50' : ''}>
-                    <TableCell>
-                      {pickup.status !== 'completed' ? (
-                        <Checkbox checked={item.pickedUp} onCheckedChange={() => handleToggleItem(item.id, item.pickedUp)} disabled={markItemPickedUp.isPending} />
-                      ) : (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono">{item.qrCode}</TableCell>
-                    <TableCell>{item.matTypeName}</TableCell>
-                    <TableCell>
-                      <div className="font-medium">{item.companyName || '-'}</div>
-                      {item.companyAddress && <div className="flex items-center gap-1 text-sm text-gray-500"><MapPin className="h-3 w-3" />{item.companyAddress}</div>}
-                    </TableCell>
-                    <TableCell>
-                      {item.contactName && <div className="text-sm">{item.contactName}</div>}
-                      {item.contactPhone && <a href={`tel:${item.contactPhone}`} className="flex items-center gap-1 text-sm text-blue-600 hover:underline"><Phone className="h-3 w-3" />{item.contactPhone}</a>}
-                      {!item.contactName && !item.contactPhone && '-'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        )}
-      </Card>
-    );
-  };
-
-  const isLoading = loadingDirty || loadingPickups;
-  const mapsUrl = generateMapsUrlFromSelection();
+  const mapsUrl = generateMapsUrlFromMats(allMats, selectedMats);
 
   return (
     <SidebarProvider>
@@ -553,7 +276,6 @@ export default function Prevzemi() {
 
             {/* Tab: Za prevzem */}
             <TabsContent value="cakajo">
-              {/* Filters */}
               <Card className="mb-4">
                 <CardContent className="py-4">
                   <div className="flex flex-wrap items-center gap-4">
@@ -670,7 +392,26 @@ export default function Prevzemi() {
               ) : activePickups.length === 0 ? (
                 <Card><CardContent className="py-12 text-center"><Truck className="mx-auto h-12 w-12 text-gray-400 mb-4" /><p className="text-gray-500">Ni aktivnih prevzemov.</p></CardContent></Card>
               ) : (
-                activePickups.map(pickup => renderPickupCard(pickup))
+                activePickups.map(pickup => (
+                  <PickupCard
+                    key={pickup.id}
+                    pickup={pickup}
+                    isExpanded={expandedPickups.has(pickup.id)}
+                    showActions={true}
+                    onToggleExpand={() => toggleExpand(pickup.id)}
+                    onStartPickup={() => handleStartPickup(pickup.id)}
+                    onCompletePickup={() => setConfirmComplete(pickup.id)}
+                    onDeletePickup={() => setConfirmDelete(pickup.id)}
+                    onToggleItem={handleToggleItem}
+                    onPrint={() => handlePrint(pickup)}
+                    onOpenMaps={() => handleOpenMaps(pickup)}
+                    isPending={{
+                      updateStatus: updateStatus.isPending,
+                      completePickup: completePickup.isPending,
+                      markItemPickedUp: markItemPickedUp.isPending,
+                    }}
+                  />
+                ))
               )}
             </TabsContent>
 
@@ -769,7 +510,15 @@ export default function Prevzemi() {
                 <Card><CardContent className="py-12 text-center"><CheckCircle className="mx-auto h-12 w-12 text-gray-400 mb-4" /><p className="text-gray-500">Ni zaključenih prevzemov.</p></CardContent></Card>
               ) : (
                 <>
-                  {paginatedCompletedPickups.map(pickup => renderPickupCard(pickup, false))}
+                  {paginatedCompletedPickups.map(pickup => (
+                    <PickupCard
+                      key={pickup.id}
+                      pickup={pickup}
+                      isExpanded={expandedPickups.has(pickup.id)}
+                      showActions={false}
+                      onToggleExpand={() => toggleExpand(pickup.id)}
+                    />
+                  ))}
 
                   {/* Pagination */}
                   {totalHistoryPages > 1 && (
@@ -803,81 +552,43 @@ export default function Prevzemi() {
           </Tabs>
 
           {/* Create Pickup Dialog */}
-          <Dialog open={isCreatePickupOpen} onOpenChange={setIsCreatePickupOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Ustvari prevzem</DialogTitle>
-                <DialogDescription>Ustvari nov prevzem za {selectedMats.size} izbranih predpražnikov.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="driver">Dostavljalec</Label>
-                  <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Izberi dostavljalca..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {drivers?.map(driver => (
-                        <SelectItem key={driver.id} value={driver.id}>
-                          {driver.name}
-                          {driver.region && <span className="text-gray-400 ml-2">({driver.region})</span>}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="scheduled_date">Datum prevzema</Label>
-                  <Input id="scheduled_date" type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Opombe</Label>
-                  <Textarea id="notes" placeholder="Dodatne opombe za šoferja..." value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreatePickupOpen(false)}>Prekliči</Button>
-                <Button onClick={() => createPickup.mutate(Array.from(selectedMats))} disabled={createPickup.isPending}>
-                  {createPickup.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Ustvari prevzem
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <CreatePickupDialog
+            isOpen={isCreatePickupOpen}
+            onClose={() => setIsCreatePickupOpen(false)}
+            selectedCount={selectedMats.size}
+            drivers={drivers}
+            selectedDriver={selectedDriver}
+            setSelectedDriver={setSelectedDriver}
+            scheduledDate={scheduledDate}
+            setScheduledDate={setScheduledDate}
+            notes={pickupNotes}
+            setNotes={setPickupNotes}
+            onSubmit={handleCreatePickup}
+            isPending={createPickup.isPending}
+          />
 
           {/* Complete Confirmation */}
-          <AlertDialog open={!!confirmComplete} onOpenChange={() => setConfirmComplete(null)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Zaključi prevzem?</AlertDialogTitle>
-                <AlertDialogDescription>S tem boste označili prevzem kot zaključen. Vsi predpražniki bodo označeni kot pobrani in QR kode bodo ponovno na voljo.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Prekliči</AlertDialogCancel>
-                <AlertDialogAction onClick={() => confirmComplete && handleCompletePickup(confirmComplete)} disabled={completePickup.isPending}>
-                  {completePickup.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Zaključi
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmDialog
+            isOpen={!!confirmComplete}
+            onClose={() => setConfirmComplete(null)}
+            onConfirm={() => confirmComplete && onCompletePickup(confirmComplete)}
+            isPending={completePickup.isPending}
+            title="Zaključi prevzem?"
+            description="S tem boste označili prevzem kot zaključen. Vsi predpražniki bodo označeni kot pobrani in QR kode bodo ponovno na voljo."
+            confirmText="Zaključi"
+          />
 
           {/* Delete Confirmation */}
-          <AlertDialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Izbriši prevzem?</AlertDialogTitle>
-                <AlertDialogDescription>S tem boste izbrisali prevzem. Predpražniki bodo vrnjeni v status "umazan".</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Prekliči</AlertDialogCancel>
-                <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => confirmDelete && handleDeletePickup(confirmDelete)} disabled={deletePickup.isPending}>
-                  {deletePickup.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Izbriši
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ConfirmDialog
+            isOpen={!!confirmDelete}
+            onClose={() => setConfirmDelete(null)}
+            onConfirm={() => confirmDelete && onDeletePickup(confirmDelete)}
+            isPending={deletePickup.isPending}
+            title="Izbriši prevzem?"
+            description="S tem boste izbrisali prevzem. Predpražniki bodo vrnjeni v status 'umazan'."
+            confirmText="Izbriši"
+            variant="destructive"
+          />
         </main>
       </div>
     </SidebarProvider>
