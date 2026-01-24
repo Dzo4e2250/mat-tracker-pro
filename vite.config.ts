@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8084,
+    proxy: {
+      '/api/vies': {
+        target: 'https://ec.europa.eu/taxation_customs/vies/rest-api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/vies/, ''),
+        secure: true,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

@@ -133,6 +133,31 @@ export function useCompleteReminder() {
   });
 }
 
+// Postpone reminder to a new date
+export function usePostponeReminder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ reminderId, newDate }: { reminderId: string; newDate: Date }) => {
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({
+          reminder_at: newDate.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', reminderId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+}
+
 // Delete a reminder
 export function useDeleteReminder() {
   const queryClient = useQueryClient();

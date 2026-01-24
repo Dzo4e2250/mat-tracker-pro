@@ -9,5 +9,9 @@ export { default as StatisticsView } from './StatisticsView';
 export { default as TrackingView } from './TrackingView';
 export { default as TravelLogView } from './TravelLogView';
 
+// Navigation
+export { SideMenu } from './SideMenu';
+export type { ViewType } from './SideMenu';
+
 // Modals
 export { MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal } from './modals';
