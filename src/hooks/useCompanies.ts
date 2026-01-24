@@ -78,6 +78,20 @@ export interface CompanyCycleHistory {
   } | null;
 }
 
+// Raw cycle data from Supabase query with profile join
+interface CycleHistoryQueryResult {
+  id: string;
+  status: string;
+  notes: string | null;
+  test_start_date: string | null;
+  test_end_date: string | null;
+  contract_signed: boolean;
+  profiles: {
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
+}
+
 export function useCompanyHistory(companyId: string | undefined) {
   return useQuery({
     queryKey: ['company-history', companyId],
@@ -101,7 +115,7 @@ export function useCompanyHistory(companyId: string | undefined) {
 
       if (error) throw error;
 
-      return (data || []).map((cycle: any) => ({
+      return (data || []).map((cycle: CycleHistoryQueryResult) => ({
         id: cycle.id,
         status: cycle.status,
         notes: cycle.notes,

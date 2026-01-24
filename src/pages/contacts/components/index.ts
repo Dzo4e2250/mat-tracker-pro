@@ -19,3 +19,6 @@ export { default as ContractConfirmDialog } from './ContractConfirmDialog';
 export { default as AlphabetSidebar } from './AlphabetSidebar';
 export { OfferModalWrapper } from './OfferModalWrapper';
 export { default as RoutePlannerModal } from './RoutePlannerModal';
+export { ContractModalContainer } from './ContractModalContainer';
+export { BottomNavigation } from './BottomNavigation';
+export { ContactsHeader } from './ContactsHeader';

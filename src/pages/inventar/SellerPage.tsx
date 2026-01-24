@@ -244,7 +244,7 @@ export default function SellerPage() {
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/inventar')}>
+                <Button variant="ghost" size="icon" aria-label="Nazaj na inventar" onClick={() => navigate('/inventar')}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div>

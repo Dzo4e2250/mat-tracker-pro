@@ -118,7 +118,7 @@ export default function PrintQR() {
       return printActiveQrCodes;
     }
 
-    let codes: string[] = [];
+    const codes: string[] = [];
     
     if (printOption === "all") {
       for (let i = seller.qr_start_num; i <= seller.qr_end_num; i++) {

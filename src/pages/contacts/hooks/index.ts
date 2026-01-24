@@ -10,3 +10,4 @@ export { useOfferEmail, tableStyles } from './useOfferEmail';
 export { useContactSelection } from './useContactSelection';
 export { useSentOffers } from './useSentOffers';
 export { useCompanyDetailHandlers } from './useCompanyDetailHandlers';
+export { useContactsModals } from './useContactsModals';

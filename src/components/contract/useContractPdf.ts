@@ -3,7 +3,7 @@
  * @description Hook za generiranje PDF pogodbe
  */
 
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, PDFFont, PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { ContractFormData } from './types';
 
@@ -11,8 +11,8 @@ import type { ContractFormData } from './types';
 const DEBUG_COORDINATES = false;
 
 interface PdfHelpers {
-  font: any;
-  fontBold: any;
+  font: PDFFont;
+  fontBold: PDFFont;
   height: number;
   fontSize: number;
   smallFontSize: number;
@@ -20,14 +20,14 @@ interface PdfHelpers {
 
 // Helper za risanje teksta
 function drawText(
-  page: any,
+  page: PDFPage,
   text: string,
   x: number,
   y: number,
   { font, height, fontSize }: PdfHelpers,
   size = fontSize,
   bold = false,
-  fontBold?: any
+  fontBold?: PDFFont
 ) {
   if (!text) return;
   page.drawText(text, {
@@ -41,7 +41,7 @@ function drawText(
 
 // Helper za tekst z prelomom vrstice
 function drawWrappedText(
-  page: any,
+  page: PDFPage,
   text: string,
   x: number,
   y: number,
@@ -87,7 +87,7 @@ function drawWrappedText(
 
 // Helper za checkbox X
 function drawCheckbox(
-  page: any,
+  page: PDFPage,
   x: number,
   y: number,
   checked: boolean,
@@ -106,7 +106,7 @@ function drawCheckbox(
 
 // Helper za desno poravnan tekst
 function drawTextRight(
-  page: any,
+  page: PDFPage,
   text: string,
   rightX: number,
   y: number,
@@ -125,7 +125,7 @@ function drawTextRight(
 }
 
 // Debug grid za kalibracijo
-function drawDebugGrid(page: any, font: any, height: number, width: number) {
+function drawDebugGrid(page: PDFPage, font: PDFFont, height: number, width: number) {
   const gridColor = rgb(1, 0, 0);
 
   for (let y = 0; y <= 842; y += 25) {

@@ -299,6 +299,7 @@ export default function AccountsManagement() {
             <Button
               variant="destructive"
               size="icon"
+              aria-label="Izbriši uporabnika"
               onClick={() => setDeletingUser(user)}
             >
               <Trash2 className="h-4 w-4" />

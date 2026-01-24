@@ -234,6 +234,7 @@ export default function FreeCodes() {
                               <Button
                                 variant="outline"
                                 size="icon"
+                                aria-label="Zmanjšaj število"
                                 onClick={() => setNewCodeCount(Math.max(1, newCodeCount - 1))}
                               >
                                 -
@@ -249,6 +250,7 @@ export default function FreeCodes() {
                               <Button
                                 variant="outline"
                                 size="icon"
+                                aria-label="Povečaj število"
                                 onClick={() => setNewCodeCount(Math.min(100, newCodeCount + 1))}
                               >
                                 +

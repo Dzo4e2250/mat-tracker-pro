@@ -136,7 +136,7 @@ export function useSellerDirtyMats(sellerId: string | undefined) {
 
       // Get company contacts as fallback for cycles without direct contact
       const companyIds = [...new Set((cycles || []).filter(c => c.company_id && !c.contacts).map(c => c.company_id))];
-      let companyContacts: Record<string, { first_name: string; last_name: string; phone: string }> = {};
+      const companyContacts: Record<string, { first_name: string; last_name: string; phone: string }> = {};
 
       if (companyIds.length > 0) {
         const { data: contacts } = await supabase
