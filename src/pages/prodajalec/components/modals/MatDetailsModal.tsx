@@ -85,6 +85,12 @@ export default function MatDetailsModal({
         await onUpdateLocation(cycle.id, coords.lat, coords.lng);
         showToast('Lokacija posodobljena');
         setEditingLocation(false);
+        // Update local cycle state to show changes immediately
+        onUpdateCycle({
+          ...cycle,
+          location_lat: coords.lat,
+          location_lng: coords.lng,
+        } as CycleWithRelations);
       } catch {
         showToast('Napaka pri posodabljanju lokacije', 'destructive');
       }
