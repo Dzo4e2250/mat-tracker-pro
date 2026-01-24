@@ -58,20 +58,38 @@ export default function MatDetailsModal({
 }: MatDetailsModalProps) {
   // Local editing state
   const [editingLocation, setEditingLocation] = useState(false);
-  const [newLocationLat, setNewLocationLat] = useState('');
-  const [newLocationLng, setNewLocationLng] = useState('');
+  const [newLocationCoords, setNewLocationCoords] = useState('');
   const [editingStartDate, setEditingStartDate] = useState(false);
   const [newStartDate, setNewStartDate] = useState('');
 
+  // Parse coordinates from string like "46.236134, 15.267745" or "46.236134 15.267745"
+  const parseCoordinates = (coords: string): { lat: number; lng: number } | null => {
+    // Remove extra whitespace and split by comma or whitespace
+    const cleaned = coords.trim().replace(/\s+/g, ' ');
+    const parts = cleaned.split(/[,\s]+/).filter(p => p.length > 0);
+
+    if (parts.length >= 2) {
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+    return null;
+  };
+
   const handleSaveLocation = async () => {
-    if (newLocationLat && newLocationLng) {
+    const coords = parseCoordinates(newLocationCoords);
+    if (coords) {
       try {
-        await onUpdateLocation(cycle.id, parseFloat(newLocationLat), parseFloat(newLocationLng));
+        await onUpdateLocation(cycle.id, coords.lat, coords.lng);
         showToast('Lokacija posodobljena');
         setEditingLocation(false);
       } catch {
         showToast('Napaka pri posodabljanju lokacije', 'destructive');
       }
+    } else {
+      showToast('Neveljavne koordinate. Vnesi v obliki: 46.236134, 15.267745', 'destructive');
     }
   };
 
@@ -165,29 +183,16 @@ export default function MatDetailsModal({
             <span className="text-xs text-gray-500">Lokacija:</span>
             {editingLocation ? (
               <div className="mt-2 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-gray-500">Lat</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={newLocationLat}
-                      onChange={(e) => setNewLocationLat(e.target.value)}
-                      placeholder="46.236134"
-                      className="w-full border rounded px-2 py-1.5 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Lng</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={newLocationLng}
-                      onChange={(e) => setNewLocationLng(e.target.value)}
-                      placeholder="15.267745"
-                      className="w-full border rounded px-2 py-1.5 text-sm"
-                    />
-                  </div>
+                <div>
+                  <input
+                    type="text"
+                    value={newLocationCoords}
+                    onChange={(e) => setNewLocationCoords(e.target.value)}
+                    placeholder="46.236134, 15.267745"
+                    className="w-full border rounded px-2 py-1.5 text-sm font-mono"
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Prilepi koordinate iz Google Maps</p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -221,8 +226,9 @@ export default function MatDetailsModal({
                 )}
                 <button
                   onClick={() => {
-                    setNewLocationLat((cycle as any).location_lat?.toString() || '');
-                    setNewLocationLng((cycle as any).location_lng?.toString() || '');
+                    const lat = (cycle as any).location_lat;
+                    const lng = (cycle as any).location_lng;
+                    setNewLocationCoords(lat && lng ? `${lat}, ${lng}` : '');
                     setEditingLocation(true);
                   }}
                   className="text-blue-500 hover:text-blue-700"
