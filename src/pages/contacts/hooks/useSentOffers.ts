@@ -74,8 +74,7 @@ export function useSentOffers({
       );
 
       setSentOffers(offersWithItems);
-    } catch (error) {
-      console.error('Error fetching sent offers:', error);
+    } catch {
       setSentOffers([]);
     } finally {
       setLoadingSentOffers(false);
@@ -106,8 +105,6 @@ export function useSentOffers({
     }
 
     try {
-      console.log('Saving offer for company:', selectedCompany.id, 'type:', dbOfferType);
-
       const { data: sentEmail, error: emailError } = await supabase
         .schema('mat_tracker')
         .from('sent_emails')
@@ -124,12 +121,7 @@ export function useSentOffers({
         .select()
         .single();
 
-      if (emailError) {
-        console.error('Email insert error:', emailError);
-        throw emailError;
-      }
-
-      console.log('Saved sent_email:', sentEmail);
+      if (emailError) throw emailError;
 
       const items = offerType === 'nakup' || offerType === 'primerjava'
         ? [...offerItemsNakup, ...offerItemsNajem]
@@ -158,7 +150,6 @@ export function useSentOffers({
         seasonal_price: item.seasonalPrice || null,
       }));
 
-      console.log('Offer items to insert:', offerItemsToInsert);
 
       if (offerItemsToInsert.length > 0) {
         const { error: itemsError } = await supabase
@@ -167,7 +158,7 @@ export function useSentOffers({
           .insert(offerItemsToInsert);
 
         if (itemsError) {
-          console.error('Items insert error:', itemsError);
+          // Error handled
           throw itemsError;
         }
       }
@@ -175,7 +166,7 @@ export function useSentOffers({
       fetchSentOffers(selectedCompany.id);
       return true;
     } catch (error: any) {
-      console.error('Error saving offer to database:', error);
+      // Error handled by toast
       toast({
         description: `Napaka pri shranjevanju: ${error?.message || 'Neznana napaka'}`,
         variant: 'destructive'
@@ -208,7 +199,7 @@ export function useSentOffers({
       toast({ description: '✅ Ponudba izbrisana' });
       setSentOffers(prev => prev.filter(o => o.id !== offerId));
     } catch (error) {
-      console.error('Error deleting offer:', error);
+      // Error handled by toast
       toast({ description: 'Napaka pri brisanju ponudbe', variant: 'destructive' });
     }
   }, [toast]);

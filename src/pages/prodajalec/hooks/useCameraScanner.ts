@@ -86,8 +86,8 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
         if (state === 2 || state === 3) {
           await html5QrCodeRef.current.stop();
         }
-      } catch (err) {
-        console.log('Camera stop skipped:', err);
+      } catch {
+        // Camera stop skipped - ignore
       }
     }
     setCameraActive(false);
@@ -113,7 +113,6 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
 
     try {
       const devices = await Html5Qrcode.getCameras();
-      console.log('Available cameras:', devices);
 
       if (!devices || devices.length === 0) {
         setCameraError('Ni najdenih kamer na tej napravi');
@@ -137,8 +136,6 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
       if (devices.length > 1) {
         cameraId = devices[devices.length - 1].id;
       }
-
-      console.log('Using camera:', cameraId);
 
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode(elementId);
@@ -174,15 +171,12 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
         } else {
           setZoomSupported(false);
         }
-      } catch (e) {
-        console.log('Zoom not supported:', e);
+      } catch {
         setZoomSupported(false);
       }
 
       setCameraLoading(false);
     } catch (err: any) {
-      console.error('Camera error:', err);
-
       let errorMessage = 'Ni mogoče dostopati do kamere';
 
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -211,8 +205,8 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
           await capabilities.zoomFeature().apply(newZoom);
           setZoomLevel(newZoom);
         }
-      } catch (e) {
-        console.error('Error applying zoom:', e);
+      } catch {
+        // Zoom error - ignore
       }
     }
   }, [zoomSupported]);

@@ -139,7 +139,7 @@ export default function QRKode() {
       await generateQRCodesPDF(printCodes, qrRefs.current, selectedLabelPreset, selectedSeller?.first_name || 'Export');
       sonnerToast.success('PDF uspešno generiran!');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      // Error handled by toast
       sonnerToast.error('Napaka pri generiranju PDF-ja');
     } finally {
       setIsPrintLoading(false);

@@ -196,7 +196,7 @@ export function SellerQRPrintTab({ qrCodes, sellerName, codePrefix }: SellerQRPr
       pdf.save(`QR_Codes_${safeSellerName}_${new Date().toISOString().split('T')[0]}.pdf`);
       toast.success('PDF uspešno generiran!');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      // Error handled by toast
       toast.error('Napaka pri generiranju PDF-ja');
     } finally {
       setIsPrintLoading(false);

@@ -462,7 +462,7 @@ export function useCompanyActions({
       toast({ description: isNoLongerOsnutek ? 'Podjetje posodobljeno iz osnutka' : 'Podatki posodobljeni' });
       setShowEditAddressModal(false);
     } catch (error: any) {
-      console.error('Error updating company:', error);
+      // Error handled by toast
       toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
     }
   };

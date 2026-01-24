@@ -82,10 +82,9 @@ export function useMapLocations(filters?: {
 
       const { data, error } = await query;
 
-      console.log('useMapLocations query result:', { data, error, filters });
 
       if (error) {
-        console.error('useMapLocations error:', error);
+        // Error handled
         throw error;
       }
 

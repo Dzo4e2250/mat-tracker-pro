@@ -130,7 +130,6 @@ export default function AccountsManagement() {
       }
 
       // Handle secondary role based on primary role
-      console.log('handleUpdateUser: editingUserRole=', editingUserRole, 'editHasSecondaryRole=', editHasSecondaryRole);
       if (editingUserRole === 'inventar' || editingUserRole === 'admin') {
         // Inventar/admin users get prodajalec as secondary role
         updates.secondary_role = editHasSecondaryRole ? 'prodajalec' : null;
@@ -139,11 +138,9 @@ export default function AccountsManagement() {
         updates.secondary_role = editHasSecondaryRole ? 'inventar' : null;
       } else {
         // Fallback - always set the value based on checkbox
-        console.warn('Unknown editingUserRole:', editingUserRole);
         updates.secondary_role = editHasSecondaryRole ? 'prodajalec' : null;
       }
 
-      console.log('Updating user with:', updates);
       await updateProfile.mutateAsync({ id: userId, updates });
 
       toast({
@@ -167,7 +164,6 @@ export default function AccountsManagement() {
   };
 
   const startEditUser = (user: Profile) => {
-    console.log('startEditUser: user=', user, 'role=', user.role, 'secondary_role=', user.secondary_role);
     setEditingUser(user.id);
     setEditingUserRole(user.role);
     setEditFirstName(user.first_name);

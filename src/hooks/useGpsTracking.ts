@@ -215,7 +215,7 @@ export function useGpsTracker(userId?: string) {
       try {
         await saveGpsPoint.mutateAsync({ sessionId, points: newPoints });
       } catch (err) {
-        console.error('Failed to save GPS points:', err);
+        // GPS save error - silent fail
       }
     }
   }, [sessionId, saveGpsPoint]);
@@ -239,7 +239,6 @@ export function useGpsTracker(userId?: string) {
 
         // Ignoriraj točke s slabo natančnostjo
         if (position.coords.accuracy > MAX_ACCURACY_METERS) {
-          console.log(`GPS accuracy too low: ${position.coords.accuracy}m, skipping`);
           return;
         }
 
@@ -271,7 +270,7 @@ export function useGpsTracker(userId?: string) {
         });
       },
       (err) => {
-        console.error('Geolocation error:', err);
+        // Geolocation error handled
         switch (err.code) {
           case err.PERMISSION_DENIED:
             setError('Dostop do lokacije je bil zavrnjen');
