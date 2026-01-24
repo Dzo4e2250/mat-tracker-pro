@@ -1,38 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Home, Menu, X, History, TrendingUp, Users, LogOut, Loader2, Package, Plus, Trash2, MapPin, Pencil, Calendar, ArrowRightLeft, Key, Navigation, FileText } from 'lucide-react';
+import { Camera, Home, Menu, X, Users, Loader2, Navigation } from 'lucide-react';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
-import { Html5Qrcode } from 'html5-qrcode';
 import { useMapLocations } from '@/hooks/useMapLocations';
-import { useCameraScanner } from './prodajalec/hooks';
+import { useCameraScanner, useCycleActions } from './prodajalec/hooks';
 
 import { useMatTypes } from '@/hooks/useMatTypes';
-import { useQRCodes, useAvailableQRCodes } from '@/hooks/useQRCodes';
-import { useCycles, useCycleHistory, useCreateCycle, useUpdateCycleStatus, usePutOnTest, useSignContract, useExtendTest, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, CycleWithRelations } from '@/hooks/useCycles';
-import { useCreateCompanyWithContact, useCreateContact, useCompanyHistory } from '@/hooks/useCompanies';
+import { useQRCodes } from '@/hooks/useQRCodes';
+import { useCycles, useCycleHistory, useUpdateCycleStatus, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, CycleWithRelations } from '@/hooks/useCycles';
+import { useCompanyHistory } from '@/hooks/useCompanies';
 import { useCompanyContacts, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import CompanySelectModal from '@/components/CompanySelectModal';
 import CompanyMatsModal from '@/components/CompanyMatsModal';
-import { getCityByPostalCode } from '@/utils/postalCodes';
 import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
 
 // Ekstrahirane komponente
-import { HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView, TravelLogView, MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal } from './prodajalec/components';
-import { STATUSES, type StatusKey } from './prodajalec/utils/constants';
-// Lokalne getTimeRemaining/formatCountdown funkcije (definirane spodaj) uporabljajo state currentTime
+import { HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView, MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal, SideMenu, ViewType } from './prodajalec/components';
 
 export default function ProdajalecDashboard() {
   const { user, profile, signOut, availableRoles, switchRole } = useAuth();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   // Data hooks
   const { data: matTypes, isLoading: loadingMatTypes } = useMatTypes();
   const { data: qrCodes, isLoading: loadingQRCodes } = useQRCodes(user?.id);
-  const { data: availableQRCodes } = useAvailableQRCodes(user?.id || '');
   const { data: cycles, isLoading: loadingCycles } = useCycles(user?.id);
   const { data: cycleHistory } = useCycleHistory(user?.id);
   const { data: companies } = useCompanyContacts(user?.id);
@@ -47,20 +42,15 @@ export default function ProdajalecDashboard() {
   });
 
   // Mutations
-  const createCycle = useCreateCycle();
   const updateStatus = useUpdateCycleStatus();
-  const putOnTest = usePutOnTest();
-  const signContract = useSignContract();
-  const extendTest = useExtendTest();
   const updateTestStartDate = useUpdateTestStartDate();
   const updateCycleLocation = useUpdateCycleLocation();
   const markContractSigned = useMarkContractSigned();
   const batchSignContracts = useBatchSignContracts();
   const batchPickupSelf = useBatchPickupSelf();
   const batchExtendTest = useBatchExtendTest();
-  const createCompanyWithContact = useCreateCompanyWithContact();
-  const createContact = useCreateContact();
 
+  // UI State - MUST be declared before useCycleActions
   const [view, setView] = useState(() => {
     const urlView = searchParams.get('view');
     return urlView === 'scan' ? 'scan' : 'home';
@@ -73,6 +63,30 @@ export default function ProdajalecDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [formData, setFormData] = useState<any>({});
+
+  // Cycle actions hook
+  const {
+    createCycle,
+    putOnTest,
+    signContract,
+    extendTest,
+    handleAddMat,
+    handlePutOnTest,
+    handleMarkAsDirty,
+    handleRequestDriverPickup,
+    handleSignContract,
+    handleExtendTest,
+    showToast,
+  } = useCycleActions({
+    userId: user?.id,
+    companies,
+    selectedCycle,
+    formData,
+    setFormData,
+    setShowModal,
+    setModalType,
+    setSelectedCycle,
+  });
   const [taxLookupLoading, setTaxLookupLoading] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -136,13 +150,6 @@ export default function ProdajalecDashboard() {
     }
   }, [dismissedAlerts]);
 
-  const showToast = (message: string, variant: 'default' | 'destructive' = 'default') => {
-    toast({
-      description: message,
-      variant,
-    });
-  };
-
   // Get available QR codes (not in active cycles)
   const getAvailableQRCodes = () => {
     if (!qrCodes || !cycles) return [];
@@ -183,49 +190,6 @@ export default function ProdajalecDashboard() {
     handleScanCallback.current = handleScan;
   });
 
-  const handleAddMat = async (qrId: string, matTypeId: string) => {
-    if (!user?.id) return;
-
-    try {
-      await createCycle.mutateAsync({
-        qr_code_id: qrId,
-        salesperson_id: user.id,
-        mat_type_id: matTypeId,
-        status: 'clean',
-      });
-      showToast('✅ Predpražnik dodan');
-      setShowModal(false);
-      setFormData({});
-    } catch (error) {
-      showToast('Napaka pri dodajanju', 'destructive');
-    }
-  };
-
-  // Helper function to get current GPS position
-  const getCurrentPosition = (): Promise<{ lat: number; lng: number } | null> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        console.warn('Geolocation not supported');
-        resolve(null);
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.warn('Geolocation error:', error);
-          resolve(null);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    });
-  };
-
   // Lookup company by tax number using EU VIES API
   const handleTaxLookup = async () => {
     const taxNumber = formData.taxNumber;
@@ -265,229 +229,6 @@ export default function ProdajalecDashboard() {
     }
   };
 
-  const handlePutOnTest = async () => {
-    if (!selectedCycle || !user?.id) return;
-
-    try {
-      // Get GPS coordinates
-      const location = await getCurrentPosition();
-
-      // Create company if new
-      let companyId = formData.companyId;
-      let companyName = formData.clientName;
-      let contactId: string | undefined;
-
-      if (!companyId && formData.clientName) {
-        // New company - create with contact
-        const newCompany = await createCompanyWithContact.mutateAsync({
-          company: {
-            name: formData.clientName,
-            display_name: formData.displayName || null,
-            tax_number: formData.taxNumber || null,
-            address_street: formData.addressStreet || null,
-            address_postal: formData.addressPostal || null,
-            address_city: formData.addressCity || null,
-            created_by: user.id,
-          },
-          contact: formData.contactPerson ? {
-            first_name: formData.contactPerson.split(' ')[0] || formData.contactPerson,
-            last_name: formData.contactPerson.split(' ').slice(1).join(' ') || '',
-            email: formData.email || null,
-            phone: formData.phone || null,
-            role: formData.contactRole || null,
-            is_decision_maker: formData.isDecisionMaker || false,
-            created_by: user.id,
-          } : undefined,
-        });
-        companyId = newCompany.id;
-      } else if (companyId) {
-        // Existing company
-        const selectedCompany = companies?.find(c => c.id === companyId);
-        companyName = selectedCompany?.display_name || selectedCompany?.name || '';
-
-        // Check if using existing contact or creating new one
-        if (formData.useExistingContact && formData.contactId && formData.contactId !== 'new') {
-          // Use existing contact
-          contactId = formData.contactId;
-        } else if (formData.contactId === 'new' && formData.contactPerson) {
-          // Create new contact for existing company
-          const newContact = await createContact.mutateAsync({
-            company_id: companyId,
-            first_name: formData.contactPerson.split(' ')[0] || formData.contactPerson,
-            last_name: formData.contactPerson.split(' ').slice(1).join(' ') || '',
-            email: formData.email || null,
-            phone: formData.phone || null,
-            role: formData.contactRole || null,
-            is_decision_maker: formData.isDecisionMaker || false,
-            created_by: user.id,
-          });
-          contactId = newContact.id;
-        }
-      }
-
-      await putOnTest.mutateAsync({
-        cycleId: selectedCycle.id,
-        companyId,
-        contactId,
-        userId: user.id,
-        notes: formData.comment,
-        locationLat: location?.lat,
-        locationLng: location?.lng,
-      });
-
-      showToast('✅ Dan na test - ' + companyName);
-
-      // Save company info and location for "add another" option
-      setFormData({
-        ...formData,
-        lastCompanyId: companyId,
-        lastCompanyName: companyName,
-        lastContactId: contactId,
-        lastLocationLat: location?.lat,
-        lastLocationLng: location?.lng,
-      });
-      setModalType('putOnTestSuccess');
-    } catch (error) {
-      showToast('Napaka pri shranjevanju', 'destructive');
-    }
-  };
-
-  const handleMarkAsDirty = async () => {
-    if (!selectedCycle || !user?.id) return;
-
-    try {
-      await updateStatus.mutateAsync({
-        cycleId: selectedCycle.id,
-        newStatus: 'dirty',
-        userId: user.id,
-      });
-      showToast('✅ Označen kot umazan');
-      setShowModal(false);
-      setSelectedCycle(null);
-    } catch (error) {
-      showToast('Napaka pri posodabljanju', 'destructive');
-    }
-  };
-
-  const handleRequestDriverPickup = async () => {
-    if (!selectedCycle || !user?.id) return;
-
-    try {
-      await updateStatus.mutateAsync({
-        cycleId: selectedCycle.id,
-        newStatus: 'waiting_driver',
-        userId: user.id,
-      });
-      showToast('✅ Naročeno za šoferja');
-      setShowModal(false);
-      setSelectedCycle(null);
-    } catch (error) {
-      showToast('Napaka pri posodabljanju', 'destructive');
-    }
-  };
-
-  const handleSignContract = async () => {
-    if (!selectedCycle || !user?.id || !formData.frequency) return;
-
-    try {
-      await signContract.mutateAsync({
-        cycleId: selectedCycle.id,
-        frequency: formData.frequency,
-        userId: user.id,
-      });
-      showToast('✅ Ponudba poslana');
-      setShowModal(false);
-      setSelectedCycle(null);
-      setFormData({});
-    } catch (error) {
-      showToast('Napaka pri shranjevanju', 'destructive');
-    }
-  };
-
-  const handleExtendTest = async () => {
-    if (!selectedCycle || !user?.id) return;
-
-    try {
-      await extendTest.mutateAsync({
-        cycleId: selectedCycle.id,
-        userId: user.id,
-      });
-      showToast('✅ Test podaljšan za 7 dni');
-      setShowModal(false);
-      setSelectedCycle(null);
-    } catch (error) {
-      showToast('Napaka pri podaljševanju', 'destructive');
-    }
-  };
-
-  const getTimeRemaining = (testStartDate: string | null) => {
-    if (!testStartDate) return null;
-
-    const start = new Date(testStartDate);
-    const endTime = start.getTime() + (7 * 24 * 60 * 60 * 1000);
-    const now = currentTime.getTime();
-    const diffTime = endTime - now;
-
-    if (diffTime < 0) {
-      const absDiff = Math.abs(diffTime);
-      const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      return { expired: true, days, hours, minutes: 0, totalHours: -(days * 24 + hours) };
-    }
-
-    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
-
-    return { expired: false, days, hours, minutes, totalHours: days * 24 + hours };
-  };
-
-  const formatCountdown = (timeRemaining: ReturnType<typeof getTimeRemaining>) => {
-    if (!timeRemaining) return null;
-
-    if (timeRemaining.expired) {
-      return {
-        text: 'Poteklo pred ' + timeRemaining.days + 'd ' + timeRemaining.hours + 'h',
-        color: 'red'
-      };
-    }
-
-    const d = timeRemaining.days;
-    const h = timeRemaining.hours;
-    const m = timeRemaining.minutes;
-
-    if (d === 0 && h === 0) {
-      return { text: '⏰ ' + m + ' minut!', color: 'red' };
-    }
-
-    if (d === 0) {
-      return { text: '⏰ ' + h + 'h ' + m + 'min', color: 'red' };
-    }
-
-    if (d <= 1) {
-      return { text: '⏰ ' + d + 'd ' + h + 'h ' + m + 'min', color: 'orange' };
-    }
-
-    if (d <= 3) {
-      return { text: '⏰ ' + d + 'd ' + h + 'h', color: 'orange' };
-    }
-
-    return { text: '⏰ ' + d + 'd ' + h + 'h', color: 'green' };
-  };
-
-  const getMyStatistics = () => {
-    const myCycles = cycleHistory || [];
-
-    const totalTests = myCycles.filter(c => c.test_start_date).length;
-    const successful = myCycles.filter(c => c.contract_signed).length;
-    const failed = myCycles.filter(c => c.test_end_date && !c.contract_signed && c.status === 'dirty').length;
-    const inProgress = myCycles.filter(c => c.status === 'on_test').length;
-
-    const successRate = totalTests > 0 ? ((successful / totalTests) * 100).toFixed(1) : '0';
-
-    return { totalTests, successful, failed, inProgress, successRate };
-  };
-
   const isLoading = loadingMatTypes || loadingQRCodes || loadingCycles;
 
   if (isLoading) {
@@ -525,429 +266,51 @@ export default function ProdajalecDashboard() {
         </div>
       </div>
 
-      {menuOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[1001]" onClick={() => setMenuOpen(false)}>
-          <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-[1002]" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
-              <h2 className="text-lg font-bold">Meni</h2>
-              <button onClick={() => setMenuOpen(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="p-4">
-              {/* Glavne akcije */}
-              <div className="text-xs font-semibold text-gray-400 uppercase mb-2 px-3">Glavno</div>
-              <div className="space-y-1 mb-4">
-                <button
-                  onClick={() => { setView('home'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'home' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <Home size={20} />
-                  <span>Domov</span>
-                </button>
-
-                <button
-                  onClick={() => { setView('scan'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'scan' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <Camera size={20} />
-                  <span>Skeniraj QR</span>
-                </button>
-              </div>
-
-              {/* Pregledi */}
-              <div className="text-xs font-semibold text-gray-400 uppercase mb-2 px-3">Pregled</div>
-              <div className="space-y-1 mb-4">
-                <button
-                  onClick={() => { setView('map'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'map' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <MapPin size={20} />
-                  <span>Zemljevid</span>
-                </button>
-
-                <button
-                  onClick={() => { setView('tracking'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'tracking' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <Navigation size={20} />
-                  <span>Moja pot</span>
-                </button>
-
-                <button
-                  onClick={() => { setView('history'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'history' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <History size={20} />
-                  <span>Zgodovina</span>
-                </button>
-
-                <button
-                  onClick={() => { setView('statistics'); setMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded ${view === 'statistics' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'}`}
-                >
-                  <TrendingUp size={20} />
-                  <span>Statistika</span>
-                </button>
-              </div>
-
-              {/* Upravljanje */}
-              <div className="text-xs font-semibold text-gray-400 uppercase mb-2 px-3">Upravljanje</div>
-              <div className="space-y-1 mb-4">
-                <button
-                  onClick={() => { navigate('/contacts'); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-gray-100"
-                >
-                  <Users size={20} />
-                  <span>Stranke</span>
-                </button>
-
-                <button
-                  onClick={() => { navigate('/order-codes'); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-gray-100"
-                >
-                  <Package size={20} />
-                  <span>Naroči predpražnike</span>
-                </button>
-              </div>
-
-              <hr className="my-4" />
-
-              {/* Switch panel button - only show if user has multiple roles */}
-              {availableRoles.length > 1 && (availableRoles.includes('inventar') || availableRoles.includes('admin')) && (
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    switchRole(availableRoles.includes('admin') ? 'admin' : 'inventar');
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded hover:bg-blue-50 text-blue-600 mb-2"
-                >
-                  <ArrowRightLeft size={20} />
-                  <span>Preklopi v Inventar</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => { setShowPasswordModal(true); setMenuOpen(false); }}
-                className="w-full flex items-center gap-3 p-3 rounded hover:bg-gray-100 mb-2"
-              >
-                <Key size={20} />
-                <span>Spremeni geslo</span>
-              </button>
-
-              <button
-                onClick={() => { signOut(); setMenuOpen(false); }}
-                className="w-full flex items-center gap-3 p-3 rounded hover:bg-gray-100 text-red-600"
-              >
-                <LogOut size={20} />
-                <span>Odjava</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SideMenu
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        currentView={view}
+        onViewChange={(v) => setView(v)}
+        onNavigate={navigate}
+        availableRoles={availableRoles}
+        onSwitchRole={switchRole}
+        onChangePassword={() => setShowPasswordModal(true)}
+        onSignOut={signOut}
+      />
 
       <div className="max-w-4xl mx-auto p-4">
         {view === 'home' && (
-          <div>
-            {/* Opozorila za teste ki se iztečejo - sortirano od najstarejše položitve */}
-            {/* Izključi podpisane pogodbe - ti predpražniki niso več odgovornost prodajalca */}
-            {cycles?.filter(c => c.status === 'on_test' && !c.contract_signed)
-              .sort((a, b) => {
-                const aDate = a.test_start_date ? new Date(a.test_start_date) : null;
-                const bDate = b.test_start_date ? new Date(b.test_start_date) : null;
-                const aTime = aDate?.getTime() ?? 0;
-                const bTime = bDate?.getTime() ?? 0;
-                return aTime - bTime;
-              })
-              .map(cycle => {
-              const timeRemaining = getTimeRemaining(cycle.test_start_date);
-              if (!timeRemaining || timeRemaining.expired || timeRemaining.days > 3) return null;
-              if (dismissedAlerts.has(cycle.id)) return null;
-
-              // Utripaj rdeče ko je manj kot 1 dan
-              const isUrgent = timeRemaining.days === 0;
-
-              return (
-                <div key={cycle.id} className={`border-2 border-red-400 rounded-lg p-3 mb-4 ${isUrgent ? 'animate-pulse-red' : 'bg-red-50'}`}>
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1 min-w-0">
-                      <span className="font-bold">{cycle.mat_type?.code || cycle.mat_type?.name}</span>
-                      <span className="text-sm text-gray-500 ml-2 font-mono">{cycle.qr_code?.code}</span>
-                      <span className="text-sm text-gray-600 ml-2">{cycle.company?.display_name || cycle.company?.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-red-600">
-                        {formatCountdown(timeRemaining)?.text}
-                      </span>
-                      <button
-                        onClick={() => setDismissedAlerts(prev => new Set([...prev, cycle.id]))}
-                        className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600"
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
-              <h2 className="text-lg font-bold mb-4">Moji predpražniki</h2>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-gray-50 p-3 rounded">
-                  <div className="text-2xl font-bold">{cycles?.length || 0}</div>
-                  <div className="text-sm">💼 Skupaj</div>
-                </div>
-                <div className="bg-green-50 p-3 rounded">
-                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'clean').length || 0}</div>
-                  <div className="text-sm">💚 Čisti</div>
-                </div>
-                <div className="bg-blue-50 p-3 rounded">
-                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'on_test' && !c.contract_signed).length || 0}</div>
-                  <div className="text-sm">🔵 Na testu</div>
-                </div>
-                <div className="bg-orange-50 p-3 rounded">
-                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'dirty').length || 0}</div>
-                  <div className="text-sm">🟠 Umazani</div>
-                </div>
-                <div className="bg-purple-50 p-3 rounded col-span-2">
-                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'waiting_driver').length || 0}</div>
-                  <div className="text-sm">📋 Čaka šoferja</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-4">
-              {/* Filter tabs */}
-              <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
-                {[
-                  { key: 'all', label: 'Vsi', count: cycles?.length || 0 },
-                  { key: 'clean', label: '💚 Čisti', count: cycles?.filter(c => c.status === 'clean').length || 0 },
-                  { key: 'on_test', label: '🔵 Na testu', count: cycles?.filter(c => c.status === 'on_test' && !c.contract_signed).length || 0 },
-                  { key: 'dirty', label: '🟠 Umazani', count: cycles?.filter(c => c.status === 'dirty').length || 0 },
-                  { key: 'waiting_driver', label: '📋 Šofer', count: cycles?.filter(c => c.status === 'waiting_driver').length || 0 },
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setStatusFilter(tab.key)}
-                    className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
-                      statusFilter === tab.key
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {tab.label} ({tab.count})
-                  </button>
-                ))}
-              </div>
-
-              {/* List */}
-              {!cycles || cycles.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Ni predpražnikov</p>
-              ) : (() => {
-                // Filter cycles - pri "on_test" izključi podpisane pogodbe
-                const filteredCycles = statusFilter === 'all'
-                  ? cycles
-                  : statusFilter === 'on_test'
-                    ? cycles.filter(c => c.status === 'on_test' && !c.contract_signed)
-                    : cycles.filter(c => c.status === statusFilter);
-
-                if (filteredCycles.length === 0) {
-                  return <p className="text-gray-500 text-center py-4">Ni predpražnikov s tem statusom</p>;
+          <HomeView
+            cycles={cycles}
+            currentTime={currentTime}
+            statusFilter={statusFilter}
+            expandedCompanies={expandedCompanies}
+            dismissedAlerts={dismissedAlerts}
+            onStatusFilterChange={setStatusFilter}
+            onToggleCompany={(companyId) => {
+              setExpandedCompanies(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(companyId)) {
+                  newSet.delete(companyId);
+                } else {
+                  newSet.add(companyId);
                 }
-
-                // Group on_test cycles by company
-                const onTestByCompany = new Map<string, CycleWithRelations[]>();
-                const otherCycles: CycleWithRelations[] = [];
-
-                filteredCycles.forEach(cycle => {
-                  // Podpisane pogodbe ne grupiramo kot "na testu" - niso več odgovornost prodajalca
-                  if (cycle.status === 'on_test' && cycle.company_id && !cycle.contract_signed) {
-                    const key = cycle.company_id;
-                    if (!onTestByCompany.has(key)) {
-                      onTestByCompany.set(key, []);
-                    }
-                    onTestByCompany.get(key)!.push(cycle);
-                  } else {
-                    otherCycles.push(cycle);
-                  }
-                });
-
-                const toggleCompany = (companyId: string) => {
-                  setExpandedCompanies(prev => {
-                    const newSet = new Set(prev);
-                    if (newSet.has(companyId)) {
-                      newSet.delete(companyId);
-                    } else {
-                      newSet.add(companyId);
-                    }
-                    return newSet;
-                  });
-                };
-
-                // Sort companies by urgency (most urgent first)
-                const sortedCompanies = Array.from(onTestByCompany.entries()).sort((a, b) => {
-                  const aUrgent = a[1].reduce((most, curr) => {
-                    const mostTime = getTimeRemaining(most.test_start_date);
-                    const currTime = getTimeRemaining(curr.test_start_date);
-                    if (!mostTime) return curr;
-                    if (!currTime) return most;
-                    return currTime.totalHours < mostTime.totalHours ? curr : most;
-                  }, a[1][0]);
-                  const bUrgent = b[1].reduce((most, curr) => {
-                    const mostTime = getTimeRemaining(most.test_start_date);
-                    const currTime = getTimeRemaining(curr.test_start_date);
-                    if (!mostTime) return curr;
-                    if (!currTime) return most;
-                    return currTime.totalHours < mostTime.totalHours ? curr : most;
-                  }, b[1][0]);
-                  const aTime = getTimeRemaining(aUrgent.test_start_date);
-                  const bTime = getTimeRemaining(bUrgent.test_start_date);
-                  return (aTime?.totalHours || 0) - (bTime?.totalHours || 0);
-                });
-
-                return (
-                  <div className="space-y-2">
-                    {/* Grouped on_test cycles by company - sorted by urgency */}
-                    {sortedCompanies.map(([companyId, companyCycles]) => {
-                      const isExpanded = expandedCompanies.has(companyId);
-                      const companyName = companyCycles[0]?.company?.display_name || companyCycles[0]?.company?.name || 'Neznano podjetje';
-
-                      // Find the most urgent countdown
-                      const urgentCycle = companyCycles.reduce((most, curr) => {
-                        const mostTime = getTimeRemaining(most.test_start_date);
-                        const currTime = getTimeRemaining(curr.test_start_date);
-                        if (!mostTime) return curr;
-                        if (!currTime) return most;
-                        return currTime.totalHours < mostTime.totalHours ? curr : most;
-                      }, companyCycles[0]);
-                      const urgentCountdown = formatCountdown(getTimeRemaining(urgentCycle.test_start_date));
-                      const urgentTime = getTimeRemaining(urgentCycle.test_start_date);
-                      const isUrgent = urgentTime && (urgentTime.expired || urgentTime.days === 0);
-
-                      const companyAddress = companyCycles[0]?.company?.address_city || '';
-
-                      return (
-                        <div key={companyId} className={`border rounded-lg overflow-hidden ${isUrgent ? 'border-red-400 border-2 animate-pulse-red' : ''}`}>
-                          <button
-                            onClick={() => toggleCompany(companyId)}
-                            className={`w-full p-3 flex items-center justify-between ${isUrgent ? '' : 'bg-blue-50'}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">🏢</span>
-                              <div className="text-left">
-                                <div className="font-medium">{companyName}</div>
-                                <div className="text-xs text-gray-500">{companyCycles.length} predpražnik{companyCycles.length > 1 ? 'ov' : ''}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {urgentCountdown && (
-                                <span className="text-xs font-bold" style={{
-                                  color: urgentCountdown.color === 'red' ? '#DC2626' :
-                                         urgentCountdown.color === 'orange' ? '#EA580C' : '#16A34A'
-                                }}>
-                                  {urgentCountdown.text}
-                                </span>
-                              )}
-                              <span className="text-gray-400">{isExpanded ? '▲' : '▼'}</span>
-                            </div>
-                          </button>
-
-                          {isExpanded && (
-                            <div className="divide-y">
-                              {companyCycles.map(cycle => {
-                                const countdown = formatCountdown(getTimeRemaining(cycle.test_start_date));
-                                return (
-                                  <div
-                                    key={cycle.id}
-                                    className="p-3 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                                    onClick={() => {
-                                      setSelectedCycle(cycle);
-                                      setModalType('matDetails');
-                                      setShowModal(true);
-                                    }}
-                                  >
-                                    <div>
-                                      <div className="font-medium">{cycle.mat_type?.code || cycle.mat_type?.name}</div>
-                                      <div className="text-xs text-gray-500 font-mono">{cycle.qr_code?.code}</div>
-                                    </div>
-                                    {countdown && (
-                                      <span className="text-sm font-bold" style={{
-                                        color: countdown.color === 'red' ? '#DC2626' :
-                                               countdown.color === 'orange' ? '#EA580C' : '#16A34A'
-                                      }}>
-                                        {countdown.text}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {/* Action button at the end of the list */}
-                              <div className="p-3 bg-gray-50">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedCompanyForMats({
-                                      companyId,
-                                      companyName,
-                                      companyAddress,
-                                      cycles: companyCycles,
-                                    });
-                                    setShowCompanyMatsModal(true);
-                                  }}
-                                  className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:scale-[0.98] transition-all"
-                                >
-                                  ⚡ Ukrep za vse ({companyCycles.length})
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Other cycles (clean, dirty, waiting_driver, or on_test without company) */}
-                    {otherCycles.map(cycle => {
-                      const timeRemaining = getTimeRemaining(cycle.test_start_date);
-                      const countdown = formatCountdown(timeRemaining);
-                      const status = STATUSES[cycle.status as keyof typeof STATUSES];
-
-                      return (
-                        <div
-                          key={cycle.id}
-                          className="border rounded-lg p-3 cursor-pointer hover:bg-gray-50"
-                          onClick={() => {
-                            setSelectedCycle(cycle);
-                            setModalType('matDetails');
-                            setShowModal(true);
-                          }}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="font-medium">{cycle.mat_type?.code || cycle.mat_type?.name}</div>
-                              <div className="text-xs text-gray-500 font-mono">{cycle.qr_code?.code}</div>
-                            </div>
-                            <div
-                              className="px-2 py-1 rounded text-xs"
-                              style={{
-                                backgroundColor: status.color + '20',
-                                color: status.color
-                              }}
-                            >
-                              {status.icon}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
+                return newSet;
+              });
+            }}
+            onCycleClick={(cycle) => {
+              setSelectedCycle(cycle);
+              setModalType('matDetails');
+              setShowModal(true);
+            }}
+            onDismissAlert={(cycleId) => {
+              setDismissedAlerts(prev => new Set([...prev, cycleId]));
+            }}
+            onShowCompanyMats={(data) => {
+              setSelectedCompanyForMats(data);
+              setShowCompanyMatsModal(true);
+            }}
+          />
         )}
 
         {view === 'history' && (

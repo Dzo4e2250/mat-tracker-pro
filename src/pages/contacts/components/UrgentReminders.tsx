@@ -3,7 +3,8 @@
  * @description Rdeče/oranžne kartice z nujnimi opravili
  */
 
-import { AlertTriangle, Clock, Check, Bell } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Clock, Check, Bell, CalendarPlus, ChevronDown } from 'lucide-react';
 
 // Tip za opomnik
 interface Reminder {
@@ -30,6 +31,7 @@ interface UrgentRemindersProps {
   onOpenCompany: (companyId: string) => void;
   onCompleteReminder: (reminderId: string) => void;
   onAddReminder: (companyId: string) => void;
+  onPostponeReminder?: (reminderId: string, newDate: Date) => void;
 }
 
 /**
@@ -43,7 +45,10 @@ export default function UrgentReminders({
   onOpenCompany,
   onCompleteReminder,
   onAddReminder,
+  onPostponeReminder,
 }: UrgentRemindersProps) {
+  const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
+
   // Ne prikaži če ni podatkov
   const hasReminders = dueReminders && dueReminders.length > 0;
   const hasPending = contractPendingCompanies && contractPendingCompanies.length > 0;
@@ -51,6 +56,16 @@ export default function UrgentReminders({
   if (!hasReminders && !hasPending) {
     return null;
   }
+
+  // Helper za prestavitev datuma
+  const handlePostpone = (reminderId: string, days: number) => {
+    if (!onPostponeReminder) return;
+    const newDate = new Date();
+    newDate.setDate(newDate.getDate() + days);
+    newDate.setHours(9, 0, 0, 0); // Nastavi na 9:00
+    onPostponeReminder(reminderId, newDate);
+    setExpandedReminderId(null);
+  };
 
   return (
     <div className="space-y-2">
@@ -63,32 +78,82 @@ export default function UrgentReminders({
       {dueReminders?.map(reminder => (
         <div
           key={reminder.id}
-          className="bg-red-50 border-2 border-red-300 rounded-lg p-3 flex items-center justify-between"
+          className="bg-red-50 border-2 border-red-300 rounded-lg p-3"
         >
-          <div className="flex-1">
-            <p className="font-medium text-red-800">{reminder.company?.name || 'Neznana stranka'}</p>
-            {reminder.note && <p className="text-sm text-red-600">{reminder.note}</p>}
-            <p className="text-xs text-red-500 mt-1">
-              <Clock size={12} className="inline mr-1" />
-              {new Date(reminder.reminder_at).toLocaleString('sl-SI', {
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-              })}
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-red-800 truncate">{reminder.company?.name || 'Neznana stranka'}</p>
+              {reminder.note && <p className="text-sm text-red-600 truncate">{reminder.note}</p>}
+              <p className="text-xs text-red-500 mt-1">
+                <Clock size={12} className="inline mr-1" />
+                {new Date(reminder.reminder_at).toLocaleString('sl-SI', {
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                })}
+              </p>
+            </div>
+            <div className="flex gap-1.5 ml-2">
+              {/* Gumb za prestavitev */}
+              {onPostponeReminder && (
+                <button
+                  onClick={() => setExpandedReminderId(expandedReminderId === reminder.id ? null : reminder.id)}
+                  className={`p-2 rounded-lg text-sm transition-colors ${
+                    expandedReminderId === reminder.id
+                      ? 'bg-red-200 text-red-700'
+                      : 'bg-white border border-red-300 text-red-600 hover:bg-red-100'
+                  }`}
+                  title="Prestavi"
+                >
+                  <CalendarPlus size={16} />
+                </button>
+              )}
+              {/* Gumb za opravljeno */}
+              <button
+                onClick={() => onCompleteReminder(reminder.id)}
+                className="p-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+                title="Označi kot opravljeno"
+              >
+                <Check size={16} />
+              </button>
+              {/* Gumb za odpri */}
+              <button
+                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+              >
+                Odpri
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
-              className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium"
-            >
-              Odpri
-            </button>
-            <button
-              onClick={() => onCompleteReminder(reminder.id)}
-              className="px-3 py-1.5 bg-white border border-red-300 text-red-600 rounded-lg text-sm"
-            >
-              <Check size={16} />
-            </button>
-          </div>
+
+          {/* Razširjen meni za prestavitev */}
+          {expandedReminderId === reminder.id && onPostponeReminder && (
+            <div className="mt-3 pt-3 border-t border-red-200 flex flex-wrap gap-2">
+              <span className="text-xs text-red-600 w-full mb-1">Prestavi na:</span>
+              <button
+                onClick={() => handlePostpone(reminder.id, 0)}
+                className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs hover:bg-red-100"
+              >
+                Danes 9:00
+              </button>
+              <button
+                onClick={() => handlePostpone(reminder.id, 1)}
+                className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs hover:bg-red-100"
+              >
+                Jutri
+              </button>
+              <button
+                onClick={() => handlePostpone(reminder.id, 2)}
+                className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs hover:bg-red-100"
+              >
+                Čez 2 dni
+              </button>
+              <button
+                onClick={() => handlePostpone(reminder.id, 7)}
+                className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs hover:bg-red-100"
+              >
+                Čez teden
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
