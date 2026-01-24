@@ -1,11 +1,12 @@
 /**
  * @file MapView.tsx
- * @description Prikaz predpražnikov na zemljevidu
+ * @description Prikaz predpražnikov na zemljevidu z možnostjo urejanja koordinat
  */
 
+import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, Pencil, Check, X } from 'lucide-react';
 import { SLOVENIA_CENTER, DEFAULT_ZOOM } from '../utils/constants';
 import { getMarkerColor, getStatusLabel } from '@/hooks/useMapLocations';
 
@@ -39,6 +40,22 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
   return null;
 }
 
+// Parse coordinates from string (supports "lat, lng" or "lat,lng" format)
+function parseCoordinates(input: string): { lat: number; lng: number } | null {
+  // Remove extra spaces and split by comma
+  const parts = input.split(',').map(s => s.trim());
+  if (parts.length !== 2) return null;
+
+  const lat = parseFloat(parts[0]);
+  const lng = parseFloat(parts[1]);
+
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90) return null;
+  if (lng < -180 || lng > 180) return null;
+
+  return { lat, lng };
+}
+
 interface MapLocation {
   cycleId: string;
   lat: number;
@@ -52,26 +69,162 @@ interface MapLocation {
   contactPhone?: string;
 }
 
+// Popup content with edit capability
+function MarkerPopupContent({
+  loc,
+  onUpdateLocation,
+  isUpdating
+}: {
+  loc: MapLocation;
+  onUpdateLocation?: (cycleId: string, lat: number, lng: number) => Promise<void>;
+  isUpdating: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [coordInput, setCoordInput] = useState(`${loc.lat}, ${loc.lng}`);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    const parsed = parseCoordinates(coordInput);
+    if (!parsed) {
+      setError('Napačen format. Uporabi: lat, lng');
+      return;
+    }
+
+    setError('');
+    if (onUpdateLocation) {
+      await onUpdateLocation(loc.cycleId, parsed.lat, parsed.lng);
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setCoordInput(`${loc.lat}, ${loc.lng}`);
+    setError('');
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="text-sm min-w-[200px]">
+      <div className="font-bold">{loc.companyName}</div>
+      <div className="text-gray-500 text-xs">{loc.companyAddress}</div>
+      <div className="mt-2">
+        <span className="font-mono text-xs bg-gray-100 px-1 rounded">{loc.qrCode}</span>
+        <span className="ml-2">{loc.matTypeName}</span>
+      </div>
+      <div className="mt-1 text-xs" style={{ color: getMarkerColor(loc.status) }}>
+        {getStatusLabel(loc.status)}
+      </div>
+      {loc.contactName && (
+        <div className="mt-2 text-xs">
+          <div>{loc.contactName}</div>
+          {loc.contactPhone && (
+            <a href={`tel:${loc.contactPhone}`} className="text-blue-600">
+              {loc.contactPhone}
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Coordinates section */}
+      <div className="mt-2 pt-2 border-t">
+        {isEditing ? (
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">
+                Koordinate (lat, lng):
+              </label>
+              <input
+                type="text"
+                value={coordInput}
+                onChange={(e) => setCoordInput(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full text-xs p-1.5 border rounded font-mono"
+                placeholder="46.056946, 14.505751"
+              />
+              {error && <div className="text-red-500 text-xs mt-1">{error}</div>}
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSave();
+                }}
+                disabled={isUpdating}
+                className="flex-1 flex items-center justify-center gap-1 bg-green-500 text-white text-xs py-1.5 rounded hover:bg-green-600 disabled:bg-gray-300"
+              >
+                <Check size={12} />
+                {isUpdating ? 'Shranjujem...' : 'Shrani'}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancel();
+                }}
+                disabled={isUpdating}
+                className="flex-1 flex items-center justify-center gap-1 bg-gray-200 text-gray-700 text-xs py-1.5 rounded hover:bg-gray-300 disabled:bg-gray-100"
+              >
+                <X size={12} />
+                Prekliči
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 font-mono">
+                {loc.lat}, {loc.lng}
+              </span>
+              {onUpdateLocation && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-1"
+                  title="Uredi koordinate"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+            <a
+              href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+            >
+              <MapPin size={12} />
+              <span>Odpri v Google Maps</span>
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface MapViewProps {
   mapLocations: MapLocation[] | undefined;
   loadingMap: boolean;
-  mapEditMode: boolean;
-  clickedMapLocation: { lat: number; lng: number } | null;
-  onMapEditModeToggle: () => void;
-  onMapClick: (lat: number, lng: number) => void;
+  mapEditMode?: boolean;
+  clickedMapLocation?: { lat: number; lng: number } | null;
+  onMapClick?: (lat: number, lng: number) => void;
+  onUpdateLocation?: (cycleId: string, lat: number, lng: number) => Promise<void>;
+  isUpdatingLocation?: boolean;
 }
 
 export default function MapView({
   mapLocations,
   loadingMap,
-  mapEditMode,
-  clickedMapLocation,
-  onMapEditModeToggle,
-  onMapClick
+  mapEditMode = false,
+  clickedMapLocation = null,
+  onMapClick,
+  onUpdateLocation,
+  isUpdatingLocation = false
 }: MapViewProps) {
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4">🗺️ Moji predpražniki na zemljevidu</h2>
+      <h2 className="text-xl font-bold mb-4">Moji predpražniki na zemljevidu</h2>
 
       {/* Legend */}
       <div className="bg-white rounded-lg shadow p-3 mb-4">
@@ -88,29 +241,10 @@ export default function MapView({
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
             <span>Čaka šoferja</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-            <span>Umazan</span>
-          </div>
         </div>
         <div className="text-xs text-gray-500 mt-2">
           Skupaj na zemljevidu: {mapLocations?.length || 0}
         </div>
-        <button
-          onClick={onMapEditModeToggle}
-          className={`mt-3 w-full py-2 rounded text-sm font-medium ${
-            mapEditMode
-              ? 'bg-orange-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          {mapEditMode ? '🎯 Način urejanja AKTIVEN' : '✏️ Uredi lokacije'}
-        </button>
-        {mapEditMode && (
-          <p className="text-xs text-orange-600 mt-1">
-            Klikni na zemljevid kjer je predpražnik
-          </p>
-        )}
       </div>
 
       {/* Map */}
@@ -143,7 +277,7 @@ export default function MapView({
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               {/* Map click handler for edit mode */}
-              {mapEditMode && (
+              {mapEditMode && onMapClick && (
                 <MapClickHandler onMapClick={onMapClick} />
               )}
               {/* Show marker for clicked location */}
@@ -165,38 +299,11 @@ export default function MapView({
                   icon={createCustomIcon(getMarkerColor(loc.status), loc.status === 'on_test')}
                 >
                   <Popup>
-                    <div className="text-sm">
-                      <div className="font-bold">{loc.companyName}</div>
-                      <div className="text-gray-500 text-xs">{loc.companyAddress}</div>
-                      <div className="mt-2">
-                        <span className="font-mono text-xs bg-gray-100 px-1 rounded">{loc.qrCode}</span>
-                        <span className="ml-2">{loc.matTypeName}</span>
-                      </div>
-                      <div className="mt-1 text-xs" style={{ color: getMarkerColor(loc.status) }}>
-                        {getStatusLabel(loc.status)}
-                      </div>
-                      {loc.contactName && (
-                        <div className="mt-2 text-xs">
-                          <div>{loc.contactName}</div>
-                          {loc.contactPhone && (
-                            <a href={`tel:${loc.contactPhone}`} className="text-blue-600">
-                              {loc.contactPhone}
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      <div className="mt-2 pt-2 border-t">
-                        <a
-                          href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
-                        >
-                          <MapPin size={12} />
-                          <span>Odpri v Google Maps</span>
-                        </a>
-                      </div>
-                    </div>
+                    <MarkerPopupContent
+                      loc={loc}
+                      onUpdateLocation={onUpdateLocation}
+                      isUpdating={isUpdatingLocation}
+                    />
                   </Popup>
                 </Marker>
               ))}

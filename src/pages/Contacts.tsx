@@ -2967,9 +2967,11 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
                 delivery_address: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryAddress : null,
                 delivery_postal: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryPostal : null,
                 delivery_city: editAddressData.hasDifferentDeliveryAddress ? editAddressData.deliveryCity : null,
+                parent_company_id: editAddressData.parentCompanyId || null,
               };
               setSelectedCompany(updated as any);
               queryClient.invalidateQueries({ queryKey: ['companies'] });
+              queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
 
               toast({ description: isNoLongerOsnutek ? 'Podjetje posodobljeno iz osnutka' : 'Podatki posodobljeni' });
               setShowEditAddressModal(false);

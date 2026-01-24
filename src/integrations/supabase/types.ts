@@ -993,6 +993,110 @@ export type Database = {
         }
         Relationships: []
       }
+      travel_logs: {
+        Row: {
+          id: string
+          user_id: string
+          month: number
+          year: number
+          vehicle_brand: string | null
+          vehicle_registration: string | null
+          vehicle_owner: string | null
+          starting_odometer: number | null
+          ending_odometer: number | null
+          private_km_limit: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          month: number
+          year: number
+          vehicle_brand?: string | null
+          vehicle_registration?: string | null
+          vehicle_owner?: string | null
+          starting_odometer?: number | null
+          ending_odometer?: number | null
+          private_km_limit?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          month?: number
+          year?: number
+          vehicle_brand?: string | null
+          vehicle_registration?: string | null
+          vehicle_owner?: string | null
+          starting_odometer?: number | null
+          ending_odometer?: number | null
+          private_km_limit?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      travel_log_entries: {
+        Row: {
+          id: string
+          travel_log_id: string
+          entry_date: string
+          route: string | null
+          purpose: string
+          km_business: number
+          km_private: number
+          odometer_reading: number | null
+          start_time: string | null
+          end_time: string | null
+          gps_session_ids: string[]
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          travel_log_id: string
+          entry_date: string
+          route?: string | null
+          purpose?: string
+          km_business?: number
+          km_private?: number
+          odometer_reading?: number | null
+          start_time?: string | null
+          end_time?: string | null
+          gps_session_ids?: string[]
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          travel_log_id?: string
+          entry_date?: string
+          route?: string | null
+          purpose?: string
+          km_business?: number
+          km_private?: number
+          odometer_reading?: number | null
+          start_time?: string | null
+          end_time?: string | null
+          gps_session_ids?: string[]
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_log_entries_travel_log_id_fkey"
+            columns: ["travel_log_id"]
+            isOneToOne: false
+            referencedRelation: "travel_logs"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       gps_tracking_sessions: {
         Row: {
           id: string
@@ -1074,6 +1178,17 @@ export type OptibrushStandardSize = MatTrackerTables['optibrush_standard_sizes']
 export type GpsTrackingSession = MatTrackerTables['gps_tracking_sessions']['Row']
 export type GpsTrackingSessionInsert = MatTrackerTables['gps_tracking_sessions']['Insert']
 export type GpsTrackingSessionUpdate = MatTrackerTables['gps_tracking_sessions']['Update']
+
+export type TravelLog = MatTrackerTables['travel_logs']['Row']
+export type TravelLogInsert = MatTrackerTables['travel_logs']['Insert']
+export type TravelLogUpdate = MatTrackerTables['travel_logs']['Update']
+export type TravelLogEntry = MatTrackerTables['travel_log_entries']['Row']
+export type TravelLogEntryInsert = MatTrackerTables['travel_log_entries']['Insert']
+export type TravelLogEntryUpdate = MatTrackerTables['travel_log_entries']['Update']
+
+// Purpose types for travel log entries
+export const TRAVEL_PURPOSES = ['teren', 'bolniska', 'dopust', 'praznik', 'od_doma', 'prosto'] as const
+export type TravelPurpose = typeof TRAVEL_PURPOSES[number]
 
 // Insert types
 export type ProfileInsert = MatTrackerTables['profiles']['Insert']
