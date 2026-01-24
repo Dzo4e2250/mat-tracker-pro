@@ -228,9 +228,20 @@ export function useGpsTracker(userId?: string) {
 
     setError(null);
 
+    // Minimalna razdalja med točkami v km (10 metrov)
+    const MIN_DISTANCE_KM = 0.01;
+    // Maksimalna dovoljena GPS natančnost v metrih
+    const MAX_ACCURACY_METERS = 30;
+
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         setCurrentPosition(position);
+
+        // Ignoriraj točke s slabo natančnostjo
+        if (position.coords.accuracy > MAX_ACCURACY_METERS) {
+          console.log(`GPS accuracy too low: ${position.coords.accuracy}m, skipping`);
+          return;
+        }
 
         const newPoint: GpsPoint = {
           lat: position.coords.latitude,
@@ -239,6 +250,21 @@ export function useGpsTracker(userId?: string) {
         };
 
         setPoints(prev => {
+          // Preveri minimalno razdaljo od zadnje točke
+          if (prev.length > 0) {
+            const lastPoint = prev[prev.length - 1];
+            const distance = calculateDistance(
+              lastPoint.lat,
+              lastPoint.lng,
+              newPoint.lat,
+              newPoint.lng
+            );
+            // Ignoriraj če je premajhna razdalja (GPS šum)
+            if (distance < MIN_DISTANCE_KM) {
+              return prev;
+            }
+          }
+
           const updated = [...prev, newPoint];
           savePoints(updated);
           return updated;
@@ -262,8 +288,8 @@ export function useGpsTracker(userId?: string) {
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 30000,
+        maximumAge: 5000,
+        timeout: 15000,
       }
     );
   }, [savePoints]);
