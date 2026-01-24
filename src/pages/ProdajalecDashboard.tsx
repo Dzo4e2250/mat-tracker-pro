@@ -652,7 +652,8 @@ export default function ProdajalecDashboard() {
         {view === 'home' && (
           <div>
             {/* Opozorila za teste ki se iztečejo - sortirano od najstarejše položitve */}
-            {cycles?.filter(c => c.status === 'on_test')
+            {/* Izključi podpisane pogodbe - ti predpražniki niso več odgovornost prodajalca */}
+            {cycles?.filter(c => c.status === 'on_test' && !c.contract_signed)
               .sort((a, b) => {
                 const aDate = a.test_start_date ? new Date(a.test_start_date) : null;
                 const bDate = b.test_start_date ? new Date(b.test_start_date) : null;
@@ -705,7 +706,7 @@ export default function ProdajalecDashboard() {
                   <div className="text-sm">💚 Čisti</div>
                 </div>
                 <div className="bg-blue-50 p-3 rounded">
-                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'on_test').length || 0}</div>
+                  <div className="text-2xl font-bold">{cycles?.filter(c => c.status === 'on_test' && !c.contract_signed).length || 0}</div>
                   <div className="text-sm">🔵 Na testu</div>
                 </div>
                 <div className="bg-orange-50 p-3 rounded">
@@ -725,7 +726,7 @@ export default function ProdajalecDashboard() {
                 {[
                   { key: 'all', label: 'Vsi', count: cycles?.length || 0 },
                   { key: 'clean', label: '💚 Čisti', count: cycles?.filter(c => c.status === 'clean').length || 0 },
-                  { key: 'on_test', label: '🔵 Na testu', count: cycles?.filter(c => c.status === 'on_test').length || 0 },
+                  { key: 'on_test', label: '🔵 Na testu', count: cycles?.filter(c => c.status === 'on_test' && !c.contract_signed).length || 0 },
                   { key: 'dirty', label: '🟠 Umazani', count: cycles?.filter(c => c.status === 'dirty').length || 0 },
                   { key: 'waiting_driver', label: '📋 Šofer', count: cycles?.filter(c => c.status === 'waiting_driver').length || 0 },
                 ].map(tab => (
@@ -747,10 +748,12 @@ export default function ProdajalecDashboard() {
               {!cycles || cycles.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">Ni predpražnikov</p>
               ) : (() => {
-                // Filter cycles
+                // Filter cycles - pri "on_test" izključi podpisane pogodbe
                 const filteredCycles = statusFilter === 'all'
                   ? cycles
-                  : cycles.filter(c => c.status === statusFilter);
+                  : statusFilter === 'on_test'
+                    ? cycles.filter(c => c.status === 'on_test' && !c.contract_signed)
+                    : cycles.filter(c => c.status === statusFilter);
 
                 if (filteredCycles.length === 0) {
                   return <p className="text-gray-500 text-center py-4">Ni predpražnikov s tem statusom</p>;
@@ -761,7 +764,8 @@ export default function ProdajalecDashboard() {
                 const otherCycles: CycleWithRelations[] = [];
 
                 filteredCycles.forEach(cycle => {
-                  if (cycle.status === 'on_test' && cycle.company_id) {
+                  // Podpisane pogodbe ne grupiramo kot "na testu" - niso več odgovornost prodajalca
+                  if (cycle.status === 'on_test' && cycle.company_id && !cycle.contract_signed) {
                     const key = cycle.company_id;
                     if (!onTestByCompany.has(key)) {
                       onTestByCompany.set(key, []);

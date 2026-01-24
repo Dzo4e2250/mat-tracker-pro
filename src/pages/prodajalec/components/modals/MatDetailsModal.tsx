@@ -246,7 +246,7 @@ export default function MatDetailsModal({
             )}
           </div>
 
-          {cycle.test_start_date && (
+          {cycle.test_start_date && !cycle.contract_signed && (
             <div className="pt-2 border-t">
               <span className="text-xs text-gray-500">Preostali čas:</span>
               <div className="text-xl font-bold mt-1" style={{
