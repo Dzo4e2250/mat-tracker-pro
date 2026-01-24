@@ -319,7 +319,7 @@ export default function QRKode() {
                           <div className="space-y-2">
                             <Label>Število kod za generiranje</Label>
                             <div className="flex items-center gap-2">
-                              <Button variant="outline" size="icon" onClick={() => setNewCodeCount(Math.max(1, newCodeCount - 1))}>-</Button>
+                              <Button variant="outline" size="icon" onClick={() => setNewCodeCount(Math.max(1, newCodeCount - 1))} aria-label="Zmanjšaj število">-</Button>
                               <Input
                                 type="number"
                                 min="1"
@@ -328,7 +328,7 @@ export default function QRKode() {
                                 onChange={(e) => setNewCodeCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
                                 className="text-center w-24"
                               />
-                              <Button variant="outline" size="icon" onClick={() => setNewCodeCount(Math.min(100, newCodeCount + 1))}>+</Button>
+                              <Button variant="outline" size="icon" onClick={() => setNewCodeCount(Math.min(100, newCodeCount + 1))} aria-label="Povečaj število">+</Button>
                             </div>
                           </div>
                           <Button onClick={handleAddCodes} disabled={createCodes.isPending} className="w-full">
@@ -362,6 +362,7 @@ export default function QRKode() {
                                 onClick={() => deleteCode.mutate(code.id)}
                                 disabled={deleteCode.isPending}
                                 className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Izbriši kodo"
                               >
                                 <X className="h-3 w-3" />
                               </button>

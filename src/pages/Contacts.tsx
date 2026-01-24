@@ -2,48 +2,57 @@
  * @file Contacts.tsx
  * @description Glavna CRM stran za upravljanje strank in kontaktov
  * @author Mat Tracker Pro Team
- * @version 2.0
+ * @version 3.0 - Refactored
  * @since 2025-01
  */
 
-// ============================================================================
-// IMPORTS
-// ============================================================================
-
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Phone, MessageSquare, Mail, MapPin, Plus, ChevronRight, Home, Camera, Users, Building2, User, X, Trash2, Package, Calendar, CheckCircle, Clock, FileText, Euro, ChevronDown, MoreVertical, Download, Check, Square, CheckSquare, FileSignature, StickyNote, QrCode, Bell, AlertTriangle, Filter, Pencil } from 'lucide-react';
-import { useDueReminders, useReminders, useCreateReminder, usePostponeReminder, useContractPendingCompanies, PIPELINE_STATUSES, type ReminderWithCompany } from '@/hooks/useReminders';
-import { useCompanyContacts, useCompanyDetails, CompanyWithContacts } from '@/hooks/useCompanyContacts';
+import { useSearchParams } from 'react-router-dom';
+import { useDueReminders, useReminders, useCreateReminder, usePostponeReminder, useContractPendingCompanies, PIPELINE_STATUSES } from '@/hooks/useReminders';
+import { useCompanyContacts, useCompanyDetails } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { getCityByPostalCode } from '@/utils/postalCodes';
-// Lazy loaded komponente - naložijo se šele ko se uporabijo
-const ContractModal = lazy(() => import('@/components/ContractModal'));
+import { useQuery } from '@tanstack/react-query';
+
 // Ekstrahirane komponente
-import { TodaySection, SelectionModeBar, UrgentReminders, StickySearchBar, CompanyCard, ReminderModal, ExistingCompanyModal, AddCompanyModal, AddContactModal, MeetingModal, EditAddressModal, EditContactModal, CompanyDetailModal, QRScannerModal, ContractConfirmDialog, AlphabetSidebar, OfferModalWrapper, RoutePlannerModal } from '@/pages/contacts/components';
+import {
+  TodaySection,
+  SelectionModeBar,
+  UrgentReminders,
+  StickySearchBar,
+  CompanyCard,
+  ReminderModal,
+  ExistingCompanyModal,
+  AddCompanyModal,
+  AddContactModal,
+  MeetingModal,
+  EditAddressModal,
+  EditContactModal,
+  CompanyDetailModal,
+  QRScannerModal,
+  ContractConfirmDialog,
+  AlphabetSidebar,
+  OfferModalWrapper,
+  RoutePlannerModal,
+  ContractModalContainer,
+  BottomNavigation,
+  ContactsHeader,
+} from '@/pages/contacts/components';
 
 // Tipi in hooks iz contacts modula
-import { type OfferItem, type FilterType, isTestOverdue, getDaysOverdue } from '@/pages/contacts/types';
-import { useContactsFilters, useOfferState, useCompanyNotes, useQRScanner, useCompanyActions, useOfferEmail, useContactSelection, useSentOffers, useCompanyDetailHandlers } from '@/pages/contacts/hooks';
-import { getPrimaryContact, formatAddress, getGoogleMapsUrl, getCompanyAddress } from '@/pages/contacts/utils';
+import { useContactsFilters, useOfferState, useCompanyNotes, useQRScanner, useCompanyActions, useOfferEmail, useContactSelection, useSentOffers, useCompanyDetailHandlers, useContactsModals } from '@/pages/contacts/hooks';
+import { getGoogleMapsUrl, getCompanyAddress } from '@/pages/contacts/utils';
 
 /** Contacts - Glavna CRM stran za prodajalce */
 export default function Contacts() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: companies, isLoading } = useCompanyContacts(user?.id);
+
+  // Modali in state management
+  const modals = useContactsModals();
 
   // Opomniki - nujne naloge za prodajalca
   const { data: dueReminders } = useDueReminders(user?.id);
@@ -51,13 +60,14 @@ export default function Contacts() {
   const createReminder = useCreateReminder();
   const postponeReminder = usePostponeReminder();
 
-  // Set company IDs that have active reminders
+  // Companies with active reminders
   const companiesWithReminders = useMemo(() => {
     return new Set(allReminders?.map(r => r.company_id).filter(Boolean) || []);
   }, [allReminders]);
+
   const { data: contractPendingCompanies } = useContractPendingCompanies(user?.id, 3);
 
-  // Podjetja z opombo "Ni interesa" - za filtriranje
+  // Podjetja z opombo "Ni interesa"
   const { data: noInterestCompanyIds } = useQuery({
     queryKey: ['no-interest-companies', user?.id],
     queryFn: async () => {
@@ -71,316 +81,140 @@ export default function Contacts() {
       return new Set((data || []).map(n => n.company_id));
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 min
+    staleTime: 1000 * 60 * 5,
   });
 
-  // --------------------------------------------------------------------------
-  // FILTRI - Uporaba useContactsFilters hook
-  // --------------------------------------------------------------------------
-  const {
-    searchQuery,
-    setSearchQuery,
-    sortBy,
-    setSortBy,
-    periodFilter,
-    setPeriodFilter,
-    statusFilter,
-    setStatusFilter,
-    filter,
-    setFilter,
-    hideNoInterest,
-    setHideNoInterest,
-    recentCompanyIds,
-    addToRecent,
-    filteredCompanies,
-    availableLetters,
-    scrollToLetter,
-    getCompanyFirstLetter,
-    firstCompanyForLetter,
-  } = useContactsFilters({ companies, noInterestCompanyIds });
+  // Filtri
+  const filters = useContactsFilters({ companies, noInterestCompanyIds });
 
-  // Offer state iz hook-a
-  const {
-    showOfferModal,
-    setShowOfferModal,
-    offerType,
-    setOfferType,
-    offerFrequency,
-    offerStep,
-    setOfferStep,
-    hasNajem,
-    hasNakup,
-    offerItemsNakup,
-    offerItemsNajem,
-    openOfferModal,
-    updateNajemPricesForFrequency,
-    addCustomOfferItem,
-    removeOfferItem,
-    updateOfferItem,
-    handleItemTypeChange,
-    handleDesignSizeSelect,
-    handleCustomDimensionsChange,
-    handlePriceChange,
-    handleDiscountChange,
-    handleSeasonalToggle,
-    handleSeasonalFrequencyChange,
-    handleSeasonalPriceChange,
-    handleSeasonalDiscountChange,
-    handleNormalFrequencyChange,
-    handleNormalPriceChange,
-    handleNormalDiscountChange,
-    calculateOfferTotals,
-  } = useOfferState();
+  // Offer state
+  const offerState = useOfferState();
 
-  // --------------------------------------------------------------------------
-  // STATE - Stanje komponent (modali, forme, itd.)
-  // --------------------------------------------------------------------------
-
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-
-  // State za QR Scanner callbacks (mora biti pred useQRScanner)
-  const [formData, setFormData] = useState<any>({});
-  const [showExistingCompanyModal, setShowExistingCompanyModal] = useState(false);
-  const [existingCompany, setExistingCompany] = useState<CompanyWithContacts | null>(null);
-  const [pendingContactData, setPendingContactData] = useState<any>(null);
-
-  // Notes hook (requires selectedCompanyId)
-  const {
-    companyNotes,
-    isLoadingNotes,
-    todayTasks,
-    addNoteMutation,
-    deleteNoteMutation,
-    editNoteMutation,
-    updateNoteDeadline,
-    markDeadlineDone,
-  } = useCompanyNotes({ selectedCompanyId, userId: user?.id });
+  // Notes hook
+  const notesHook = useCompanyNotes({
+    selectedCompanyId: modals.selectedCompanyId,
+    userId: user?.id,
+  });
 
   // QR Scanner hook
-  const {
-    showQRScanner,
-    openScanner,
-    closeScanner,
-    scannerError,
-    zoomLevel,
-    maxZoom,
-    zoomSupported,
-    applyZoom,
-  } = useQRScanner({
+  const qrScanner = useQRScanner({
     companies,
     onContactParsed: (data) => {
-      setFormData((prev: any) => ({ ...prev, ...data }));
-      setShowAddModal(true); // Open add modal with scanned data
+      modals.setFormData((prev: any) => ({ ...prev, ...data }));
+      modals.setShowAddModal(true);
     },
     onExistingCompanyFound: (company, contactData) => {
-      setExistingCompany(company);
-      setPendingContactData(contactData);
-      setShowExistingCompanyModal(true);
+      modals.openExistingCompanyModal(company, contactData);
     },
   });
 
-  // Opomnik modal
-  const [showReminderModal, setShowReminderModal] = useState(false);
-  const [reminderCompanyId, setReminderCompanyId] = useState<string | null>(null);
-  const [reminderDate, setReminderDate] = useState('');
-  const [reminderTime, setReminderTime] = useState('09:00');
-  const [reminderNote, setReminderNote] = useState('');
+  // Company details
+  const { data: companyDetails, isLoading: isLoadingDetails } = useCompanyDetails(
+    modals.selectedCompanyId || undefined,
+    user?.id
+  );
 
-  // Route planner modal
-  const [showRoutePlannerModal, setShowRoutePlannerModal] = useState(false);
+  // Company actions hook
+  const actions = useCompanyActions({
+    userId: user?.id,
+    companies,
+    selectedCompany: modals.selectedCompany,
+    formData: modals.formData,
+    setFormData: modals.setFormData,
+    editAddressData: modals.editAddressData,
+    setEditAddressData: modals.setEditAddressData,
+    setShowEditAddressModal: modals.setShowEditAddressModal,
+    existingCompany: modals.existingCompanyState.company,
+    pendingContactData: modals.existingCompanyState.pendingContactData,
+    setShowExistingCompanyModal: modals.setShowExistingCompanyModal,
+    setExistingCompany: (c) => modals.setExistingCompanyState(prev => ({ ...prev, company: c })),
+    setPendingContactData: (d) => modals.setExistingCompanyState(prev => ({ ...prev, pendingContactData: d })),
+    setShowAddModal: modals.setShowAddModal,
+    setShowAddContactModal: modals.setShowAddContactModal,
+    setSelectedCompany: modals.setSelectedCompany,
+    setTaxLookupLoading: modals.setTaxLookupLoading,
+    reminderCompanyId: modals.reminderState.companyId,
+    reminderDate: modals.reminderState.date,
+    reminderTime: modals.reminderState.time,
+    reminderNote: modals.reminderState.note,
+    setShowReminderModal: modals.setShowReminderModal,
+    setReminderCompanyId: (id) => modals.setReminderState(prev => ({ ...prev, companyId: id })),
+    setReminderDate: (date) => modals.setReminderState(prev => ({ ...prev, date })),
+    setReminderTime: (time) => modals.setReminderState(prev => ({ ...prev, time })),
+    setReminderNote: (note) => modals.setReminderState(prev => ({ ...prev, note })),
+    addNoteMutation: notesHook.addNoteMutation,
+  });
 
-  // Handle company query parameter from URL (e.g., from Dashboard redirect)
+  // Contact selection hook
+  const selection = useContactSelection({ companies, deleteContact: actions.deleteContact });
+
+  // Sent offers hook
+  const sentOffers = useSentOffers({
+    selectedCompanyId: modals.selectedCompanyId,
+    selectedCompany: modals.selectedCompany,
+    userId: user?.id,
+    offerType: offerState.offerType,
+    offerFrequency: offerState.offerFrequency,
+    offerItemsNakup: offerState.offerItemsNakup,
+    offerItemsNajem: offerState.offerItemsNajem,
+  });
+
+  // Company detail handlers
+  const detailHandlers = useCompanyDetailHandlers({
+    selectedCompany: modals.selectedCompany,
+    companies,
+    setSelectedCompany: modals.setSelectedCompany,
+    setSelectedCompanyId: modals.setSelectedCompanyId,
+    setEditAddressData: modals.setEditAddressData,
+    setShowEditAddressModal: modals.setShowEditAddressModal,
+    setShowAddContactModal: modals.setShowAddContactModal,
+    setMeetingType: (type) => modals.setMeetingState(prev => ({ ...prev, type })),
+    setMeetingDate: (date) => modals.setMeetingState(prev => ({ ...prev, date })),
+    setMeetingTime: (time) => modals.setMeetingState(prev => ({ ...prev, time })),
+    setShowMeetingModal: modals.setShowMeetingModal,
+    setEditingContact: modals.setEditingContact,
+    setEditContactData: modals.setEditContactData,
+    setSelectedOffer: modals.setSelectedOffer,
+    setShowContractConfirm: modals.setShowContractConfirm,
+    addNoteMutation: notesHook.addNoteMutation,
+    editNoteMutation: notesHook.editNoteMutation,
+    deleteNoteMutation: notesHook.deleteNoteMutation,
+    deleteCompany: actions.deleteCompany,
+    newNoteContent: modals.newNoteContent,
+    newNoteDate: modals.newNoteDate,
+    meetingType: modals.meetingState.type,
+    meetingDate: modals.meetingState.date,
+    meetingTime: modals.meetingState.time,
+  });
+
+  // Email generation hook
+  const emailHook = useOfferEmail({
+    offerType: offerState.offerType,
+    offerFrequency: offerState.offerFrequency,
+    offerItemsNakup: offerState.offerItemsNakup,
+    offerItemsNajem: offerState.offerItemsNajem,
+    calculateOfferTotals: offerState.calculateOfferTotals,
+    selectedCompany: modals.selectedCompany,
+    saveOfferToDatabase: sentOffers.saveOfferToDatabase,
+  });
+
+  // Handle company query parameter from URL
   useEffect(() => {
     const companyId = searchParams.get('company');
     if (companyId && companies) {
       const company = companies.find(c => c.id === companyId);
       if (company) {
-        setSelectedCompanyId(companyId);
-        setSelectedCompany(company);
-        // Clear the URL parameter
+        modals.selectCompany(company);
         searchParams.delete('company');
         setSearchParams(searchParams, { replace: true });
       }
     }
   }, [searchParams, companies]);
 
-  // Fetch company details with cycles history when a company is selected
-  const { data: companyDetails, isLoading: isLoadingDetails } = useCompanyDetails(
-    selectedCompanyId || undefined,
-    user?.id
-  );
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<CompanyWithContacts | null>(null);
-  const [showAddContactModal, setShowAddContactModal] = useState(false);
-  const [taxLookupLoading, setTaxLookupLoading] = useState(false);
-
-  // Contact selection hook (will be initialized after useCompanyActions)
-
-  // Sent offers state (remaining UI state - data will be from hook)
-  const [showContractConfirm, setShowContractConfirm] = useState(false);
-  const [showContractModal, setShowContractModal] = useState(false);
-  const [selectedOffer, setSelectedOffer] = useState<any>(null);
-  const [savedContracts, setSavedContracts] = useState<any[]>([]);
-
-  // Company notes state
-  const [newNoteDate, setNewNoteDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const queryClient = useQueryClient();
-
-  // Quick note with meeting/deadline
-  const [showMeetingModal, setShowMeetingModal] = useState(false);
-  const [meetingDate, setMeetingDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [meetingTime, setMeetingTime] = useState<string>('10:00');
-  const [meetingType, setMeetingType] = useState<'sestanek' | 'ponudba' | 'izris'>('sestanek');
-
-  // Edit contact state
-  const [editingContact, setEditingContact] = useState<any>(null);
-  const [editContactData, setEditContactData] = useState<any>({});
-
-  // Urejanje naslova podjetja
-  const [showEditAddressModal, setShowEditAddressModal] = useState(false);
-  const [editAddressData, setEditAddressData] = useState<any>({});
-
-  // Company actions hook
-  const {
-    createCompany,
-    addContact,
-    updateCompany,
-    updateContact,
-    deleteContact,
-    deleteCompany,
-    updatePipelineStatus,
-    handleAddToExistingCompany,
-    handleCreateNewAnyway,
-    handleCreateReminder,
-    handleContractSent,
-    handleCompleteReminder,
-    handleAddCompany,
-    handleTaxLookup,
-    handleEditAddressTaxLookup,
-    handleAddContact,
-    handleDeleteContact,
-    handleSaveAddress,
-  } = useCompanyActions({
-    userId: user?.id,
-    companies,
-    selectedCompany,
-    formData,
-    setFormData,
-    editAddressData,
-    setEditAddressData,
-    setShowEditAddressModal,
-    existingCompany,
-    pendingContactData,
-    setShowExistingCompanyModal,
-    setExistingCompany,
-    setPendingContactData,
-    setShowAddModal,
-    setShowAddContactModal,
-    setSelectedCompany,
-    setTaxLookupLoading,
-    reminderCompanyId,
-    reminderDate,
-    reminderTime,
-    reminderNote,
-    setShowReminderModal,
-    setReminderCompanyId,
-    setReminderDate,
-    setReminderTime,
-    setReminderNote,
-    addNoteMutation,
-  });
-
-  // Contact selection hook
-  const {
-    selectionMode,
-    setSelectionMode,
-    selectedContacts,
-    setSelectedContacts,
-    toggleContactSelection,
-    selectAllContacts,
-    deselectAllContacts,
-    getAllContactsCount,
-    exportSelectedContacts,
-    exportAllContacts,
-    deleteSelectedContacts,
-  } = useContactSelection({ companies, deleteContact });
-
-  // Sent offers hook
-  const {
-    sentOffers,
-    loadingSentOffers,
-    fetchSentOffers,
-    saveOfferToDatabase,
-    deleteSentOffer,
-  } = useSentOffers({
-    selectedCompanyId,
-    selectedCompany,
-    userId: user?.id,
-    offerType,
-    offerFrequency,
-    offerItemsNakup,
-    offerItemsNajem,
-  });
-
-  // Company detail handlers
-  const {
-    handleClose: handleDetailClose,
-    handleEditAddress,
-    handleQuickNote,
-    handleAddNote,
-    handleEditNote,
-    handleDeleteNote,
-    handleShowAddContact,
-    handleShowMeeting,
-    handleEditContact,
-    handleViewOffer,
-    handleNavigateToSeller,
-    handleDeleteCompany,
-    handleSelectCompany,
-    handleMeetingSaveWithICS,
-    handleMeetingSaveOnly,
-    handleMeetingClose,
-  } = useCompanyDetailHandlers({
-    selectedCompany,
-    companies,
-    setSelectedCompany,
-    setSelectedCompanyId,
-    setEditAddressData,
-    setShowEditAddressModal,
-    setShowAddContactModal,
-    setMeetingType,
-    setMeetingDate,
-    setMeetingTime,
-    setShowMeetingModal,
-    setEditingContact,
-    setEditContactData,
-    setSelectedOffer,
-    setShowContractConfirm,
-    addNoteMutation,
-    editNoteMutation,
-    deleteNoteMutation,
-    deleteCompany,
-    newNoteContent,
-    newNoteDate,
-    meetingType,
-    meetingDate,
-    meetingTime,
-  });
-
-  // Open reminder modal for a company
-  const openReminderModal = (companyId: string) => {
-    setReminderCompanyId(companyId);
-    // Set default date to today
-    setReminderDate(new Date().toISOString().split('T')[0]);
-    setShowReminderModal(true);
-  };
-
-  // Hierarhija podjetij - parent/children relacije
+  // Company hierarchy
   const companyHierarchy = useMemo(() => {
     if (!companies) return new Map<string, { parentCompany?: { id: string; name: string; display_name?: string }; childrenCount: number }>();
 
-    // Najprej preštej children za vsako podjetje
     const childrenCountMap = new Map<string, number>();
     companies.forEach(company => {
       if (company.parent_company_id) {
@@ -389,7 +223,6 @@ export default function Contacts() {
       }
     });
 
-    // Ustvari mapo z vsemi podatki o hierarhiji
     const hierarchyMap = new Map<string, { parentCompany?: { id: string; name: string; display_name?: string }; childrenCount: number }>();
     companies.forEach(company => {
       const parentCompany = company.parent_company_id
@@ -409,30 +242,27 @@ export default function Contacts() {
     return hierarchyMap;
   }, [companies]);
 
-  // Open route planner modal
+  // Route planner helpers
   const openRoutePlannerModal = () => {
-    const companiesWithAddresses = filteredCompanies.filter(c => getCompanyAddress(c));
+    const companiesWithAddresses = filters.filteredCompanies.filter(c => getCompanyAddress(c));
     if (companiesWithAddresses.length === 0) {
       toast({ description: 'Ni strank z naslovi', variant: 'destructive' });
       return;
     }
-    setShowRoutePlannerModal(true);
+    modals.setShowRoutePlannerModal(true);
   };
 
-  // Open route in Google Maps with selected companies
-  const openRouteWithCompanies = (selectedCompanies: CompanyWithContacts[]) => {
-    if (selectedCompanies.length === 0) {
+  const openRouteWithCompanies = (selectedCompanies: typeof companies) => {
+    if (!selectedCompanies || selectedCompanies.length === 0) {
       toast({ description: 'Ni izbranih strank', variant: 'destructive' });
       return;
     }
 
     if (selectedCompanies.length === 1) {
-      // Single destination
       window.open(getGoogleMapsUrl(selectedCompanies[0])!, '_blank');
       return;
     }
 
-    // Multiple waypoints - Google Maps Directions URL format
     const origin = encodeURIComponent(getCompanyAddress(selectedCompanies[0])!);
     const destination = encodeURIComponent(getCompanyAddress(selectedCompanies[selectedCompanies.length - 1])!);
     const waypoints = selectedCompanies
@@ -448,139 +278,93 @@ export default function Contacts() {
     toast({ description: `Odpiranje poti za ${selectedCompanies.length} strank` });
   };
 
-  // Email generation hook
-  const {
-    generateEmailHTML,
-    copyHTMLToClipboard,
-    sendOfferEmail,
-  } = useOfferEmail({
-    offerType,
-    offerFrequency,
-    offerItemsNakup,
-    offerItemsNajem,
-    calculateOfferTotals,
-    selectedCompany,
-    saveOfferToDatabase,
-  });
-
-  // ==========================================================================
-  // RENDER - JSX za prikaz uporabniškega vmesnika
-  // ==========================================================================
-
   return (
     <div className="min-h-screen bg-gray-100 pb-20">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 shadow">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Stranke</h1>
-            <div className="text-sm opacity-80">{filteredCompanies.length} strank</div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="p-2 hover:bg-blue-500 rounded-lg">
-              <MoreVertical size={22} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={exportAllContacts}>
-                <Download className="mr-2" size={16} />
-                Izvozi vse kontakte (vCard)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                setSelectionMode(true);
-                setSelectedContacts(new Set());
-              }}>
-                <CheckSquare className="mr-2" size={16} />
-                Izberi kontakte za izvoz
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => {
-                setSelectionMode(true);
-                setSelectedContacts(new Set());
-              }} className="text-red-600">
-                <Trash2 className="mr-2" size={16} />
-                Izberi kontakte za brisanje
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+      <ContactsHeader
+        companyCount={filters.filteredCompanies.length}
+        onExportAll={selection.exportAllContacts}
+        onStartSelection={() => {
+          selection.setSelectionMode(true);
+          selection.setSelectedContacts(new Set());
+        }}
+        onStartDeletion={() => {
+          selection.setSelectionMode(true);
+          selection.setSelectedContacts(new Set());
+        }}
+      />
 
       <div className="p-4 space-y-4">
-        {/* Sticky Search Bar z zložljivimi filtri */}
+        {/* Search Bar with Filters */}
         <StickySearchBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          periodFilter={periodFilter}
-          onPeriodChange={setPeriodFilter}
-          statusFilter={statusFilter}
-          onStatusChange={setStatusFilter}
+          searchQuery={filters.searchQuery}
+          onSearchChange={filters.setSearchQuery}
+          sortBy={filters.sortBy}
+          onSortChange={filters.setSortBy}
+          periodFilter={filters.periodFilter}
+          onPeriodChange={filters.setPeriodFilter}
+          statusFilter={filters.statusFilter}
+          onStatusChange={filters.setStatusFilter}
           pipelineStatuses={PIPELINE_STATUSES}
-          filter={filter}
-          onFilterChange={setFilter}
-          hideNoInterest={hideNoInterest}
-          onHideNoInterestChange={setHideNoInterest}
+          filter={filters.filter}
+          onFilterChange={filters.setFilter}
+          hideNoInterest={filters.hideNoInterest}
+          onHideNoInterestChange={filters.setHideNoInterest}
           noInterestCount={noInterestCompanyIds?.size || 0}
-          routeCompaniesCount={filteredCompanies.filter(c => getCompanyAddress(c)).length}
+          routeCompaniesCount={filters.filteredCompanies.filter(c => getCompanyAddress(c)).length}
           onOpenRoute={openRoutePlannerModal}
-          onAddCompany={() => setShowAddModal(true)}
+          onAddCompany={() => modals.setShowAddModal(true)}
         />
 
-        {/* Urgent Reminders - Red Cards */}
+        {/* Urgent Reminders */}
         <UrgentReminders
           dueReminders={dueReminders}
           contractPendingCompanies={contractPendingCompanies}
           onOpenCompany={(companyId) => {
-            setSelectedCompanyId(companyId);
+            modals.setSelectedCompanyId(companyId);
             const company = companies?.find(c => c.id === companyId);
-            if (company) setSelectedCompany(company);
+            if (company) modals.setSelectedCompany(company);
           }}
-          onCompleteReminder={handleCompleteReminder}
-          onAddReminder={openReminderModal}
+          onCompleteReminder={actions.handleCompleteReminder}
+          onAddReminder={modals.openReminderModal}
           onPostponeReminder={async (reminderId, newDate) => {
             try {
               await postponeReminder.mutateAsync({ reminderId, newDate });
               toast({ description: `Opomnik prestavljen na ${newDate.toLocaleDateString('sl-SI')}` });
-            } catch (error) {
+            } catch {
               toast({ description: 'Napaka pri prestavitvi opomnika', variant: 'destructive' });
             }
           }}
         />
 
-        {/* TODAY Section - Meetings and Deadlines */}
-        {!searchQuery && (
+        {/* Today Section */}
+        {!filters.searchQuery && (
           <TodaySection
-            todayTasks={todayTasks}
+            todayTasks={notesHook.todayTasks}
             onCompanyClick={(companyId) => {
               const company = companies?.find(c => c.id === companyId);
               if (company) {
-                setSelectedCompany(company);
-                setSelectedCompanyId(company.id);
-                addToRecent(company.id);
+                modals.selectCompany(company);
+                filters.addToRecent(company.id);
               }
             }}
-            onMarkDone={(noteId, content) => {
-              markDeadlineDone.mutate({ noteId, content });
-            }}
-            onPostpone={(noteId, content, newDate) => {
-              updateNoteDeadline.mutate({ noteId, content, newDate });
-            }}
+            onMarkDone={(noteId, content) => notesHook.markDeadlineDone.mutate({ noteId, content })}
+            onPostpone={(noteId, content, newDate) => notesHook.updateNoteDeadline.mutate({ noteId, content, newDate })}
           />
         )}
 
         {/* Selection Mode Bar */}
-        {selectionMode && (
+        {selection.selectionMode && (
           <SelectionModeBar
-            selectedCount={selectedContacts.size}
-            totalCount={getAllContactsCount()}
-            onSelectAll={selectAllContacts}
-            onDeselectAll={deselectAllContacts}
-            onExport={exportSelectedContacts}
-            onDelete={deleteSelectedContacts}
+            selectedCount={selection.selectedContacts.size}
+            totalCount={selection.getAllContactsCount()}
+            onSelectAll={selection.selectAllContacts}
+            onDeselectAll={selection.deselectAllContacts}
+            onExport={selection.exportSelectedContacts}
+            onDelete={selection.deleteSelectedContacts}
             onCancel={() => {
-              setSelectionMode(false);
-              setSelectedContacts(new Set());
+              selection.setSelectionMode(false);
+              selection.setSelectedContacts(new Set());
             }}
           />
         )}
@@ -588,35 +372,31 @@ export default function Contacts() {
         {/* Company List */}
         {isLoading ? (
           <div className="text-center py-8 text-gray-500">Nalagam...</div>
-        ) : filteredCompanies.length === 0 ? (
+        ) : filters.filteredCompanies.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            {searchQuery ? 'Ni rezultatov iskanja' : 'Ni strank'}
+            {filters.searchQuery ? 'Ni rezultatov iskanja' : 'Ni strank'}
           </div>
         ) : (
-          <div className="space-y-3 pr-6"> {/* pr-6 za prostor za abecedo */}
-            {filteredCompanies.map(company => {
-              const letter = getCompanyFirstLetter(company);
-              const isFirstForLetter = firstCompanyForLetter.get(letter) === company.id;
+          <div className="space-y-3 pr-6">
+            {filters.filteredCompanies.map(company => {
+              const letter = filters.getCompanyFirstLetter(company);
+              const isFirstForLetter = filters.firstCompanyForLetter.get(letter) === company.id;
               return (
-                <div
-                  key={company.id}
-                  data-first-letter={isFirstForLetter ? letter : undefined}
-                >
+                <div key={company.id} data-first-letter={isFirstForLetter ? letter : undefined}>
                   <CompanyCard
                     company={company}
-                    isRecent={recentCompanyIds.includes(company.id)}
-                    showRecentBadge={!searchQuery}
-                    selectionMode={selectionMode}
-                    selectedContacts={selectedContacts}
+                    isRecent={filters.recentCompanyIds.includes(company.id)}
+                    showRecentBadge={!filters.searchQuery}
+                    selectionMode={selection.selectionMode}
+                    selectedContacts={selection.selectedContacts}
                     hasReminder={companiesWithReminders.has(company.id)}
                     hierarchyInfo={companyHierarchy.get(company.id)}
                     onCompanyClick={() => {
-                      setSelectedCompany(company);
-                      setSelectedCompanyId(company.id);
-                      addToRecent(company.id);
+                      modals.selectCompany(company);
+                      filters.addToRecent(company.id);
                     }}
-                    onContactToggle={toggleContactSelection}
-                    onAddReminder={() => openReminderModal(company.id)}
+                    onContactToggle={selection.toggleContactSelection}
+                    onAddReminder={() => modals.openReminderModal(company.id)}
                   />
                 </div>
               );
@@ -625,379 +405,240 @@ export default function Contacts() {
         )}
       </div>
 
-      {/* Abecedna navigacija */}
-      {!isLoading && filteredCompanies.length > 10 && sortBy === 'name' && (
-        <AlphabetSidebar
-          availableLetters={availableLetters}
-          onLetterSelect={scrollToLetter}
-        />
+      {/* Alphabet Sidebar */}
+      {!isLoading && filters.filteredCompanies.length > 10 && filters.sortBy === 'name' && (
+        <AlphabetSidebar availableLetters={filters.availableLetters} onLetterSelect={filters.scrollToLetter} />
       )}
 
-      {/* Reminder Modal */}
-      {showReminderModal && (
+      {/* Modals */}
+      {modals.showReminderModal && (
         <ReminderModal
-          date={reminderDate}
-          time={reminderTime}
-          note={reminderNote}
-          companyName={companies?.find(c => c.id === reminderCompanyId)?.display_name || companies?.find(c => c.id === reminderCompanyId)?.name}
+          date={modals.reminderState.date}
+          time={modals.reminderState.time}
+          note={modals.reminderState.note}
+          companyName={companies?.find(c => c.id === modals.reminderState.companyId)?.display_name || companies?.find(c => c.id === modals.reminderState.companyId)?.name}
           isLoading={createReminder.isPending}
-          onDateChange={setReminderDate}
-          onTimeChange={setReminderTime}
-          onNoteChange={setReminderNote}
-          onSave={handleCreateReminder}
-          onClose={() => {
-            setShowReminderModal(false);
-            setReminderCompanyId(null);
-            setReminderDate('');
-            setReminderTime('09:00');
-            setReminderNote('');
-          }}
+          onDateChange={(date) => modals.setReminderState(prev => ({ ...prev, date }))}
+          onTimeChange={(time) => modals.setReminderState(prev => ({ ...prev, time }))}
+          onNoteChange={(note) => modals.setReminderState(prev => ({ ...prev, note }))}
+          onSave={actions.handleCreateReminder}
+          onClose={modals.closeReminderModal}
         />
       )}
 
-      {/* Route Planner Modal */}
-      {showRoutePlannerModal && (
+      {modals.showRoutePlannerModal && (
         <RoutePlannerModal
-          companies={filteredCompanies}
-          onClose={() => setShowRoutePlannerModal(false)}
+          companies={filters.filteredCompanies}
+          onClose={() => modals.setShowRoutePlannerModal(false)}
           onOpenRoute={openRouteWithCompanies}
         />
       )}
 
-      {/* Existing Company Modal */}
-      {showExistingCompanyModal && existingCompany && pendingContactData && (
+      {modals.showExistingCompanyModal && modals.existingCompanyState.company && modals.existingCompanyState.pendingContactData && (
         <ExistingCompanyModal
-          company={existingCompany}
-          pendingContact={pendingContactData}
-          isLoading={addContact.isPending}
-          onAddToExisting={handleAddToExistingCompany}
-          onCreateNewAnyway={handleCreateNewAnyway}
-          onClose={() => {
-            setShowExistingCompanyModal(false);
-            setExistingCompany(null);
-            setPendingContactData(null);
-          }}
+          company={modals.existingCompanyState.company}
+          pendingContact={modals.existingCompanyState.pendingContactData}
+          isLoading={actions.addContact.isPending}
+          onAddToExisting={actions.handleAddToExistingCompany}
+          onCreateNewAnyway={actions.handleCreateNewAnyway}
+          onClose={modals.closeExistingCompanyModal}
         />
       )}
 
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
+      {qrScanner.showQRScanner && (
         <QRScannerModal
-          zoomSupported={zoomSupported}
-          maxZoom={maxZoom}
-          zoomLevel={zoomLevel}
-          scannerError={scannerError}
-          onZoomChange={applyZoom}
-          onClose={closeScanner}
+          zoomSupported={qrScanner.zoomSupported}
+          maxZoom={qrScanner.maxZoom}
+          zoomLevel={qrScanner.zoomLevel}
+          scannerError={qrScanner.scannerError}
+          onZoomChange={qrScanner.applyZoom}
+          onClose={qrScanner.closeScanner}
         />
       )}
 
-      {/* Add Company Modal */}
-      {showAddModal && (
+      {modals.showAddModal && (
         <AddCompanyModal
-          formData={formData}
-          onFormDataChange={setFormData}
-          taxLookupLoading={taxLookupLoading}
-          onTaxLookup={handleTaxLookup}
-          isLoading={createCompany.isPending}
-          onSubmit={handleAddCompany}
-          onOpenQRScanner={openScanner}
-          onClose={() => setShowAddModal(false)}
+          formData={modals.formData}
+          onFormDataChange={modals.setFormData}
+          taxLookupLoading={modals.taxLookupLoading}
+          onTaxLookup={actions.handleTaxLookup}
+          isLoading={actions.createCompany.isPending}
+          onSubmit={actions.handleAddCompany}
+          onOpenQRScanner={qrScanner.openScanner}
+          onClose={() => modals.setShowAddModal(false)}
           availableParentCompanies={companies?.map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined })) || []}
         />
       )}
 
-      {/* Company Details Modal */}
-      {selectedCompany && (
+      {modals.selectedCompany && (
         <CompanyDetailModal
-          company={selectedCompany}
-          companyNotes={companyNotes}
-          isLoadingNotes={isLoadingNotes}
+          company={modals.selectedCompany}
+          companyNotes={notesHook.companyNotes}
+          isLoadingNotes={notesHook.isLoadingNotes}
           companyDetails={companyDetails}
           isLoadingDetails={isLoadingDetails}
-          sentOffers={sentOffers}
-          loadingSentOffers={loadingSentOffers}
-          savedContracts={savedContracts}
-          newNoteDate={newNoteDate}
-          newNoteContent={newNoteContent}
-          isAddingNote={addNoteMutation.isPending}
-          googleMapsUrl={getGoogleMapsUrl(selectedCompany)}
-          parentCompany={companyHierarchy.get(selectedCompany.id)?.parentCompany}
-          childCompanies={companies?.filter(c => c.parent_company_id === selectedCompany.id).map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined }))}
-          onNewNoteDateChange={setNewNoteDate}
-          onNewNoteContentChange={setNewNoteContent}
-          onClose={handleDetailClose}
-          onEditAddress={handleEditAddress}
-          onQuickNote={handleQuickNote}
-          onAddNote={handleAddNote}
-          onEditNote={handleEditNote}
-          onDeleteNote={handleDeleteNote}
-          onShowAddContact={handleShowAddContact}
-          onShowMeeting={handleShowMeeting}
-          onEditContact={handleEditContact}
-          onDeleteContact={handleDeleteContact}
-          onOpenOffer={openOfferModal}
-          onViewOffer={handleViewOffer}
-          onDeleteSentOffer={deleteSentOffer}
-          onNavigateToSeller={handleNavigateToSeller}
-          onDeleteCompany={handleDeleteCompany}
-          onContractSent={handleContractSent}
-          onSelectCompany={handleSelectCompany}
+          sentOffers={sentOffers.sentOffers}
+          loadingSentOffers={sentOffers.loadingSentOffers}
+          savedContracts={modals.savedContracts}
+          newNoteDate={modals.newNoteDate}
+          newNoteContent={modals.newNoteContent}
+          isAddingNote={notesHook.addNoteMutation.isPending}
+          googleMapsUrl={getGoogleMapsUrl(modals.selectedCompany)}
+          parentCompany={companyHierarchy.get(modals.selectedCompany.id)?.parentCompany}
+          childCompanies={companies?.filter(c => c.parent_company_id === modals.selectedCompany?.id).map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined }))}
+          onNewNoteDateChange={modals.setNewNoteDate}
+          onNewNoteContentChange={modals.setNewNoteContent}
+          onClose={detailHandlers.handleClose}
+          onEditAddress={detailHandlers.handleEditAddress}
+          onQuickNote={detailHandlers.handleQuickNote}
+          onAddNote={detailHandlers.handleAddNote}
+          onEditNote={detailHandlers.handleEditNote}
+          onDeleteNote={detailHandlers.handleDeleteNote}
+          onShowAddContact={detailHandlers.handleShowAddContact}
+          onShowMeeting={detailHandlers.handleShowMeeting}
+          onEditContact={detailHandlers.handleEditContact}
+          onDeleteContact={actions.handleDeleteContact}
+          onOpenOffer={offerState.openOfferModal}
+          onViewOffer={detailHandlers.handleViewOffer}
+          onDeleteSentOffer={sentOffers.deleteSentOffer}
+          onNavigateToSeller={detailHandlers.handleNavigateToSeller}
+          onDeleteCompany={detailHandlers.handleDeleteCompany}
+          onContractSent={actions.handleContractSent}
+          onSelectCompany={detailHandlers.handleSelectCompany}
         />
       )}
 
-      {/* Add Contact Modal */}
-      {showAddContactModal && selectedCompany && (
+      {modals.showAddContactModal && modals.selectedCompany && (
         <AddContactModal
-          formData={formData}
-          onFormDataChange={setFormData}
-          isLoading={addContact.isPending}
-          onSubmit={handleAddContact}
-          onClose={() => setShowAddContactModal(false)}
+          formData={modals.formData}
+          onFormDataChange={modals.setFormData}
+          isLoading={actions.addContact.isPending}
+          onSubmit={actions.handleAddContact}
+          onClose={() => modals.setShowAddContactModal(false)}
         />
       )}
 
-      {/* Meeting/Deadline Modal */}
-      {showMeetingModal && selectedCompany && (
+      {modals.showMeetingModal && modals.selectedCompany && (
         <MeetingModal
-          type={meetingType}
-          date={meetingDate}
-          time={meetingTime}
-          onDateChange={setMeetingDate}
-          onTimeChange={setMeetingTime}
-          onSaveWithICS={handleMeetingSaveWithICS}
-          onSaveOnly={handleMeetingSaveOnly}
-          onClose={handleMeetingClose}
+          type={modals.meetingState.type}
+          date={modals.meetingState.date}
+          time={modals.meetingState.time}
+          onDateChange={(date) => modals.setMeetingState(prev => ({ ...prev, date }))}
+          onTimeChange={(time) => modals.setMeetingState(prev => ({ ...prev, time }))}
+          onSaveWithICS={detailHandlers.handleMeetingSaveWithICS}
+          onSaveOnly={detailHandlers.handleMeetingSaveOnly}
+          onClose={detailHandlers.handleMeetingClose}
         />
       )}
 
-      {/* Edit Address Modal */}
-      {showEditAddressModal && selectedCompany && (
+      {modals.showEditAddressModal && modals.selectedCompany && (
         <EditAddressModal
-          formData={editAddressData}
-          onFormDataChange={setEditAddressData}
-          taxLookupLoading={taxLookupLoading}
-          onTaxLookup={handleEditAddressTaxLookup}
+          formData={modals.editAddressData}
+          onFormDataChange={modals.setEditAddressData}
+          taxLookupLoading={modals.taxLookupLoading}
+          onTaxLookup={actions.handleEditAddressTaxLookup}
           availableParentCompanies={companies?.map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined })) || []}
-          currentCompanyId={selectedCompany.id}
-          onSave={handleSaveAddress}
-          onClose={() => setShowEditAddressModal(false)}
+          currentCompanyId={modals.selectedCompany.id}
+          onSave={actions.handleSaveAddress}
+          onClose={() => modals.setShowEditAddressModal(false)}
         />
       )}
 
-      {/* Edit Contact Modal */}
-      {editingContact && (
+      {modals.editingContact && (
         <EditContactModal
-          formData={editContactData}
-          onFormDataChange={setEditContactData}
-          isLoading={updateContact.isPending}
+          formData={modals.editContactData}
+          onFormDataChange={modals.setEditContactData}
+          isLoading={actions.updateContact.isPending}
           onSave={async () => {
-            if (!editContactData.first_name?.trim()) {
+            if (!modals.editContactData.first_name?.trim()) {
               toast({ description: 'Ime je obvezno', variant: 'destructive' });
               return;
             }
             try {
-              await updateContact.mutateAsync({
-                contactId: editingContact.id,
+              await actions.updateContact.mutateAsync({
+                contactId: modals.editingContact.id,
                 data: {
-                  first_name: editContactData.first_name.trim(),
-                  last_name: editContactData.last_name?.trim() || '',
-                  phone: editContactData.phone?.trim() || null,
-                  email: editContactData.email?.trim() || null,
-                  role: editContactData.role?.trim() || null,
-                  is_primary: editContactData.is_primary || false,
-                  location_address: editContactData.location_address?.trim() || null,
-                  contact_since: editContactData.contact_since || null,
+                  first_name: modals.editContactData.first_name.trim(),
+                  last_name: modals.editContactData.last_name?.trim() || '',
+                  phone: modals.editContactData.phone?.trim() || null,
+                  email: modals.editContactData.email?.trim() || null,
+                  role: modals.editContactData.role?.trim() || null,
+                  is_primary: modals.editContactData.is_primary || false,
+                  location_address: modals.editContactData.location_address?.trim() || null,
+                  contact_since: modals.editContactData.contact_since || null,
                 },
               });
               toast({ description: 'Kontakt posodobljen' });
-              setEditingContact(null);
-            } catch (error) {
+              modals.setEditingContact(null);
+            } catch {
               toast({ description: 'Napaka pri posodabljanju', variant: 'destructive' });
             }
           }}
-          onClose={() => setEditingContact(null)}
+          onClose={() => modals.setEditingContact(null)}
         />
       )}
 
-      {/* Offer Modal */}
-      {showOfferModal && selectedCompany && (
+      {offerState.showOfferModal && modals.selectedCompany && (
         <OfferModalWrapper
-          selectedCompany={selectedCompany}
-          onClose={() => setShowOfferModal(false)}
-          offerType={offerType}
-          setOfferType={setOfferType}
-          offerFrequency={offerFrequency}
-          offerStep={offerStep}
-          setOfferStep={setOfferStep}
-          hasNajem={hasNajem}
-          hasNakup={hasNakup}
-          offerItemsNakup={offerItemsNakup}
-          offerItemsNajem={offerItemsNajem}
-          updateNajemPricesForFrequency={updateNajemPricesForFrequency}
-          addCustomOfferItem={addCustomOfferItem}
-          removeOfferItem={removeOfferItem}
-          updateOfferItem={updateOfferItem}
-          handleItemTypeChange={handleItemTypeChange}
-          handleDesignSizeSelect={handleDesignSizeSelect}
-          handleCustomDimensionsChange={handleCustomDimensionsChange}
-          handlePriceChange={handlePriceChange}
-          handleDiscountChange={handleDiscountChange}
-          handleSeasonalToggle={handleSeasonalToggle}
-          handleSeasonalFrequencyChange={handleSeasonalFrequencyChange}
-          handleSeasonalPriceChange={handleSeasonalPriceChange}
-          handleSeasonalDiscountChange={handleSeasonalDiscountChange}
-          handleNormalFrequencyChange={handleNormalFrequencyChange}
-          handleNormalPriceChange={handleNormalPriceChange}
-          handleNormalDiscountChange={handleNormalDiscountChange}
-          calculateOfferTotals={calculateOfferTotals}
-          generateEmailHTML={generateEmailHTML}
-          copyHTMLToClipboard={copyHTMLToClipboard}
-          saveOfferToDatabase={saveOfferToDatabase}
+          selectedCompany={modals.selectedCompany}
+          onClose={() => offerState.setShowOfferModal(false)}
+          offerType={offerState.offerType}
+          setOfferType={offerState.setOfferType}
+          offerFrequency={offerState.offerFrequency}
+          offerStep={offerState.offerStep}
+          setOfferStep={offerState.setOfferStep}
+          hasNajem={offerState.hasNajem}
+          hasNakup={offerState.hasNakup}
+          offerItemsNakup={offerState.offerItemsNakup}
+          offerItemsNajem={offerState.offerItemsNajem}
+          updateNajemPricesForFrequency={offerState.updateNajemPricesForFrequency}
+          addCustomOfferItem={offerState.addCustomOfferItem}
+          removeOfferItem={offerState.removeOfferItem}
+          updateOfferItem={offerState.updateOfferItem}
+          handleItemTypeChange={offerState.handleItemTypeChange}
+          handleDesignSizeSelect={offerState.handleDesignSizeSelect}
+          handleCustomDimensionsChange={offerState.handleCustomDimensionsChange}
+          handlePriceChange={offerState.handlePriceChange}
+          handleDiscountChange={offerState.handleDiscountChange}
+          handleSeasonalToggle={offerState.handleSeasonalToggle}
+          handleSeasonalFrequencyChange={offerState.handleSeasonalFrequencyChange}
+          handleSeasonalPriceChange={offerState.handleSeasonalPriceChange}
+          handleSeasonalDiscountChange={offerState.handleSeasonalDiscountChange}
+          handleNormalFrequencyChange={offerState.handleNormalFrequencyChange}
+          handleNormalPriceChange={offerState.handleNormalPriceChange}
+          handleNormalDiscountChange={offerState.handleNormalDiscountChange}
+          calculateOfferTotals={offerState.calculateOfferTotals}
+          generateEmailHTML={emailHook.generateEmailHTML}
+          copyHTMLToClipboard={emailHook.copyHTMLToClipboard}
+          saveOfferToDatabase={sentOffers.saveOfferToDatabase}
         />
       )}
 
-      {/* Contract Confirmation Dialog */}
-      {showContractConfirm && selectedOffer && (
+      {modals.showContractConfirm && modals.selectedOffer && (
         <ContractConfirmDialog
           onConfirm={() => {
-            setShowContractConfirm(false);
-            setShowContractModal(true);
+            modals.setShowContractConfirm(false);
+            modals.setShowContractModal(true);
           }}
-          onCancel={() => setShowContractConfirm(false)}
+          onCancel={() => modals.setShowContractConfirm(false)}
         />
       )}
 
-      {/* Contract Modal */}
-      {selectedOffer && selectedCompany && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div></div>}>
-        <ContractModal
-          isOpen={showContractModal}
-          onClose={() => setShowContractModal(false)}
-          company={{
-            id: selectedCompany.id,
-            name: selectedCompany.name,
-            tax_number: selectedCompany.tax_number,
-            address_street: selectedCompany.address_street,
-            address_postal: selectedCompany.address_postal,
-            address_city: selectedCompany.address_city,
-            delivery_address: (selectedCompany as any).delivery_address,
-            delivery_postal: (selectedCompany as any).delivery_postal,
-            delivery_city: (selectedCompany as any).delivery_city,
-            billing_address: (selectedCompany as any).billing_address,
-            billing_postal: (selectedCompany as any).billing_postal,
-            billing_city: (selectedCompany as any).billing_city,
-            working_hours: (selectedCompany as any).working_hours,
-            delivery_instructions: (selectedCompany as any).delivery_instructions,
-            customer_number: (selectedCompany as any).customer_number,
-            contacts: selectedCompany.contacts.map(c => ({
-              id: c.id,
-              first_name: c.first_name,
-              last_name: c.last_name,
-              email: c.email,
-              phone: c.phone,
-              role: c.role,
-              is_billing_contact: (c as any).is_billing_contact,
-              is_service_contact: (c as any).is_service_contact,
-            })),
-          }}
-          offer={{
-            id: selectedOffer.id,
-            offer_type: selectedOffer.offer_type,
-            frequency: selectedOffer.frequency,
-            items: selectedOffer.items
-              ?.filter((item: any) => item.price_rental !== null) // Only najem items for contract
-              .map((item: any) => ({
-                notes: item.notes,
-                quantity: item.quantity,
-                price_rental: item.price_rental,
-                price_penalty: item.price_penalty,
-                width_cm: item.width_cm,
-                height_cm: item.height_cm,
-                seasonal: item.seasonal,
-                seasonalFromWeek: item.seasonal_from_week,
-                seasonalToWeek: item.seasonal_to_week,
-                normalFromWeek: item.normal_from_week,
-                normalToWeek: item.normal_to_week,
-                frequency: item.frequency,
-                normalFrequency: item.normal_frequency,
-                seasonalFrequency: item.seasonal_frequency,
-                normalPrice: item.normal_price,
-                seasonalPrice: item.seasonal_price,
-              })) || [],
-          }}
+      {modals.selectedOffer && modals.selectedCompany && modals.showContractModal && (
+        <ContractModalContainer
+          isOpen={modals.showContractModal}
+          onClose={() => modals.setShowContractModal(false)}
+          selectedCompany={modals.selectedCompany}
+          selectedOffer={modals.selectedOffer}
+          companies={companies}
           onContractSaved={(contract) => {
-            // Add the contract to saved contracts list
-            setSavedContracts(prev => [...prev, contract]);
+            modals.setSavedContracts(prev => [...prev, contract]);
           }}
-          parentCompany={(() => {
-            // Poišči matično podjetje če obstaja
-            const parentId = (selectedCompany as any).parent_company_id;
-            if (!parentId) return undefined;
-            const parent = companies?.find(c => c.id === parentId);
-            if (!parent) return undefined;
-            return {
-              id: parent.id,
-              name: parent.name,
-              tax_number: parent.tax_number,
-              address_street: parent.address_street,
-              address_postal: parent.address_postal,
-              address_city: parent.address_city,
-              contacts: parent.contacts.map(c => ({
-                id: c.id,
-                first_name: c.first_name,
-                last_name: c.last_name,
-                email: c.email,
-                phone: c.phone,
-                role: c.role,
-                is_billing_contact: (c as any).is_billing_contact,
-                is_service_contact: (c as any).is_service_contact,
-              })),
-            };
-          })()}
-          childCompanies={companies
-            ?.filter(c => c.parent_company_id === selectedCompany.id)
-            .map(child => ({
-              id: child.id,
-              name: child.display_name || child.name,
-              contacts: child.contacts.map(c => ({
-                id: c.id,
-                first_name: c.first_name,
-                last_name: c.last_name,
-                email: c.email,
-                phone: c.phone,
-                role: c.role,
-                is_billing_contact: (c as any).is_billing_contact,
-                is_service_contact: (c as any).is_service_contact,
-              })),
-            })) || []}
         />
-        </Suspense>
       )}
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
-        <div className="max-w-4xl mx-auto flex">
-          <button
-            onClick={() => navigate('/prodajalec')}
-            className="flex-1 py-3 flex flex-col items-center text-gray-600"
-          >
-            <Home size={22} />
-            <span className="text-xs mt-1">Domov</span>
-          </button>
-          <button
-            onClick={() => navigate('/prodajalec?view=scan')}
-            className="flex-1 py-3 flex flex-col items-center text-gray-600"
-          >
-            <Camera size={22} />
-            <span className="text-xs mt-1">Skeniraj</span>
-          </button>
-          <button className="flex-1 py-3 flex flex-col items-center text-blue-600">
-            <Users size={22} />
-            <span className="text-xs mt-1">Stranke</span>
-          </button>
-        </div>
-      </div>
+      <BottomNavigation activeTab="contacts" />
     </div>
   );
 }

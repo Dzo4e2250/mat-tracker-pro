@@ -226,7 +226,7 @@ export function useContactsFilters({
   const getCompanyFirstLetter = useCallback((company: CompanyWithContacts): string => {
     const name = (company.display_name || company.name || '').trim().toUpperCase();
     if (!name) return '#';
-    let firstChar = name.charAt(0);
+    const firstChar = name.charAt(0);
     if (firstChar === 'Č') return 'Č';
     if (firstChar === 'Š') return 'Š';
     if (firstChar === 'Ž') return 'Ž';

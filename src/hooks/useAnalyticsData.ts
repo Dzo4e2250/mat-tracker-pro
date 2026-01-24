@@ -41,6 +41,15 @@ export interface ExpiringTest {
   salespersonName: string;
 }
 
+// Raw query result type for expiring tests
+interface ExpiringTestQueryResult {
+  id: string;
+  test_start_date: string | null;
+  qr_codes: { code: string } | null;
+  companies: { name: string } | null;
+  profiles: { first_name: string | null; last_name: string | null } | null;
+}
+
 // KPI podatki
 export function useKPIData() {
   return useQuery({
@@ -258,7 +267,7 @@ export function useExpiringTests() {
 
       const expiringTests: ExpiringTest[] = [];
 
-      cycles.forEach((cycle: any) => {
+      cycles.forEach((cycle: ExpiringTestQueryResult) => {
         if (!cycle.test_start_date) return;
 
         const testStart = new Date(cycle.test_start_date);
