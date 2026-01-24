@@ -1,0 +1,81 @@
+/**
+ * @file constants.ts
+ * @description Prednastavitve za QR kode nalepke
+ */
+
+export const LABEL_PRESETS = {
+  'herma-4360': {
+    name: 'Herma 4360 / Avery 3475 (70×36mm)',
+    description: 'Papirne nalepke, bele, mat - za pisarniško uporabo',
+    width: 70,
+    height: 36,
+    cols: 3,
+    rows: 8,
+    leftMargin: 0,
+    topMargin: 4.5,
+    qrSize: 24,
+    fontSize: 9,
+  },
+  'herma-4262': {
+    name: 'Herma 4262 / Avery 3422 (70×37mm)',
+    description: 'Papirne nalepke, bele, mat - univerzalne',
+    width: 70,
+    height: 37,
+    cols: 3,
+    rows: 8,
+    leftMargin: 0,
+    topMargin: 0,
+    qrSize: 24,
+    fontSize: 9,
+  },
+  'herma-4270': {
+    name: 'Herma 4270 / Avery 3666 (38×21mm)',
+    description: 'Papirne nalepke, majhne - za označevanje',
+    width: 38.1,
+    height: 21.2,
+    cols: 5,
+    rows: 13,
+    leftMargin: 4.7,
+    topMargin: 10.7,
+    qrSize: 14,
+    fontSize: 6,
+  },
+  'herma-8831': {
+    name: 'Herma 8831 (70×37mm) - VODOODPORNE',
+    description: 'Polyester nalepke, odporne na vodo in gumo - za predpražnike',
+    width: 70,
+    height: 37,
+    cols: 3,
+    rows: 8,
+    leftMargin: 0,
+    topMargin: 0,
+    qrSize: 24,
+    fontSize: 9,
+  },
+  'avery-l4776': {
+    name: 'Avery L4776 (99.1×42.3mm) - VODOODPORNE',
+    description: 'Polyester nalepke, ultra odporne - za zunanjo uporabo',
+    width: 99.1,
+    height: 42.3,
+    cols: 2,
+    rows: 7,
+    leftMargin: 4.7,
+    topMargin: 4.5,
+    qrSize: 28,
+    fontSize: 10,
+  },
+  'herma-4457': {
+    name: 'Herma 4457 / Avery 3489 (70×50.8mm)',
+    description: 'Papirne nalepke, večje - za boljšo čitljivost',
+    width: 70,
+    height: 50.8,
+    cols: 3,
+    rows: 5,
+    leftMargin: 0,
+    topMargin: 21.2,
+    qrSize: 32,
+    fontSize: 10,
+  },
+} as const;
+
+export type LabelPresetKey = keyof typeof LABEL_PRESETS;
