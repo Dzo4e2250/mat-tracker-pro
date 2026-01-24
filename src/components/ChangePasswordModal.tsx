@@ -47,7 +47,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
       setConfirmPassword('');
       onClose();
     } catch (error: any) {
-      console.error('Error changing password:', error);
+      // Error handled by toast
       toast.error(error.message || 'Napaka pri spremembi gesla');
     } finally {
       setIsLoading(false);

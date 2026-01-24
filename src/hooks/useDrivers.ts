@@ -19,7 +19,7 @@ export function useDrivers(includeInactive = false) {
       const { data, error } = await query;
 
       if (error) {
-        console.error('useDrivers error:', error);
+        // Error handled
         throw error;
       }
 
@@ -46,7 +46,7 @@ export function useCreateDriver() {
         .single();
 
       if (error) {
-        console.error('useCreateDriver error:', error);
+        // Error handled
         throw error;
       }
 
@@ -81,7 +81,7 @@ export function useUpdateDriver() {
         .single();
 
       if (error) {
-        console.error('useUpdateDriver error:', error);
+        // Error handled
         throw error;
       }
 
@@ -110,7 +110,7 @@ export function useDeactivateDriver() {
         .single();
 
       if (error) {
-        console.error('useDeactivateDriver error:', error);
+        // Error handled
         throw error;
       }
 
@@ -139,7 +139,7 @@ export function useReactivateDriver() {
         .single();
 
       if (error) {
-        console.error('useReactivateDriver error:', error);
+        // Error handled
         throw error;
       }
 
@@ -163,7 +163,7 @@ export function useDeleteDriver() {
         .eq('id', id);
 
       if (error) {
-        console.error('useDeleteDriver error:', error);
+        // Error handled
         throw error;
       }
     },

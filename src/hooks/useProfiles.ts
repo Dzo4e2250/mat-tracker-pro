@@ -67,9 +67,8 @@ export function useProdajalecProfiles() {
         .order('last_name')
         .order('first_name');
 
-      console.log('useProdajalecProfiles: fetched profiles', profiles);
       if (profileError) {
-        console.error('useProdajalecProfiles error:', profileError);
+        // Error handled
         throw profileError;
       }
 
@@ -105,7 +104,6 @@ export function useUpdateProfile() {
       id: string;
       updates: Record<string, any>;
     }) => {
-      console.log('useUpdateProfile: updating', id, 'with', updates);
       const { data, error } = await supabase
         .from('profiles')
         .update({
@@ -116,10 +114,9 @@ export function useUpdateProfile() {
         .select();
 
       if (error) {
-        console.error('useUpdateProfile error:', error);
+        // Error handled
         throw error;
       }
-      console.log('useUpdateProfile result:', data);
       return { id, ...updates };
     },
     onSuccess: () => {

@@ -139,7 +139,7 @@ export function useRouteOptimization() {
 
         if (!optimizationResponse.ok) {
           // Fallback to simple directions if optimization fails
-          console.warn('Optimization failed, falling back to directions');
+          // Fallback to directions
         } else {
           const optimizationData = await optimizationResponse.json();
 

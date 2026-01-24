@@ -38,7 +38,7 @@ export async function lookupCompanyByTaxNumber(taxNumber: string): Promise<Compa
     const response = await fetch(`/api/vies/ms/SI/vat/${cleanTaxNumber}`);
 
     if (!response.ok) {
-      console.error('VIES API error:', response.status);
+      // VIES API error - handled by returning null
       return null;
     }
 
@@ -64,7 +64,7 @@ export async function lookupCompanyByTaxNumber(taxNumber: string): Promise<Compa
       isValid: true,
     };
   } catch (error) {
-    console.error('Error fetching company data:', error);
+    // API error - handled by returning null
     return null;
   }
 }

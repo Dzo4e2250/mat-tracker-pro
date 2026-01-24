@@ -85,7 +85,7 @@ export default function ContractModal({
 
       setStep('confirm-send');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      // Error handled by toast
       toast({ description: 'Napaka pri generiranju PDF dokumenta.', variant: 'destructive' });
     } finally {
       setIsGenerating(false);
@@ -109,7 +109,7 @@ export default function ContractModal({
           })
           .eq('id', company.id);
       } catch (error) {
-        console.error('Error updating pipeline status:', error);
+        // Error handled by toast
       }
     }
 

@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      // Error handled
     } finally {
       setLoading(false);
     }

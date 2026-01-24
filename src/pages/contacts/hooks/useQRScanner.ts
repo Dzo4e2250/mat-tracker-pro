@@ -154,9 +154,8 @@ export function useQRScanner({
     if (scannerRef.current && isRunningRef.current) {
       try {
         await scannerRef.current.stop();
-      } catch (err) {
+      } catch {
         // Ignore "not running" errors
-        console.log('Scanner stop:', err);
       }
       isRunningRef.current = false;
     }
@@ -194,8 +193,8 @@ export function useQRScanner({
           setZoomLevel(zoom);
         }
       }
-    } catch (err) {
-      console.error('Zoom error:', err);
+    } catch {
+      // Zoom error - ignore
     }
   }, []);
 
@@ -275,8 +274,7 @@ export function useQRScanner({
             }
           }
         }, 500);
-      } catch (err) {
-        console.error('Camera error:', err);
+      } catch {
         setScannerError('Napaka pri dostopu do kamere. Preverite dovoljenja.');
       }
     }, 100);

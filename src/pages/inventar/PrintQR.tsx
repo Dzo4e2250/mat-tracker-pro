@@ -77,7 +77,7 @@ export default function PrintQR() {
 
       setSellers(sellersData.filter(Boolean) as Seller[]);
     } catch (error: any) {
-      console.error('Error fetching sellers:', error);
+      // Error handled
       toast.error('Napaka pri nalaganju prodajalcev');
     }
   };
@@ -102,7 +102,7 @@ export default function PrintQR() {
 
       setPrintActiveQrCodes(doormats?.map(d => d.qr_code) || []);
     } catch (error: any) {
-      console.error('Error fetching print active QR codes:', error);
+      // Error handled
       toast.error('Napaka pri nalaganju QR kod');
     }
   };
@@ -190,7 +190,7 @@ export default function PrintQR() {
       pdf.save(`QR_Codes_${seller?.full_name || 'Export'}_${new Date().toISOString().split('T')[0]}.pdf`);
       toast.success('PDF uspešno generiran!');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      // Error handled by toast
       toast.error('Napaka pri generiranju PDF-ja');
     } finally {
       setIsLoading(false);

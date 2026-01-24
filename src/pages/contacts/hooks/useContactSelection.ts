@@ -146,7 +146,7 @@ export function useContactSelection({ companies, deleteContact }: UseContactSele
         await deleteContact.mutateAsync(contactId);
         deletedCount++;
       } catch (error) {
-        console.error('Error deleting contact:', error);
+        // Error handled by toast
       }
     }
 

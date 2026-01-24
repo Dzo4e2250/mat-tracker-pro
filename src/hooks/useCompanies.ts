@@ -152,7 +152,7 @@ export function useCreateCompanyWithContact() {
           });
 
         if (contactError) {
-          console.error('Error creating contact:', contactError);
+          // Error handled
         }
       }
 

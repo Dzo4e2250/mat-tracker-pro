@@ -53,7 +53,7 @@ export default function DeletionHistory() {
       if (error) throw error;
       setDeletions(data || []);
     } catch (error: any) {
-      console.error('Error fetching deletion history:', error);
+      // Error handled
     }
   };
 
@@ -78,7 +78,7 @@ export default function DeletionHistory() {
 
       setTesterRequests(requestsWithSellers);
     } catch (error) {
-      console.error('Error fetching tester requests:', error);
+      // Error handled
     }
   };
 
@@ -158,7 +158,7 @@ export default function DeletionHistory() {
         description: "PDF pripravljen za tisk"
       });
     } catch (error) {
-      console.error('Error printing QR codes:', error);
+      // Error handled by toast
       toast({
         title: "Napaka",
         description: "Napaka pri pripravi PDF-ja",

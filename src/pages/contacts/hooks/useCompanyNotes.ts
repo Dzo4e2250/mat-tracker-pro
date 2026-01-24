@@ -134,7 +134,7 @@ export function useCompanyNotes({
       toast({ description: 'Opomba dodana' });
     },
     onError: (error: any) => {
-      console.error('Error adding note:', error);
+      // Error handled by toast
       toast({ description: `Napaka pri dodajanju opombe: ${error.message}`, variant: 'destructive' });
     },
   });
@@ -175,7 +175,7 @@ export function useCompanyNotes({
       toast({ description: 'Opomba posodobljena' });
     },
     onError: (error: any) => {
-      console.error('Error editing note:', error);
+      // Error handled by toast
       toast({ description: `Napaka pri urejanju opombe: ${error.message}`, variant: 'destructive' });
     },
   });
@@ -207,7 +207,7 @@ export function useCompanyNotes({
       toast({ description: 'Datum posodobljen' });
     },
     onError: (error: any) => {
-      console.error('Error updating note deadline:', error);
+      // Error handled by toast
       toast({ description: `Napaka pri posodabljanju: ${error.message}`, variant: 'destructive' });
     },
   });
@@ -230,7 +230,7 @@ export function useCompanyNotes({
       toast({ description: 'Označeno kot opravljeno' });
     },
     onError: (error: any) => {
-      console.error('Error marking deadline done:', error);
+      // Error handled by toast
       toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
     },
   });

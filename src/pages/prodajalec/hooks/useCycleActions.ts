@@ -32,7 +32,7 @@ interface UseCycleActionsProps {
 const getCurrentPosition = (): Promise<{ lat: number; lng: number } | null> => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      console.warn('Geolocation not supported');
+      // Geolocation not supported - handled via state
       resolve(null);
       return;
     }
@@ -45,7 +45,7 @@ const getCurrentPosition = (): Promise<{ lat: number; lng: number } | null> => {
         });
       },
       (error) => {
-        console.warn('Geolocation error:', error);
+        // Geolocation error - handled via callback
         resolve(null);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
