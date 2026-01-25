@@ -18,3 +18,5 @@ export {
 
 export { MatPriceRow, AllPricesRow } from './PriceRow';
 export { SettingInput, SettingsPanel } from './SettingsPanel';
+export { OptibrushTable } from './OptibrushTable';
+export { CustomM2Table } from './CustomM2Table';

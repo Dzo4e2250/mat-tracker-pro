@@ -29,11 +29,11 @@ import {
   usePriceChanges,
   TABS,
   CATEGORY_LABELS,
-  getOptibrushLabel,
-  getCustomM2Label,
   MatPriceRow,
   AllPricesRow,
   SettingsPanel,
+  OptibrushTable,
+  CustomM2Table,
   type TabType,
 } from './prices';
 
@@ -325,98 +325,20 @@ export default function PriceManagement() {
 
               {/* Optibrush prices */}
               {activeTab === 'optibrush' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Konfiguracija</th>
-                        <th className="px-3 py-2 text-right">€/m²</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {optibrushPrices?.map((price) => {
-                        const pending = priceChanges.pendingOptibrushChanges.get(price.id);
-                        const currentValue = pending?.newValue ?? price.price_per_m2;
-                        const isChanged = pending !== undefined;
-
-                        return (
-                          <tr
-                            key={price.id}
-                            className={`border-t hover:bg-gray-50 ${isChanged ? 'bg-yellow-50' : ''}`}
-                          >
-                            <td className="px-3 py-2">{getOptibrushLabel(price)}</td>
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={currentValue}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (!isNaN(val)) {
-                                    priceChanges.handleOptibrushPriceChange(
-                                      price.id,
-                                      price.price_per_m2,
-                                      val
-                                    );
-                                  }
-                                }}
-                                className={`w-24 p-1 border rounded text-right ${isChanged ? 'border-yellow-400 bg-yellow-50' : ''}`}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <OptibrushTable
+                  prices={optibrushPrices}
+                  pendingChanges={priceChanges.pendingOptibrushChanges}
+                  onChange={priceChanges.handleOptibrushPriceChange}
+                />
               )}
 
               {/* Custom m² prices */}
               {activeTab === 'custom_m2' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Kategorija</th>
-                        <th className="px-3 py-2 text-right">€/m²</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customM2Prices?.map((price) => {
-                        const pending = priceChanges.pendingCustomM2Changes.get(price.id);
-                        const currentValue = pending?.newValue ?? price.price_per_m2;
-                        const isChanged = pending !== undefined;
-
-                        return (
-                          <tr
-                            key={price.id}
-                            className={`border-t hover:bg-gray-50 ${isChanged ? 'bg-yellow-50' : ''}`}
-                          >
-                            <td className="px-3 py-2">{getCustomM2Label(price)}</td>
-                            <td className="px-3 py-2">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={currentValue}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (!isNaN(val)) {
-                                    priceChanges.handleCustomM2PriceChange(
-                                      price.id,
-                                      price.price_per_m2,
-                                      val
-                                    );
-                                  }
-                                }}
-                                className={`w-24 p-1 border rounded text-right ${isChanged ? 'border-yellow-400 bg-yellow-50' : ''}`}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <CustomM2Table
+                  prices={customM2Prices}
+                  pendingChanges={priceChanges.pendingCustomM2Changes}
+                  onChange={priceChanges.handleCustomM2PriceChange}
+                />
               )}
             </>
           )}

@@ -6,18 +6,9 @@
 import { useState, useMemo } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { InventarSidebar } from '@/components/InventarSidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Tabs,
   TabsContent,
@@ -31,22 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import {
   Loader2,
   Truck,
-  Phone,
-  MapPin,
-  AlertTriangle,
   Plus,
   ExternalLink,
   CheckCircle,
   Package,
-  FileDown,
-  Calendar,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
 } from 'lucide-react';
 import { generatePickupPDF, generateMapsUrl, type DriverPickup } from '@/hooks/useDriverPickups';
 import { useToast } from '@/hooks/use-toast';
@@ -61,6 +45,10 @@ import {
   usePrevzemiQueries,
   usePrevzemiMutations,
   useFilteredData,
+  PrevzemiStats,
+  HistoryStatsCard,
+  HistoryFilters,
+  SellerMatTable,
   type StatusFilter,
 } from './prevzemi';
 
@@ -222,40 +210,12 @@ export default function Prevzemi() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card className={totalCounts.dirty > 0 ? 'border-red-300 bg-red-50' : ''}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-600">Umazani</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${totalCounts.dirty > 0 ? 'text-red-600' : ''}`}>{totalCounts.dirty}</p>
-              </CardContent>
-            </Card>
-            <Card className={totalCounts.waitingDriver > 0 ? 'border-purple-300 bg-purple-50' : ''}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-600">Čaka šoferja</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${totalCounts.waitingDriver > 0 ? 'text-purple-600' : ''}`}>{totalCounts.waitingDriver}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-600">Aktivni prevzemi</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-blue-600">{activePickups.length}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-600">Zaključeni</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-green-600">{allCompletedPickups.length}</p>
-              </CardContent>
-            </Card>
-          </div>
+          <PrevzemiStats
+            dirty={totalCounts.dirty}
+            waitingDriver={totalCounts.waitingDriver}
+            activeCount={activePickups.length}
+            completedCount={allCompletedPickups.length}
+          />
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
@@ -316,70 +276,19 @@ export default function Prevzemi() {
               ) : (
                 <div className="space-y-4">
                   {filteredDirtyData.map(seller => (
-                    <Card key={seller.sellerId}>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {seller.sellerPrefix && <Badge variant="outline" className="font-mono">{seller.sellerPrefix}</Badge>}
-                            <span>{seller.sellerName}</span>
-                            {seller.mats.filter(m => m.status === 'dirty').length >= 10 && (
-                              <Badge variant="destructive" className="ml-2"><AlertTriangle className="h-3 w-3 mr-1" />Opozorilo</Badge>
-                            )}
-                          </div>
-                          <Badge variant="secondary">{seller.mats.length} predpražnikov</Badge>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-10">
-                                <Checkbox
-                                  checked={seller.mats.every(m => selectedMats.has(m.cycleId))}
-                                  onCheckedChange={(checked) => {
-                                    setSelectedMats(prev => {
-                                      const next = new Set(prev);
-                                      seller.mats.forEach(m => checked ? next.add(m.cycleId) : next.delete(m.cycleId));
-                                      return next;
-                                    });
-                                  }}
-                                />
-                              </TableHead>
-                              <TableHead>QR koda</TableHead>
-                              <TableHead>Tip</TableHead>
-                              <TableHead>Podjetje</TableHead>
-                              <TableHead>Naslov</TableHead>
-                              <TableHead>Kontakt</TableHead>
-                              <TableHead>Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {seller.mats.map(mat => (
-                              <TableRow key={mat.cycleId}>
-                                <TableCell><Checkbox checked={selectedMats.has(mat.cycleId)} onCheckedChange={() => toggleMat(mat.cycleId)} /></TableCell>
-                                <TableCell className="font-mono">{mat.qrCode}</TableCell>
-                                <TableCell>{mat.matTypeName}</TableCell>
-                                <TableCell className="font-medium">{mat.companyName || '-'}</TableCell>
-                                <TableCell>{mat.companyAddress ? <div className="flex items-center gap-1"><MapPin className="h-3 w-3 text-gray-400" /><span className="text-sm">{mat.companyAddress}</span></div> : '-'}</TableCell>
-                                <TableCell>
-                                  {mat.contactName ? (
-                                    <div className="space-y-1">
-                                      <div className="text-sm">{mat.contactName}</div>
-                                      {mat.contactPhone && <a href={`tel:${mat.contactPhone}`} className="flex items-center gap-1 text-xs text-blue-600 hover:underline"><Phone className="h-3 w-3" />{mat.contactPhone}</a>}
-                                    </div>
-                                  ) : '-'}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={mat.status === 'dirty' ? 'destructive' : 'secondary'} className={mat.status === 'waiting_driver' ? 'bg-purple-100 text-purple-800' : ''}>
-                                    {mat.status === 'dirty' ? 'Umazan' : 'Čaka šoferja'}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </Card>
+                    <SellerMatTable
+                      key={seller.sellerId}
+                      seller={seller}
+                      selectedMats={selectedMats}
+                      onToggleMat={toggleMat}
+                      onToggleAllSeller={(_, mats, checked) => {
+                        setSelectedMats(prev => {
+                          const next = new Set(prev);
+                          mats.forEach(m => checked ? next.add(m.cycleId) : next.delete(m.cycleId));
+                          return next;
+                        });
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -418,91 +327,18 @@ export default function Prevzemi() {
             {/* Tab: Zaključeni */}
             <TabsContent value="zakljuceni">
               {/* History Stats */}
-              {historyStats && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <Card>
-                    <CardContent className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Skupaj prevzemov</p>
-                          <p className="text-2xl font-bold">{historyStats.totalPickups}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Package className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Pobranih predpražnikov</p>
-                          <p className="text-2xl font-bold">{historyStats.totalItems}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <TrendingUp className="h-5 w-5 text-purple-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Povp. čas prevzema</p>
-                          <p className="text-2xl font-bold">{historyStats.avgDurationDays} dni</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              <HistoryStatsCard stats={historyStats} />
 
               {/* Filters */}
-              <Card className="mb-4">
-                <CardContent className="py-4">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Od:</span>
-                      <Input
-                        type="date"
-                        value={historyDateFrom}
-                        onChange={(e) => { setHistoryDateFrom(e.target.value); setHistoryPage(1); }}
-                        className="w-40"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Do:</span>
-                      <Input
-                        type="date"
-                        value={historyDateTo}
-                        onChange={(e) => { setHistoryDateTo(e.target.value); setHistoryPage(1); }}
-                        className="w-40"
-                      />
-                    </div>
-                    {(historyDateFrom || historyDateTo) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); setHistoryPage(1); }}
-                      >
-                        Počisti filter
-                      </Button>
-                    )}
-                    <div className="flex-1" />
-                    <Badge variant="secondary">{filteredCompletedPickups.length} prevzemov</Badge>
-                    <Button variant="outline" size="sm" onClick={handleExportHistory}>
-                      <FileDown className="h-4 w-4 mr-2" />
-                      Izvozi Excel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <HistoryFilters
+                dateFrom={historyDateFrom}
+                dateTo={historyDateTo}
+                onDateFromChange={(v) => { setHistoryDateFrom(v); setHistoryPage(1); }}
+                onDateToChange={(v) => { setHistoryDateTo(v); setHistoryPage(1); }}
+                onClearFilters={() => { setHistoryDateFrom(''); setHistoryDateTo(''); setHistoryPage(1); }}
+                filteredCount={filteredCompletedPickups.length}
+                onExport={handleExportHistory}
+              />
 
               {loadingPickups ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>

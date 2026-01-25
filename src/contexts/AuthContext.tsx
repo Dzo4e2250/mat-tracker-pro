@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import type { Profile } from '@/integrations/supabase/types';
+import { setUser as setSentryUser } from '@/lib/sentry';
 
 type AppRole = 'admin' | 'inventar' | 'prodajalec';
 
@@ -90,6 +91,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(data as Profile);
         setRole(data.role as AppRole);
 
+        // Set Sentry user context for error tracking
+        setSentryUser({
+          id: data.id,
+          email: data.email || undefined,
+          role: data.role,
+        });
+
         // Determine available roles
         const roles: AppRole[] = [data.role as AppRole];
         if (data.secondary_role) {
@@ -151,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveRole(null);
     setAvailableRoles([]);
     setNeedsRoleSelection(false);
+    setSentryUser(null); // Clear Sentry user context
     navigate('/auth');
   };
 
