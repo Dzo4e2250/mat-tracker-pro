@@ -8,7 +8,7 @@ const corsHeaders = {
 // SMTP Configuration - BillionMail
 const SMTP_HOST = Deno.env.get('SMTP_HOST') || 'postfix-billionmail';
 const SMTP_PORT = parseInt(Deno.env.get('SMTP_PORT') || '25');
-const SMTP_FROM = Deno.env.get('SMTP_FROM') || 'matpro@ristov.xyz';
+const SMTP_FROM = Deno.env.get('SMTP_FROM') || 'noreply@reitti.cloud';
 
 interface TestMat {
   qrCode: string;
@@ -57,7 +57,7 @@ async function sendEmail(to: string, subject: string, htmlBody: string): Promise
 
     // Email content
     const boundary = '----=_Part_' + Math.random().toString(36).substring(2);
-    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@ristov.xyz>`;
+    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@reitti.cloud>`;
     const emailContent = [
       `From: Mat Tracker Pro <${SMTP_FROM}>`,
       `To: ${to}`,
