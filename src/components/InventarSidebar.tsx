@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Users, LogOut, ShoppingCart, ChevronRight, UserCircle, Truck, ArrowRightLeft, Key, Map, Package, BarChart2, Euro } from "lucide-react";
+import { Home, Users, LogOut, ShoppingCart, ChevronRight, UserCircle, Truck, ArrowRightLeft, Key, Map, Package, BarChart2, Euro, Activity } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProdajalecProfiles } from "@/hooks/useProfiles";
@@ -95,6 +95,23 @@ export function InventarSidebar() {
                     >
                       <BarChart2 className="mr-2 h-4 w-4" />
                       {state !== "collapsed" && <span>Analitika</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Aktivnost prodajalcev */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/inventar/aktivnost"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "hover:bg-accent/50"
+                      }
+                    >
+                      <Activity className="mr-2 h-4 w-4" />
+                      {state !== "collapsed" && <span>Aktivnost</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

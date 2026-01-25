@@ -25,6 +25,7 @@ const SellerPage = lazy(() => import("./pages/inventar/SellerPage"));
 const MapView = lazy(() => import("./pages/inventar/MapView"));
 const DriversManagement = lazy(() => import("./pages/inventar/DriversManagement"));
 const Analytics = lazy(() => import("./pages/inventar/Analytics"));
+const ActivityTracking = lazy(() => import("./pages/inventar/ActivityTracking"));
 const PriceManagement = lazy(() => import("./pages/inventar/PriceManagement"));
 const ProdajalecDashboard = lazy(() => import("./pages/ProdajalecDashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
@@ -106,6 +107,11 @@ const AppContent = () => {
             <Route path="/inventar/analitika" element={
               <ProtectedRoute allowedRoles={['inventar']}>
                 <Analytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventar/aktivnost" element={
+              <ProtectedRoute allowedRoles={['inventar']}>
+                <ActivityTracking />
               </ProtectedRoute>
             } />
             <Route path="/inventar/cenik" element={
