@@ -4,8 +4,7 @@
  */
 
 import { X, Home, Camera, MapPin, Navigation, History, TrendingUp, Users, Package, ArrowRightLeft, Key, LogOut } from 'lucide-react';
-
-export type ViewType = 'home' | 'scan' | 'map' | 'tracking' | 'history' | 'statistics';
+import type { ViewType } from './types';
 
 interface SideMenuProps {
   isOpen: boolean;

@@ -6,10 +6,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Home, Users, Loader2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
 import { useMapLocations } from '@/hooks/useMapLocations';
-import { useCameraScanner, useCycleActions } from './prodajalec/hooks';
+import { useCameraScanner, useCycleActions, useProdajalecState } from './prodajalec/hooks';
 
 import { useMatTypes } from '@/hooks/useMatTypes';
 import { useQRCodes } from '@/hooks/useQRCodes';
@@ -26,7 +26,7 @@ import {
   HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView,
   MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal,
   SelectTypeModal, SignContractModal, PutOnTestSuccessModal,
-  SideMenu, ProdajalecHeader, ViewType
+  SideMenu, ProdajalecHeader, ProdajalecBottomNav, ViewType
 } from './prodajalec/components';
 
 export default function ProdajalecDashboard() {
@@ -494,35 +494,7 @@ export default function ProdajalecDashboard() {
         />
       )}
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
-        <div className="max-w-4xl mx-auto flex">
-          <button
-            onClick={() => setView('home')}
-            className={`flex-1 py-3 flex flex-col items-center ${view === 'home' ? 'text-blue-600' : 'text-gray-600'}`}
-            aria-label="Domov"
-          >
-            <Home size={22} />
-            <span className="text-xs mt-1">Domov</span>
-          </button>
-          <button
-            onClick={() => setView('scan')}
-            className={`flex-1 py-3 flex flex-col items-center ${view === 'scan' ? 'text-blue-600' : 'text-gray-600'}`}
-            aria-label="Skeniraj"
-          >
-            <Camera size={22} />
-            <span className="text-xs mt-1">Skeniraj</span>
-          </button>
-          <button
-            onClick={() => navigate('/contacts')}
-            className="flex-1 py-3 flex flex-col items-center text-gray-600"
-            aria-label="Stranke"
-          >
-            <Users size={22} />
-            <span className="text-xs mt-1">Stranke</span>
-          </button>
-        </div>
-      </div>
+      <ProdajalecBottomNav view={view} onViewChange={setView} />
 
       {/* Additional Modals */}
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />

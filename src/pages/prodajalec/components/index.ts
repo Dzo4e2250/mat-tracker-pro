@@ -11,10 +11,15 @@ export { default as TravelLogView } from './TravelLogView';
 
 // Navigation
 export { SideMenu } from './SideMenu';
-export type { ViewType } from './SideMenu';
 
 // Header
 export { default as ProdajalecHeader } from './ProdajalecHeader';
 
 // Modals
 export { MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal, SelectTypeModal, SignContractModal, PutOnTestSuccessModal } from './modals';
+
+// Bottom navigation
+export { ProdajalecBottomNav } from './ProdajalecBottomNav';
+
+// Types
+export type { ViewType } from './types';
