@@ -36,3 +36,10 @@ dist-ssr
 *.pdf
 *.docx
 *.doc
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.env.e2e.local
