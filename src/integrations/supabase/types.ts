@@ -139,6 +139,9 @@ export type Database = {
           updated_at: string
           pipeline_status: string | null
           contract_sent_at: string | null
+          contract_called_at: string | null
+          offer_sent_at: string | null
+          offer_called_at: string | null
           parent_company_id: string | null
         }
         Insert: {
@@ -167,6 +170,9 @@ export type Database = {
           updated_at?: string
           pipeline_status?: string | null
           contract_sent_at?: string | null
+          contract_called_at?: string | null
+          offer_sent_at?: string | null
+          offer_called_at?: string | null
           parent_company_id?: string | null
         }
         Update: {
@@ -195,6 +201,9 @@ export type Database = {
           updated_at?: string
           pipeline_status?: string | null
           contract_sent_at?: string | null
+          contract_called_at?: string | null
+          offer_sent_at?: string | null
+          offer_called_at?: string | null
           parent_company_id?: string | null
         }
         Relationships: [
@@ -789,6 +798,7 @@ export type Database = {
           reminder_at: string
           note: string | null
           is_completed: boolean
+          reminder_type: string
           created_at: string
           updated_at: string
         }
@@ -799,6 +809,7 @@ export type Database = {
           reminder_at: string
           note?: string | null
           is_completed?: boolean
+          reminder_type?: string
           created_at?: string
           updated_at?: string
         }
@@ -809,6 +820,7 @@ export type Database = {
           reminder_at?: string
           note?: string | null
           is_completed?: boolean
+          reminder_type?: string
           created_at?: string
           updated_at?: string
         }

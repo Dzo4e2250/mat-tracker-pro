@@ -7,7 +7,13 @@
 import { useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
-import { useDueReminders, useReminders, useCreateReminder, usePostponeReminder, useContractPendingCompanies, PIPELINE_STATUSES } from '@/hooks/useReminders';
+import {
+  useDueReminders, useReminders, useCreateReminder, usePostponeReminder,
+  useContractPendingCompanies, useMarkContractCalled, useMarkContractReceived, usePostponeContractFollowup,
+  useOfferPendingCompanies, useCreateOfferFollowup, useOfferResponseContract, useOfferResponseNeedsTime,
+  useOfferResponseNoInterest, useOfferNoResponse, useMarkOfferCalled, useOfferCallNotReachable,
+  PIPELINE_STATUSES
+} from '@/hooks/useReminders';
 import { useCompanyContacts, useCompanyDetails } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,6 +66,21 @@ export default function Contacts() {
   const postponeReminder = usePostponeReminder();
   const companiesWithReminders = useMemo(() => new Set(allReminders?.map(r => r.company_id).filter(Boolean) || []), [allReminders]);
   const { data: contractPendingCompanies } = useContractPendingCompanies(user?.id, 3);
+
+  // Contract workflow hooks
+  const markContractCalled = useMarkContractCalled();
+  const markContractReceived = useMarkContractReceived();
+  const postponeContractFollowup = usePostponeContractFollowup();
+
+  // Offer workflow hooks
+  const { data: offerPendingCompanies } = useOfferPendingCompanies(user?.id, 2);
+  const createOfferFollowup = useCreateOfferFollowup();
+  const offerResponseContract = useOfferResponseContract();
+  const offerResponseNeedsTime = useOfferResponseNeedsTime();
+  const offerResponseNoInterest = useOfferResponseNoInterest();
+  const offerNoResponse = useOfferNoResponse();
+  const markOfferCalled = useMarkOfferCalled();
+  const offerCallNotReachable = useOfferCallNotReachable();
 
   // "Ni interesa" companies
   const { data: noInterestCompanyIds } = useQuery({
@@ -245,6 +266,7 @@ export default function Contacts() {
         <UrgentReminders
           dueReminders={dueReminders}
           contractPendingCompanies={contractPendingCompanies}
+          offerPendingCompanies={offerPendingCompanies}
           onOpenCompany={(companyId) => {
             modals.setSelectedCompanyId(companyId);
             const company = companies?.find(c => c.id === companyId);
@@ -258,6 +280,92 @@ export default function Contacts() {
               toast({ description: `Opomnik prestavljen na ${newDate.toLocaleDateString('sl-SI')}` });
             } catch {
               toast({ description: 'Napaka pri prestavitvi opomnika', variant: 'destructive' });
+            }
+          }}
+          // Contract workflow handlers
+          onMarkContractCalled={async (companyId) => {
+            try {
+              await markContractCalled.mutateAsync({ companyId, userId: user?.id || '' });
+              toast({ description: 'Klic zabeležen - opomnik za jutri ustvarjen' });
+            } catch {
+              toast({ description: 'Napaka pri beleženju klica', variant: 'destructive' });
+            }
+          }}
+          onMarkContractReceived={async (companyId, reminderId) => {
+            try {
+              await markContractReceived.mutateAsync({ companyId, reminderId });
+              toast({ description: 'Pogodba označena kot prejeta!' });
+            } catch {
+              toast({ description: 'Napaka pri označevanju pogodbe', variant: 'destructive' });
+            }
+          }}
+          onPostponeContractFollowup={async (reminderId) => {
+            try {
+              await postponeContractFollowup.mutateAsync(reminderId);
+              toast({ description: 'Opomnik prestavljen na jutri ob 9:00' });
+            } catch {
+              toast({ description: 'Napaka pri prestavitvi opomnika', variant: 'destructive' });
+            }
+          }}
+          // Offer workflow handlers
+          onCreateOfferFollowup={async (companyId) => {
+            try {
+              await createOfferFollowup.mutateAsync({ companyId, userId: user?.id || '' });
+              toast({ description: 'Opomnik za ponudbo ustvarjen' });
+            } catch {
+              toast({ description: 'Napaka pri ustvarjanju opomnika', variant: 'destructive' });
+            }
+          }}
+          onOfferResponseContract={async (companyId, reminderId) => {
+            try {
+              await offerResponseContract.mutateAsync({ companyId, reminderId });
+              toast({ description: 'Stranka želi pogodbo - status posodobljen!' });
+            } catch {
+              toast({ description: 'Napaka pri posodabljanju statusa', variant: 'destructive' });
+            }
+          }}
+          onOfferResponseNeedsTime={async (companyId, reminderId) => {
+            try {
+              await offerResponseNeedsTime.mutateAsync({ companyId, userId: user?.id || '', reminderId });
+              toast({ description: 'Opomnik ustvarjen za čez 5 dni' });
+            } catch {
+              toast({ description: 'Napaka pri ustvarjanju opomnika', variant: 'destructive' });
+            }
+          }}
+          onOfferResponseNoInterest={async (companyId, reminderId) => {
+            try {
+              await offerResponseNoInterest.mutateAsync({ companyId, userId: user?.id || '', reminderId });
+              toast({ description: 'Stranka nima interesa - zabeleženo' });
+            } catch {
+              toast({ description: 'Napaka pri beleženju', variant: 'destructive' });
+            }
+          }}
+          onOfferNoResponse={async (companyId, reminderId, reminderType) => {
+            try {
+              await offerNoResponse.mutateAsync({ companyId, userId: user?.id || '', reminderId, reminderType });
+              if (reminderType === 'offer_followup_1') {
+                toast({ description: 'Ni odgovora - opomnik za čez 2 dni' });
+              } else {
+                toast({ description: 'Ni odgovora - opomnik za klic ustvarjen' });
+              }
+            } catch {
+              toast({ description: 'Napaka pri ustvarjanju opomnika', variant: 'destructive' });
+            }
+          }}
+          onMarkOfferCalled={async (companyId, reminderId) => {
+            try {
+              await markOfferCalled.mutateAsync({ companyId, userId: user?.id || '', reminderId });
+              toast({ description: 'Klic zabeležen - opomnik za jutri' });
+            } catch {
+              toast({ description: 'Napaka pri beleženju klica', variant: 'destructive' });
+            }
+          }}
+          onOfferCallNotReachable={async (companyId, reminderId) => {
+            try {
+              await offerCallNotReachable.mutateAsync({ companyId, userId: user?.id || '', reminderId });
+              toast({ description: 'Ni dosegljiv - opomnik za jutri' });
+            } catch {
+              toast({ description: 'Napaka pri ustvarjanju opomnika', variant: 'destructive' });
             }
           }}
         />
