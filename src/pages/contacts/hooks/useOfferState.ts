@@ -115,11 +115,18 @@ export function useOfferState(): UseOfferStateReturn {
     setOfferItemsNajem(prev => prev.map(item => {
       if (!item.code) return item;
       let newPrice: number;
-      if (item.itemType === 'custom' && item.m2) {
+
+      // First try to get price from PRICE_LIST (works for standard AND design items)
+      const priceInfo = getPriceByCode(item.code);
+      if (priceInfo) {
+        newPrice = priceInfo.prices[newFrequency as FrequencyKey] || item.pricePerUnit;
+      } else if (item.itemType === 'custom' && item.m2) {
+        // Fall back to custom m² calculation for truly custom sizes
         newPrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
       } else {
-        newPrice = getRentalPrice(item.code, newFrequency as FrequencyKey) || item.pricePerUnit;
+        newPrice = item.pricePerUnit;
       }
+
       return {
         ...item,
         pricePerUnit: newPrice,
@@ -187,10 +194,26 @@ export function useOfferState(): UseOfferStateReturn {
   const handleDesignSizeSelect = useCallback((itemId: string, designCode: string, type: 'nakup' | 'najem') => {
     const designSize = DESIGN_SIZES.find(d => d.code === designCode);
     if (!designSize) return;
+
+    // First check if price exists in PRICE_LIST
+    const priceInfo = getPriceByCode(designCode);
     const m2 = calculateM2FromDimensions(designSize.dimensions);
-    const basePrice = type === 'nakup'
-      ? calculateCustomPurchasePrice(m2)
-      : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+
+    let basePrice: number;
+    let replacementCost: number;
+
+    if (priceInfo) {
+      // Use price from PRICE_LIST (predefined design sizes)
+      basePrice = type === 'nakup' ? priceInfo.odkup : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+      replacementCost = type === 'najem' ? priceInfo.odkup : 0;
+    } else {
+      // Fall back to custom m² calculation (non-standard sizes)
+      basePrice = type === 'nakup'
+        ? calculateCustomPurchasePrice(m2)
+        : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      replacementCost = type === 'najem' ? calculateCustomPurchasePrice(m2) : 0;
+    }
+
     const updates: Partial<OfferItem> = {
       code: designCode,
       size: designSize.dimensions,
@@ -198,7 +221,7 @@ export function useOfferState(): UseOfferStateReturn {
       pricePerUnit: basePrice,
       originalPrice: basePrice,
       discount: 0,
-      replacementCost: type === 'najem' ? calculateCustomPurchasePrice(m2) : 0,
+      replacementCost,
       name: 'predpražnik po meri'
     };
     updateOfferItem(itemId, updates, type);
@@ -253,15 +276,16 @@ export function useOfferState(): UseOfferStateReturn {
     if (enabled) {
       let normalBasePrice = 0;
       let seasonalBasePrice = 0;
-      if (item.itemType === 'custom' && item.m2) {
+
+      // First try PRICE_LIST (works for standard AND predefined design sizes)
+      const priceData = getPriceByCode(item.code);
+      if (priceData) {
+        normalBasePrice = priceData.prices['4'];
+        seasonalBasePrice = priceData.prices['1'];
+      } else if (item.itemType === 'custom' && item.m2) {
+        // Fall back to m² calculation for custom sizes
         normalBasePrice = calculateCustomPrice(item.m2, '4');
         seasonalBasePrice = calculateCustomPrice(item.m2, '1');
-      } else {
-        const priceData = getPriceByCode(item.code);
-        if (priceData) {
-          normalBasePrice = priceData.prices['4'];
-          seasonalBasePrice = priceData.prices['1'];
-        }
       }
       updateOfferItem(itemId, {
         seasonal: true,
@@ -301,12 +325,16 @@ export function useOfferState(): UseOfferStateReturn {
     const item = offerItemsNajem.find(i => i.id === itemId);
     if (!item) return;
     let seasonalBasePrice = 0;
-    if (item.itemType === 'custom' && item.m2) {
+
+    // First try PRICE_LIST (works for standard AND predefined design sizes)
+    const priceData = getPriceByCode(item.code);
+    if (priceData) {
+      seasonalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
+    } else if (item.itemType === 'custom' && item.m2) {
+      // Fall back to m² calculation for custom sizes
       seasonalBasePrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
-    } else {
-      const priceData = getPriceByCode(item.code);
-      if (priceData) seasonalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
     }
+
     updateOfferItem(itemId, { seasonalFrequency: newFrequency, seasonalPrice: seasonalBasePrice, seasonalOriginalPrice: seasonalBasePrice, seasonalDiscount: 0 }, 'najem');
   }, [offerItemsNajem, updateOfferItem]);
 
@@ -348,12 +376,16 @@ export function useOfferState(): UseOfferStateReturn {
     const item = offerItemsNajem.find(i => i.id === itemId);
     if (!item) return;
     let normalBasePrice = 0;
-    if (item.itemType === 'custom' && item.m2) {
+
+    // First try PRICE_LIST (works for standard AND predefined design sizes)
+    const priceData = getPriceByCode(item.code);
+    if (priceData) {
+      normalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
+    } else if (item.itemType === 'custom' && item.m2) {
+      // Fall back to m² calculation for custom sizes
       normalBasePrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
-    } else {
-      const priceData = getPriceByCode(item.code);
-      if (priceData) normalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
     }
+
     updateOfferItem(itemId, { normalFrequency: newFrequency, normalPrice: normalBasePrice, normalOriginalPrice: normalBasePrice, normalDiscount: 0 }, 'najem');
   }, [offerItemsNajem, updateOfferItem]);
 
