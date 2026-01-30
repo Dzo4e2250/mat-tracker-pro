@@ -106,6 +106,21 @@ export function useContactsModals() {
   const [newNoteDate, setNewNoteDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [newNoteContent, setNewNoteContent] = useState('');
 
+  // D365 Activity fields
+  const [d365Category, setD365Category] = useState<string>('');
+  const [d365Subcategory, setD365Subcategory] = useState<string>('');
+  const [d365AppointmentType, setD365AppointmentType] = useState<string>('face_to_face');
+  const [d365StartTime, setD365StartTime] = useState<string>('09:00');
+  const [d365EndTime, setD365EndTime] = useState<string>('09:30');
+
+  const resetD365Fields = useCallback(() => {
+    setD365Category('');
+    setD365Subcategory('');
+    setD365AppointmentType('face_to_face');
+    setD365StartTime('09:00');
+    setD365EndTime('09:30');
+  }, []);
+
   // Tax lookup loading
   const [taxLookupLoading, setTaxLookupLoading] = useState(false);
 
@@ -238,6 +253,19 @@ export function useContactsModals() {
     setNewNoteDate,
     newNoteContent,
     setNewNoteContent,
+
+    // D365 Activity fields
+    d365Category,
+    setD365Category,
+    d365Subcategory,
+    setD365Subcategory,
+    d365AppointmentType,
+    setD365AppointmentType,
+    d365StartTime,
+    setD365StartTime,
+    d365EndTime,
+    setD365EndTime,
+    resetD365Fields,
 
     // Tax lookup
     taxLookupLoading,

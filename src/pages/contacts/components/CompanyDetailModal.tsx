@@ -14,8 +14,13 @@ import React from 'react';
 import {
   X, StickyNote, Plus, Trash2, User, Phone, Mail, Calendar,
   Package, Clock, CheckCircle, FileText, Euro, MapPin, Camera,
-  Pencil, FileSignature, Check, GitBranch, Building2
+  Pencil, FileSignature, Check, GitBranch, Building2, ChevronDown
 } from 'lucide-react';
+import {
+  D365_ACTIVITY_CATEGORIES,
+  D365_SUBCATEGORIES,
+  D365_APPOINTMENT_TYPES,
+} from '@/pages/contacts/hooks/useCompanyNotes';
 
 interface Contact {
   id: string;
@@ -46,6 +51,7 @@ interface Company {
     onTest: number;
     signed: number;
   };
+  is_in_d365?: boolean;
 }
 
 interface CompanyNote {
@@ -53,6 +59,11 @@ interface CompanyNote {
   note_date: string;
   content: string;
   created_at: string;
+  activity_category?: string | null;
+  activity_subcategory?: string | null;
+  appointment_type?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 interface Cycle {
@@ -107,7 +118,13 @@ interface CompanyDetailModalProps {
   onEditAddress: () => void;
   onQuickNote: (content: string) => void;
   onAddNote: () => void;
-  onEditNote: (noteId: string, content: string, noteDate: string) => void;
+  onEditNote: (noteId: string, content: string, noteDate: string, d365Fields?: {
+    activityCategory: string | null;
+    activitySubcategory: string | null;
+    appointmentType: string | null;
+    startTime: string | null;
+    endTime: string | null;
+  }) => void;
   onDeleteNote: (noteId: string) => void;
   onShowAddContact: () => void;
   onShowMeeting: (type: 'ponudba' | 'sestanek' | 'izris') => void;
@@ -120,6 +137,18 @@ interface CompanyDetailModalProps {
   onDeleteCompany?: () => void;
   onContractSent?: () => void;
   onSelectCompany?: (companyId: string) => void;
+  onToggleD365?: (isInD365: boolean) => void;
+  // D365 fields for adding notes
+  d365Category?: string;
+  d365Subcategory?: string;
+  d365AppointmentType?: string;
+  d365StartTime?: string;
+  d365EndTime?: string;
+  onD365CategoryChange?: (value: string) => void;
+  onD365SubcategoryChange?: (value: string) => void;
+  onD365AppointmentTypeChange?: (value: string) => void;
+  onD365StartTimeChange?: (value: string) => void;
+  onD365EndTimeChange?: (value: string) => void;
 }
 
 export default function CompanyDetailModal({
@@ -156,27 +185,78 @@ export default function CompanyDetailModal({
   onDeleteCompany,
   onContractSent,
   onSelectCompany,
+  onToggleD365,
+  d365Category,
+  d365Subcategory,
+  d365AppointmentType,
+  d365StartTime,
+  d365EndTime,
+  onD365CategoryChange,
+  onD365SubcategoryChange,
+  onD365AppointmentTypeChange,
+  onD365StartTimeChange,
+  onD365EndTimeChange,
 }: CompanyDetailModalProps) {
   // State za urejanje opombe
   const [editingNoteId, setEditingNoteId] = React.useState<string | null>(null);
   const [editingContent, setEditingContent] = React.useState('');
   const [editingDate, setEditingDate] = React.useState('');
+  // D365 fields expanded state
+  const [showD365Fields, setShowD365Fields] = React.useState(false);
+  // D365 fields for editing existing notes
+  const [editingD365Category, setEditingD365Category] = React.useState('');
+  const [editingD365Subcategory, setEditingD365Subcategory] = React.useState('');
+  const [editingD365AppointmentType, setEditingD365AppointmentType] = React.useState('');
+  const [editingD365StartTime, setEditingD365StartTime] = React.useState('');
+  const [editingD365EndTime, setEditingD365EndTime] = React.useState('');
+  const [showEditD365Fields, setShowEditD365Fields] = React.useState(false);
+
+  // Extract time (HH:MM) from a timestamp string like "2026-01-30T09:00:00"
+  const extractTime = (timestamp: string | null | undefined, defaultTime: string): string => {
+    if (!timestamp) return defaultTime;
+    // Try to extract HH:MM from ISO timestamp
+    const match = timestamp.match(/T(\d{2}:\d{2})/);
+    if (match) return match[1];
+    // If it's already just a time (HH:MM), return it
+    if (/^\d{2}:\d{2}$/.test(timestamp)) return timestamp;
+    return defaultTime;
+  };
 
   const startEditing = (note: CompanyNote) => {
     setEditingNoteId(note.id);
     setEditingContent(note.content);
     setEditingDate(note.note_date);
+    // Load D365 fields
+    setEditingD365Category(note.activity_category || '');
+    setEditingD365Subcategory(note.activity_subcategory || '');
+    setEditingD365AppointmentType(note.appointment_type || 'face_to_face');
+    setEditingD365StartTime(extractTime(note.start_time, '09:00'));
+    setEditingD365EndTime(extractTime(note.end_time, '09:30'));
+    // Show D365 fields if note has any D365 data
+    setShowEditD365Fields(!!(note.activity_category || note.activity_subcategory));
   };
 
   const cancelEditing = () => {
     setEditingNoteId(null);
     setEditingContent('');
     setEditingDate('');
+    setEditingD365Category('');
+    setEditingD365Subcategory('');
+    setEditingD365AppointmentType('');
+    setEditingD365StartTime('');
+    setEditingD365EndTime('');
+    setShowEditD365Fields(false);
   };
 
   const saveEditing = () => {
     if (editingNoteId && editingContent.trim()) {
-      onEditNote(editingNoteId, editingContent.trim(), editingDate);
+      onEditNote(editingNoteId, editingContent.trim(), editingDate, {
+        activityCategory: editingD365Category || null,
+        activitySubcategory: editingD365Subcategory || null,
+        appointmentType: editingD365AppointmentType || null,
+        startTime: editingD365StartTime || null,
+        endTime: editingD365EndTime || null,
+      });
       cancelEditing();
     }
   };
@@ -244,6 +324,24 @@ export default function CompanyDetailModal({
                 <Pencil size={16} />
               </button>
             </div>
+
+            {/* D365 CRM Status */}
+            {onToggleD365 && (
+              <div className="pt-2 mt-2 border-t border-gray-200">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={company.is_in_d365 || false}
+                    onChange={(e) => onToggleD365(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Je v D365 CRM</span>
+                  {company.is_in_d365 && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ V CRM</span>
+                  )}
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Hierarhija podjetja */}
@@ -365,6 +463,92 @@ export default function CompanyDetailModal({
                 className="w-full p-2 border rounded text-sm"
                 rows={2}
               />
+
+              {/* D365 Fields - only show when company is in D365 */}
+              {company.is_in_d365 && onD365CategoryChange && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowD365Fields(!showD365Fields)}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    <ChevronDown size={14} className={`transform transition-transform ${showD365Fields ? 'rotate-180' : ''}`} />
+                    D365 polja {d365Category ? '✓' : ''}
+                  </button>
+
+                  {showD365Fields && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg space-y-2">
+                      <p className="text-xs text-blue-700 font-medium mb-2">Za izvoz v Dynamics 365:</p>
+
+                      {/* Category */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Kategorija</label>
+                        <select
+                          value={d365Category || ''}
+                          onChange={(e) => onD365CategoryChange(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                        >
+                          <option value="">-- Izberi --</option>
+                          {D365_ACTIVITY_CATEGORIES.map(cat => (
+                            <option key={cat.value} value={cat.value}>{cat.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Subcategory */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Podkategorija</label>
+                        <select
+                          value={d365Subcategory || ''}
+                          onChange={(e) => onD365SubcategoryChange?.(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                        >
+                          <option value="">-- Izberi --</option>
+                          {D365_SUBCATEGORIES.map(sub => (
+                            <option key={sub.value} value={sub.value}>{sub.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Appointment Type */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Tip sestanka</label>
+                        <select
+                          value={d365AppointmentType || 'face_to_face'}
+                          onChange={(e) => onD365AppointmentTypeChange?.(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                        >
+                          {D365_APPOINTMENT_TYPES.map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Time range */}
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-600 block mb-1">Začetek</label>
+                          <input
+                            type="time"
+                            value={d365StartTime || '09:00'}
+                            onChange={(e) => onD365StartTimeChange?.(e.target.value)}
+                            className="w-full px-2 py-1.5 border rounded text-sm"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-600 block mb-1">Konec</label>
+                          <input
+                            type="time"
+                            value={d365EndTime || '09:30'}
+                            onChange={(e) => onD365EndTimeChange?.(e.target.value)}
+                            className="w-full px-2 py-1.5 border rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Notes list */}
@@ -406,6 +590,90 @@ export default function CompanyDetailModal({
                           rows={3}
                           autoFocus
                         />
+
+                        {/* D365 Fields for editing - only show when company is in D365 */}
+                        {company.is_in_d365 && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowEditD365Fields(!showEditD365Fields)}
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              <ChevronDown size={14} className={`transform transition-transform ${showEditD365Fields ? 'rotate-180' : ''}`} />
+                              D365 polja {editingD365Category ? '✓' : ''}
+                            </button>
+
+                            {showEditD365Fields && (
+                              <div className="mt-2 p-2 bg-blue-50 rounded-lg space-y-2">
+                                {/* Category */}
+                                <div>
+                                  <label className="text-xs text-gray-600 block mb-1">Kategorija</label>
+                                  <select
+                                    value={editingD365Category}
+                                    onChange={(e) => setEditingD365Category(e.target.value)}
+                                    className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                                  >
+                                    <option value="">-- Izberi --</option>
+                                    {D365_ACTIVITY_CATEGORIES.map(cat => (
+                                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Subcategory */}
+                                <div>
+                                  <label className="text-xs text-gray-600 block mb-1">Podkategorija</label>
+                                  <select
+                                    value={editingD365Subcategory}
+                                    onChange={(e) => setEditingD365Subcategory(e.target.value)}
+                                    className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                                  >
+                                    <option value="">-- Izberi --</option>
+                                    {D365_SUBCATEGORIES.map(sub => (
+                                      <option key={sub.value} value={sub.value}>{sub.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Appointment Type */}
+                                <div>
+                                  <label className="text-xs text-gray-600 block mb-1">Tip sestanka</label>
+                                  <select
+                                    value={editingD365AppointmentType}
+                                    onChange={(e) => setEditingD365AppointmentType(e.target.value)}
+                                    className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                                  >
+                                    {D365_APPOINTMENT_TYPES.map(type => (
+                                      <option key={type.value} value={type.value}>{type.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Time range */}
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <label className="text-xs text-gray-600 block mb-1">Začetek</label>
+                                    <input
+                                      type="time"
+                                      value={editingD365StartTime}
+                                      onChange={(e) => setEditingD365StartTime(e.target.value)}
+                                      className="w-full px-2 py-1.5 border rounded text-sm"
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs text-gray-600 block mb-1">Konec</label>
+                                    <input
+                                      type="time"
+                                      value={editingD365EndTime}
+                                      onChange={(e) => setEditingD365EndTime(e.target.value)}
+                                      className="w-full px-2 py-1.5 border rounded text-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* View mode */
@@ -443,6 +711,17 @@ export default function CompanyDetailModal({
                           </div>
                         </div>
                         <div className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</div>
+                        {/* D365 indicator badge */}
+                        {note.activity_category && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                              D365 ✓
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {D365_ACTIVITY_CATEGORIES.find(c => c.value === note.activity_category)?.label || note.activity_category}
+                            </span>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

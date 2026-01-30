@@ -143,6 +143,7 @@ export type Database = {
           offer_sent_at: string | null
           offer_called_at: string | null
           parent_company_id: string | null
+          is_in_d365: boolean
         }
         Insert: {
           id?: string
@@ -174,6 +175,7 @@ export type Database = {
           offer_sent_at?: string | null
           offer_called_at?: string | null
           parent_company_id?: string | null
+          is_in_d365?: boolean
         }
         Update: {
           id?: string
@@ -205,6 +207,7 @@ export type Database = {
           offer_sent_at?: string | null
           offer_called_at?: string | null
           parent_company_id?: string | null
+          is_in_d365?: boolean
         }
         Relationships: [
           {
@@ -225,6 +228,12 @@ export type Database = {
           created_by: string | null
           created_at: string
           updated_at: string
+          activity_category: string | null
+          activity_subcategory: string | null
+          appointment_type: string | null
+          start_time: string | null
+          end_time: string | null
+          exported_to_d365_at: string | null
         }
         Insert: {
           id?: string
@@ -234,6 +243,12 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          activity_category?: string | null
+          activity_subcategory?: string | null
+          appointment_type?: string | null
+          start_time?: string | null
+          end_time?: string | null
+          exported_to_d365_at?: string | null
         }
         Update: {
           id?: string
@@ -243,6 +258,12 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          activity_category?: string | null
+          activity_subcategory?: string | null
+          appointment_type?: string | null
+          start_time?: string | null
+          end_time?: string | null
+          exported_to_d365_at?: string | null
         }
         Relationships: [
           {

@@ -129,6 +129,117 @@ describe('BaseRepository', () => {
 
       expect(rangeMock).toHaveBeenCalledWith(20, 29);
     });
+
+    it('should apply limit only without offset', async () => {
+      const limitMock = vi.fn().mockResolvedValue({ data: [], error: null });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        limit: limitMock,
+      } as any);
+
+      await repository.findAll({ limit: 10 });
+
+      expect(limitMock).toHaveBeenCalledWith(10);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findAll();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.findAll()).rejects.toThrow(RepositoryError);
+    });
+
+    it('should skip undefined and null filter values', async () => {
+      const eqMock = vi.fn().mockResolvedValue({ data: [], error: null });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: eqMock,
+      } as any);
+
+      await repository.findAll({ filters: { name: 'Test', status: undefined, value: null } });
+
+      // eq should only be called once for 'name', not for undefined/null values
+      expect(eqMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('findPaginated', () => {
+    it('should return paginated results', async () => {
+      const mockEntities = [{ id: '1', name: 'Test', created_at: '2024-01-01' }];
+
+      // Mock that works for both count and data queries
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockImplementation((selectStr, options) => {
+          if (options?.count === 'exact') {
+            // Count query
+            return { count: 100, error: null };
+          }
+          // Data query - return chainable mock
+          return {
+            range: vi.fn().mockResolvedValue({ data: mockEntities, error: null }),
+          };
+        }),
+      } as any);
+
+      const result = await repository.findPaginated({ page: 1, pageSize: 10 });
+
+      expect(result.data).toEqual(mockEntities);
+      expect(result.count).toBe(100);
+      expect(result.hasMore).toBe(true);
+    });
+
+    it('should handle null count', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockImplementation((selectStr, options) => {
+          if (options?.count === 'exact') {
+            return { count: null, error: null };
+          }
+          return {
+            range: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }),
+      } as any);
+
+      const result = await repository.findPaginated();
+
+      expect(result.count).toBe(0);
+      expect(result.hasMore).toBe(false);
+    });
+
+    it('should apply filters to both count and data queries', async () => {
+      const eqMock = vi.fn().mockImplementation(() => {
+        return { count: 5, error: null };
+      });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockImplementation((selectStr, options) => {
+          if (options?.count === 'exact') {
+            return { eq: eqMock };
+          }
+          return {
+            eq: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }),
+      } as any);
+
+      await repository.findPaginated({ filters: { name: 'Test' } });
+
+      expect(eqMock).toHaveBeenCalledWith('name', 'Test');
+    });
   });
 
   describe('create', () => {
@@ -158,6 +269,48 @@ describe('BaseRepository', () => {
       } as any);
 
       await expect(repository.create({ name: 'Test' } as any)).rejects.toThrow(RepositoryError);
+    });
+  });
+
+  describe('createMany', () => {
+    it('should create multiple entities', async () => {
+      const newEntities = [{ name: 'Entity 1' }, { name: 'Entity 2' }];
+      const createdEntities = [
+        { id: '1', name: 'Entity 1', created_at: '2024-01-01' },
+        { id: '2', name: 'Entity 2', created_at: '2024-01-01' },
+      ];
+
+      vi.mocked(supabase.from).mockReturnValue({
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockResolvedValue({ data: createdEntities, error: null }),
+      } as any);
+
+      const result = await repository.createMany(newEntities as any);
+
+      expect(result).toEqual(createdEntities);
+    });
+
+    it('should throw on createMany error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockResolvedValue({
+          data: null,
+          error: { code: '23505', message: 'Duplicate' },
+        }),
+      } as any);
+
+      await expect(repository.createMany([{ name: 'Test' }] as any)).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.createMany([{ name: 'Test' }] as any);
+
+      expect(result).toEqual([]);
     });
   });
 
@@ -200,6 +353,46 @@ describe('BaseRepository', () => {
     });
   });
 
+  describe('deleteWhere', () => {
+    it('should delete entities matching filters', async () => {
+      const eqMock = vi.fn().mockResolvedValue({ error: null });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        delete: vi.fn().mockReturnThis(),
+        eq: eqMock,
+      } as any);
+
+      await repository.deleteWhere({ name: 'Test' });
+
+      expect(eqMock).toHaveBeenCalledWith('name', 'Test');
+    });
+
+    it('should throw on deleteWhere error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        delete: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({
+          error: { code: '500', message: 'Error' },
+        }),
+      } as any);
+
+      await expect(repository.deleteWhere({ name: 'Test' })).rejects.toThrow(RepositoryError);
+    });
+
+    it('should skip undefined and null filter values', async () => {
+      const eqMock = vi.fn().mockResolvedValue({ error: null });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        delete: vi.fn().mockReturnThis(),
+        eq: eqMock,
+      } as any);
+
+      await repository.deleteWhere({ name: 'Test', status: undefined, value: null });
+
+      // eq should only be called once for 'name'
+      expect(eqMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('exists', () => {
     it('should return true if entity exists', async () => {
       vi.mocked(supabase.from).mockReturnValue({
@@ -219,6 +412,26 @@ describe('BaseRepository', () => {
       } as any);
 
       const result = await repository.exists('999');
+
+      expect(result).toBe(false);
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ count: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.exists('1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should handle null count as false', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ count: null, error: null }),
+      } as any);
+
+      const result = await repository.exists('1');
 
       expect(result).toBe(false);
     });
@@ -246,6 +459,51 @@ describe('BaseRepository', () => {
       await repository.count({ name: 'Test' });
 
       expect(eqMock).toHaveBeenCalled();
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockResolvedValue({ count: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.count()).rejects.toThrow(RepositoryError);
+    });
+
+    it('should handle null count as 0', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockResolvedValue({ count: null, error: null }),
+      } as any);
+
+      const result = await repository.count();
+
+      expect(result).toBe(0);
+    });
+
+    it('should skip undefined and null filter values', async () => {
+      const eqMock = vi.fn().mockResolvedValue({ count: 10, error: null });
+
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: eqMock,
+      } as any);
+
+      await repository.count({ name: 'Test', status: undefined, value: null });
+
+      // eq should only be called once for 'name'
+      expect(eqMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('update', () => {
+    it('should throw RepositoryError on update error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.update('1', { name: 'Test' })).rejects.toThrow(RepositoryError);
     });
   });
 });

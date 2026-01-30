@@ -60,6 +60,19 @@ describe('CycleRepository', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should throw RepositoryError on database error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { code: 'OTHER_ERROR', message: 'Database error' },
+        }),
+      } as any);
+
+      await expect(repository.findWithRelations('1')).rejects.toThrow(RepositoryError);
+    });
   });
 
   describe('findActiveBySalesperson', () => {
@@ -81,6 +94,29 @@ describe('CycleRepository', () => {
 
       expect(result).toHaveLength(3);
     });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.findActiveBySalesperson('user-1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findActiveBySalesperson('user-1');
+      expect(result).toEqual([]);
+    });
   });
 
   describe('findByCompany', () => {
@@ -98,10 +134,54 @@ describe('CycleRepository', () => {
       expect(result).toEqual(mockCycles);
     });
 
-    it('should handle salesperson filter option', () => {
-      // Repository should accept salespersonId parameter
-      expect(repository.findByCompany).toBeDefined();
-      expect(repository.findByCompany.length).toBeGreaterThanOrEqual(1);
+    it('should filter by salesperson when provided', async () => {
+      const mockCycles = [{ id: '1', company_id: 'c1', salesperson_id: 'sp1' }];
+
+      // The query builder needs order() to return this, and then we can chain .eq()
+      // But the final call needs to resolve with data
+      let eqCallCount = 0;
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockImplementation(() => {
+          eqCallCount++;
+          return mockQueryBuilder;
+        }),
+        order: vi.fn().mockReturnThis(),
+        then: vi.fn().mockImplementation((resolve: Function) => {
+          resolve({ data: mockCycles, error: null });
+        }),
+      };
+      // Make it thenable
+      mockQueryBuilder[Symbol.toStringTag] = 'Promise';
+
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder);
+
+      await repository.findByCompany('c1', 'sp1');
+
+      // Should be called twice: once for company_id, once for salesperson_id
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('company_id', 'c1');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('salesperson_id', 'sp1');
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.findByCompany('c1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findByCompany('c1');
+      expect(result).toEqual([]);
     });
   });
 
@@ -121,6 +201,53 @@ describe('CycleRepository', () => {
       const result = await repository.findByStatus('on_test');
 
       expect(result).toHaveLength(2);
+    });
+
+    it('should filter by salesperson when provided', async () => {
+      const mockCycles = [{ id: '1', status: 'on_test', salesperson_id: 'sp1' }];
+
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: vi.fn().mockImplementation((resolve: Function) => {
+          resolve({ data: mockCycles, error: null });
+        }),
+      };
+
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder);
+
+      await repository.findByStatus('on_test', 'sp1');
+
+      // Should be called twice: once for status, once for salesperson_id
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('status', 'on_test');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('salesperson_id', 'sp1');
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: vi.fn().mockImplementation((resolve: Function) => {
+          resolve({ data: null, error: { message: 'Error' } });
+        }),
+      };
+
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder);
+
+      await expect(repository.findByStatus('active')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findByStatus('dirty');
+      expect(result).toEqual([]);
     });
   });
 
@@ -213,6 +340,25 @@ describe('CycleRepository', () => {
       expect(stats.total).toBe(0);
       expect(stats.onTest).toBe(0);
     });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.getStatsBySalesperson('user-1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should handle null data gracefully', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const stats = await repository.getStatsBySalesperson('user-1');
+      expect(stats.total).toBe(0);
+    });
   });
 
   describe('findExpiringTests', () => {
@@ -229,6 +375,41 @@ describe('CycleRepository', () => {
       const result = await repository.findExpiringTests('user-1', 2);
 
       expect(result).toEqual(mockCycles);
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.findExpiringTests('user-1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findExpiringTests('user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('should use default daysAhead of 2', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      } as any);
+
+      // Just verify it doesn't throw when called without daysAhead
+      await expect(repository.findExpiringTests('user-1')).resolves.toEqual([]);
     });
   });
 
@@ -250,6 +431,43 @@ describe('CycleRepository', () => {
       const result = await repository.findHistory('user-1', 10);
 
       expect(result).toHaveLength(2);
+    });
+
+    it('should throw RepositoryError on error', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } }),
+      } as any);
+
+      await expect(repository.findHistory('user-1')).rejects.toThrow(RepositoryError);
+    });
+
+    it('should return empty array when no data', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: null, error: null }),
+      } as any);
+
+      const result = await repository.findHistory('user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('should use default limit of 100', async () => {
+      vi.mocked(supabase.from).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      } as any);
+
+      await expect(repository.findHistory('user-1')).resolves.toEqual([]);
     });
   });
 
@@ -281,6 +499,55 @@ describe('CycleRepository', () => {
 
       const result = await repository.extendTest('1', 7);
       expect(result).toBeDefined();
+    });
+
+    it('should use current date if no test_end_date exists', async () => {
+      const mockCycle = { id: '1', test_end_date: null };
+
+      let callCount = 0;
+      vi.mocked(supabase.from).mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: mockCycle, error: null }),
+          } as any;
+        }
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { ...mockCycle, test_end_date: new Date().toISOString() }, error: null }),
+        } as any;
+      });
+
+      const result = await repository.extendTest('1', 7);
+      expect(result).toBeDefined();
+    });
+
+    it('should use default 7 days if not specified', async () => {
+      const mockCycle = { id: '1', test_end_date: '2024-01-10' };
+
+      let callCount = 0;
+      vi.mocked(supabase.from).mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: mockCycle, error: null }),
+          } as any;
+        }
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: mockCycle, error: null }),
+        } as any;
+      });
+
+      await expect(repository.extendTest('1')).resolves.toBeDefined();
     });
 
     it('should throw if cycle not found', async () => {

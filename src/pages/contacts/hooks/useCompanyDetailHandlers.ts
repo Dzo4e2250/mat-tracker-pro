@@ -9,10 +9,13 @@ import { useNavigate } from 'react-router-dom';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import { generateICSFile } from '@/pages/contacts/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UseCompanyDetailHandlersProps {
   selectedCompany: CompanyWithContacts | null;
   companies: CompanyWithContacts[] | undefined;
+  companyNotes: any[] | undefined; // For auto-detecting first/second visit
   setSelectedCompany: (company: CompanyWithContacts | null) => void;
   setSelectedCompanyId: (id: string | null) => void;
   setEditAddressData: (data: any) => void;
@@ -36,11 +39,71 @@ interface UseCompanyDetailHandlersProps {
   meetingType: 'sestanek' | 'ponudba' | 'izris';
   meetingDate: string;
   meetingTime: string;
+  // D365 fields
+  d365Category: string;
+  d365Subcategory: string;
+  d365AppointmentType: string;
+  d365StartTime: string;
+  d365EndTime: string;
+  resetD365Fields: () => void;
+}
+
+/**
+ * Auto-detect D365 fields based on note content and existing notes count
+ * @param content - The note content
+ * @param existingNotesCount - Number of existing notes for this company
+ * @param isInD365 - Whether company is marked as in D365
+ * @returns D365 fields to apply
+ */
+function getAutoD365Fields(content: string, existingNotesCount: number, isInD365: boolean): {
+  activityCategory: string | null;
+  activitySubcategory: string | null;
+  appointmentType: string | null;
+} {
+  // If company is not in D365, don't set any fields
+  if (!isInD365) {
+    return { activityCategory: null, activitySubcategory: null, appointmentType: null };
+  }
+
+  const lowerContent = content.toLowerCase();
+
+  // Determine appointment type based on content
+  let appointmentType: string = 'face_to_face'; // Default
+
+  // "Klical - ni dvignil" or content with "klic" or "poslal sem" → Virtual Meeting
+  if (lowerContent.includes('klical') ||
+      lowerContent.includes('klic') ||
+      lowerContent.includes('telefon') ||
+      lowerContent.includes('poslal sem') ||
+      lowerContent.includes('mail')) {
+    appointmentType = 'virtual';
+  }
+
+  // "Ni interesa" - default is face_to_face, unless it contains klic/poslal sem
+  // (already handled above)
+
+  // Determine category based on note count
+  let activityCategory: string | null = null;
+  let activitySubcategory: string | null = null;
+
+  if (existingNotesCount === 0) {
+    // First note → First Visit + Needs Analysis
+    activityCategory = 'first_visit';
+    activitySubcategory = 'needs_analysis';
+  } else if (existingNotesCount === 1) {
+    // Second note → Second Visit
+    activityCategory = 'second_visit';
+    activitySubcategory = 'needs_analysis';
+  }
+  // For 3rd+ notes, don't auto-set category (user should choose)
+
+  return { activityCategory, activitySubcategory, appointmentType };
 }
 
 export function useCompanyDetailHandlers({
   selectedCompany,
   companies,
+  companyNotes,
   setSelectedCompany,
   setSelectedCompanyId,
   setEditAddressData,
@@ -63,9 +126,16 @@ export function useCompanyDetailHandlers({
   meetingType,
   meetingDate,
   meetingTime,
+  d365Category,
+  d365Subcategory,
+  d365AppointmentType,
+  d365StartTime,
+  d365EndTime,
+  resetD365Fields,
 }: UseCompanyDetailHandlersProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const handleClose = useCallback(() => {
     setSelectedCompany(null);
@@ -92,24 +162,67 @@ export function useCompanyDetailHandlers({
 
   const handleQuickNote = useCallback((content: string) => {
     if (!selectedCompany) return;
+
+    // Auto-detect D365 fields based on content and note count
+    const isInD365 = (selectedCompany as any).is_in_d365 || false;
+    const existingNotesCount = companyNotes?.length || 0;
+    const autoFields = getAutoD365Fields(content, existingNotesCount, isInD365);
+
     addNoteMutation.mutate({
       companyId: selectedCompany.id,
       noteDate: new Date().toISOString().split('T')[0],
       content,
+      // Include auto-detected D365 fields
+      activityCategory: autoFields.activityCategory,
+      activitySubcategory: autoFields.activitySubcategory,
+      appointmentType: autoFields.appointmentType,
+      startTime: isInD365 ? '09:00' : null,
+      endTime: isInD365 ? '09:30' : null,
     });
-  }, [selectedCompany, addNoteMutation]);
+  }, [selectedCompany, companyNotes, addNoteMutation]);
 
   const handleAddNote = useCallback(() => {
     if (!selectedCompany || !newNoteContent.trim()) return;
+
+    // Auto-detect D365 fields if not manually set
+    const isInD365 = (selectedCompany as any).is_in_d365 || false;
+    const existingNotesCount = companyNotes?.length || 0;
+    const autoFields = getAutoD365Fields(newNoteContent, existingNotesCount, isInD365);
+
     addNoteMutation.mutate({
       companyId: selectedCompany.id,
       noteDate: newNoteDate,
       content: newNoteContent.trim(),
+      // Use manually set D365 fields, or fall back to auto-detected
+      activityCategory: d365Category || autoFields.activityCategory,
+      activitySubcategory: d365Subcategory || autoFields.activitySubcategory,
+      appointmentType: d365AppointmentType || autoFields.appointmentType,
+      startTime: d365StartTime || (isInD365 ? '09:00' : null),
+      endTime: d365EndTime || (isInD365 ? '09:30' : null),
     });
-  }, [selectedCompany, newNoteContent, newNoteDate, addNoteMutation]);
+    // Reset D365 fields after adding note
+    resetD365Fields();
+  }, [selectedCompany, companyNotes, newNoteContent, newNoteDate, addNoteMutation, d365Category, d365Subcategory, d365AppointmentType, d365StartTime, d365EndTime, resetD365Fields]);
 
-  const handleEditNote = useCallback((noteId: string, content: string, noteDate: string) => {
-    editNoteMutation.mutate({ noteId, content, noteDate });
+  const handleEditNote = useCallback((noteId: string, content: string, noteDate: string, d365Fields?: {
+    activityCategory: string | null;
+    activitySubcategory: string | null;
+    appointmentType: string | null;
+    startTime: string | null;
+    endTime: string | null;
+  }) => {
+    editNoteMutation.mutate({
+      noteId,
+      content,
+      noteDate,
+      ...(d365Fields && {
+        activityCategory: d365Fields.activityCategory,
+        activitySubcategory: d365Fields.activitySubcategory,
+        appointmentType: d365Fields.appointmentType,
+        startTime: d365Fields.startTime,
+        endTime: d365Fields.endTime,
+      }),
+    });
   }, [editNoteMutation]);
 
   const handleDeleteNote = useCallback((noteId: string) => {
@@ -223,6 +336,39 @@ export function useCompanyDetailHandlers({
     setShowMeetingModal(false);
   }, [setShowMeetingModal]);
 
+  // Toggle D365 CRM status
+  const handleToggleD365 = useCallback(async (isInD365: boolean) => {
+    if (!selectedCompany) return;
+
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .update({ is_in_d365: isInD365 })
+        .eq('id', selectedCompany.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setSelectedCompany({
+        ...selectedCompany,
+        is_in_d365: isInD365,
+      } as any);
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
+
+      toast({
+        description: isInD365 ? '✓ Označeno kot vnešeno v D365' : 'Odstranjena oznaka D365',
+      });
+    } catch (error: any) {
+      toast({
+        description: `Napaka: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
+  }, [selectedCompany, setSelectedCompany, queryClient, toast]);
+
   return {
     handleClose,
     handleEditAddress,
@@ -240,7 +386,10 @@ export function useCompanyDetailHandlers({
     handleMeetingSaveWithICS,
     handleMeetingSaveOnly,
     handleMeetingClose,
+    handleToggleD365,
   };
 }
+
+export type UseCompanyDetailHandlersReturn = ReturnType<typeof useCompanyDetailHandlers>;
 
 export default useCompanyDetailHandlers;

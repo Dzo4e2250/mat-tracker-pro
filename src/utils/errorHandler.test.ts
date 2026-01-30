@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { parseSupabaseError, ERROR_CODES, handleErrorSilent } from './errorHandler';
+import {
+  parseSupabaseError,
+  ERROR_CODES,
+  handleErrorSilent,
+  handleError,
+  createQueryErrorHandler,
+  asyncAction,
+} from './errorHandler';
+import { toast } from 'sonner';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
@@ -207,6 +215,137 @@ describe('errorHandler', () => {
           `Message should be in Slovenian: ${message}`
         ).toBe(true);
       });
+    });
+  });
+
+  describe('handleError', () => {
+    it('should parse error, log and show toast', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = { message: 'Test error' };
+
+      const result = handleError(error, 'TestContext');
+
+      expect(result.code).toBe('UNKNOWN_ERROR');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[TestContext] Error:',
+        expect.objectContaining({
+          code: 'UNKNOWN_ERROR',
+          message: 'Test error',
+        })
+      );
+      expect(toast.error).toHaveBeenCalledWith(
+        'Test error',
+        expect.objectContaining({
+          duration: 5000,
+        })
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should use default context if not provided', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = { message: 'Test error' };
+
+      handleError(error);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[App] Error:',
+        expect.anything()
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should show recoverable message for recoverable errors', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = { message: 'Invalid login credentials' };
+
+      handleError(error);
+
+      expect(toast.error).toHaveBeenCalledWith(
+        ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+        expect.objectContaining({
+          description: 'Poskusite znova',
+        })
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should show non-recoverable message for non-recoverable errors', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = { code: '42501', message: 'permission denied' };
+
+      handleError(error);
+
+      expect(toast.error).toHaveBeenCalledWith(
+        ERROR_CODES.DB_PERMISSION_DENIED,
+        expect.objectContaining({
+          description: 'Kontaktirajte podporo ce se napaka ponavlja',
+        })
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('createQueryErrorHandler', () => {
+    it('should return a function that calls handleError', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const errorHandler = createQueryErrorHandler('QueryContext');
+      const error = { message: 'Query failed' };
+
+      errorHandler(error);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[QueryContext] Error:',
+        expect.anything()
+      );
+      expect(toast.error).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('asyncAction', () => {
+    it('should return success result when action succeeds', async () => {
+      const action = vi.fn().mockResolvedValue({ id: '1', name: 'Test' });
+
+      const result = await asyncAction(action, 'TestAction');
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ id: '1', name: 'Test' });
+      expect(result.error).toBeNull();
+    });
+
+    it('should return error result when action throws', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const action = vi.fn().mockRejectedValue(new Error('Action failed'));
+
+      const result = await asyncAction(action, 'TestAction');
+
+      expect(result.success).toBe(false);
+      expect(result.data).toBeNull();
+      expect(result.error).not.toBeNull();
+      expect(result.error?.code).toBe('UNKNOWN_ERROR');
+      expect(toast.error).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should use default context if not provided', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const action = vi.fn().mockRejectedValue(new Error('Error'));
+
+      await asyncAction(action);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[App] Error:',
+        expect.anything()
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 });

@@ -4,10 +4,10 @@
  */
 
 import { useState, useMemo } from 'react';
-import { X, Check, Building2, MapPin, Clock, AlertTriangle, FileSignature, Package, CalendarPlus } from 'lucide-react';
+import { X, Check, Building2, MapPin, Clock, AlertTriangle, FileSignature, Package, CalendarPlus, Trash2 } from 'lucide-react';
 import type { CycleWithRelations } from '@/hooks/useCycles';
 
-type ActionType = 'select' | 'sign_contract' | 'confirm_remaining';
+type ActionType = 'select' | 'sign_contract' | 'confirm_remaining' | 'confirm_remove';
 
 interface CompanyMatsModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ interface CompanyMatsModalProps {
   ) => Promise<void>;
   onPickupAll: (cycleIds: string[]) => Promise<void>;
   onExtendAll: (cycleIds: string[]) => Promise<void>;
+  onRemoveAll: (cycleIds: string[]) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -51,6 +52,7 @@ export default function CompanyMatsModal({
   onSignContracts,
   onPickupAll,
   onExtendAll,
+  onRemoveAll,
   isLoading = false,
 }: CompanyMatsModalProps) {
   const [selectedCycles, setSelectedCycles] = useState<Set<string>>(new Set());
@@ -116,6 +118,11 @@ export default function CompanyMatsModal({
 
   const handleExtendAll = async () => {
     await onExtendAll(onTestCycles.map(c => c.id));
+    resetAndClose();
+  };
+
+  const handleRemoveAll = async () => {
+    await onRemoveAll(onTestCycles.map(c => c.id));
     resetAndClose();
   };
 
@@ -215,6 +222,22 @@ export default function CompanyMatsModal({
                   <div>
                     <div className="font-bold text-blue-800">Podaljšaj test +7 dni</div>
                     <div className="text-sm text-blue-600">Stranka potrebuje več časa</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setStep('confirm_remove')}
+                disabled={isLoading}
+                className="w-full p-4 rounded-xl border-2 border-red-200 bg-red-50 hover:border-red-400 hover:bg-red-100 transition-all text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center text-white">
+                    <Trash2 size={24} />
+                  </div>
+                  <div>
+                    <div className="font-bold text-red-800">Odstrani (napačen vnos)</div>
+                    <div className="text-sm text-red-600">Vrni predpražnike med čiste</div>
                   </div>
                 </div>
               </button>
@@ -379,6 +402,39 @@ export default function CompanyMatsModal({
               </div>
             </div>
           )}
+
+          {/* Step: Confirm remove */}
+          {step === 'confirm_remove' && (
+            <div className="space-y-4">
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="text-red-600 mt-0.5" size={24} />
+                  <div>
+                    <h4 className="font-bold text-red-800 text-lg">
+                      Ali si prepričan?
+                    </h4>
+                    <p className="text-sm text-red-700 mt-2">
+                      Odstranil boš <span className="font-bold">{onTestCycles.length} predpražnik{onTestCycles.length > 1 ? 'ov' : ''}</span> iz tega podjetja.
+                    </p>
+                    <p className="text-sm text-red-600 mt-1">
+                      Predpražniki se bodo vrnili med <span className="font-medium">čiste</span> in bodo na voljo za nove teste.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-gray-500 mb-2">Predpražniki za odstranitev:</div>
+                <div className="flex flex-wrap gap-2">
+                  {onTestCycles.map(cycle => (
+                    <span key={cycle.id} className="text-xs bg-white px-2 py-1 rounded border border-red-200">
+                      {cycle.mat_type?.code || cycle.qr_code?.code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -428,6 +484,24 @@ export default function CompanyMatsModal({
                 className="flex-1 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
               >
                 {isLoading ? 'Shranjujem...' : 'Potrdi'}
+              </button>
+            </div>
+          )}
+
+          {step === 'confirm_remove' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep('select')}
+                className="flex-1 py-3 border rounded-lg font-medium hover:bg-gray-100"
+              >
+                Prekliči
+              </button>
+              <button
+                onClick={handleRemoveAll}
+                disabled={isLoading}
+                className="flex-1 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {isLoading ? 'Odstranjujem...' : 'Da, odstrani'}
               </button>
             </div>
           )}

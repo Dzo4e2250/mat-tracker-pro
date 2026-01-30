@@ -179,6 +179,7 @@ export default function Contacts() {
   const detailHandlers = useCompanyDetailHandlers({
     selectedCompany: modals.selectedCompany,
     companies,
+    companyNotes: notesHook.companyNotes,
     setSelectedCompany: modals.setSelectedCompany,
     setSelectedCompanyId: modals.setSelectedCompanyId,
     setEditAddressData: modals.setEditAddressData,
@@ -201,6 +202,13 @@ export default function Contacts() {
     meetingType: modals.meetingState.type,
     meetingDate: modals.meetingState.date,
     meetingTime: modals.meetingState.time,
+    // D365 fields
+    d365Category: modals.d365Category,
+    d365Subcategory: modals.d365Subcategory,
+    d365AppointmentType: modals.d365AppointmentType,
+    d365StartTime: modals.d365StartTime,
+    d365EndTime: modals.d365EndTime,
+    resetD365Fields: modals.resetD365Fields,
   });
 
   // Email
@@ -366,6 +374,81 @@ export default function Contacts() {
               toast({ description: 'Ni dosegljiv - opomnik za jutri' });
             } catch {
               toast({ description: 'Napaka pri ustvarjanju opomnika', variant: 'destructive' });
+            }
+          }}
+          onSendFollowupEmail={async (companyId, reminderId, templateType, reminderType) => {
+            try {
+              // Get company and contact info
+              const company = companies?.find(c => c.id === companyId);
+              if (!company) {
+                toast({ description: 'Podjetje ni najdeno', variant: 'destructive' });
+                return;
+              }
+
+              const contact = company.contacts?.[0];
+              const contactName = contact
+                ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Spoštovani'
+                : 'Spoštovani';
+              const email = contact?.email || '';
+
+              // Get offer date
+              const offerDate = company.offer_sent_at
+                ? new Date(company.offer_sent_at).toLocaleDateString('sl-SI', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  })
+                : 'prejšnji teden';
+
+              const offerDayOfWeek = company.offer_sent_at
+                ? new Date(company.offer_sent_at).toLocaleDateString('sl-SI', { weekday: 'long' })
+                : 'prejšnji teden';
+
+              // Generate email content based on template
+              let emailContent: string;
+              let subject: string;
+
+              if (templateType === 'short') {
+                subject = `Opomnik - ponudba za predpražnike`;
+                emailContent = `Pozdravljeni${contactName !== 'Spoštovani' ? `, ${contactName}` : ''},
+
+pošiljam le kratek opomnik glede ponudbe, ki sem vam jo poslal/a dne ${offerDate}.
+
+Ali imate morda kakšna vprašanja za odločitev, ali bi vam bolj prav prišel kratek 5-minutni klic, da greva skupaj čez ključne točke?
+
+Hvala in lep pozdrav,
+[Vaše ime]`;
+              } else {
+                subject = `Ponudba za predpražnike - preverjanje`;
+                emailContent = `Pozdravljeni${contactName !== 'Spoštovani' ? `, ${contactName}` : ''},
+
+pišem vam, da preverim, ali ste uspeli pregledati ponudbo, ki sem vam jo poslal/a v ${offerDayOfWeek}.
+
+Verjamem, da imate te dni polne roke dela. Ker ne bi želel/a, da zadeva potone v vašem nabiralniku, vas samo prijazno spomnim nanjo.
+
+Imate morda kakšno vprašanje glede ponudbe ali rokov?
+
+Z veseljem sem na voljo za kratek klic, da razjasniva morebitne dileme.
+
+Lep pozdrav,
+[Vaše ime]`;
+              }
+
+              // Copy to clipboard
+              await navigator.clipboard.writeText(emailContent);
+
+              // Open mailto
+              if (email) {
+                window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+              }
+
+              toast({ description: '📧 Email kopiran - prilepi v Outlook (Ctrl+V)' });
+
+              // Continue with the workflow (wait for response)
+              await offerNoResponse.mutateAsync({ companyId, userId: user?.id || '', reminderId, reminderType });
+
+            } catch {
+              toast({ description: 'Napaka pri pošiljanju emaila', variant: 'destructive' });
             }
           }}
         />

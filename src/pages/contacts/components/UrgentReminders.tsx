@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import {
   AlertTriangle, Clock, Check, CalendarPlus, Phone, FileCheck,
-  ThumbsUp, ThumbsDown, FileText, X, Hourglass
+  ThumbsUp, ThumbsDown, FileText, X, Hourglass, Mail
 } from 'lucide-react';
 
 // Tip za opomnik
@@ -61,6 +61,7 @@ interface UrgentRemindersProps {
   onMarkOfferCalled?: (companyId: string, reminderId?: string) => void;
   onOfferCallNotReachable?: (companyId: string, reminderId: string) => void;
   onCreateOfferFollowup?: (companyId: string) => void;
+  onSendFollowupEmail?: (companyId: string, reminderId: string, templateType: 'short' | 'friendly', reminderType: string) => void;
 }
 
 export default function UrgentReminders({
@@ -80,9 +81,11 @@ export default function UrgentReminders({
   onMarkOfferCalled,
   onOfferCallNotReachable,
   onCreateOfferFollowup,
+  onSendFollowupEmail,
 }: UrgentRemindersProps) {
   const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
   const [expandedOfferReminderId, setExpandedOfferReminderId] = useState<string | null>(null);
+  const [expandedNoResponseId, setExpandedNoResponseId] = useState<string | null>(null);
 
   // Kategoriziraj opomnike po tipu
   const contractFollowupReminders = dueReminders?.filter(r => r.reminder_type === 'contract_followup') || [];
@@ -232,21 +235,19 @@ export default function UrgentReminders({
                 <ThumbsUp size={16} />
                 DA
               </button>
-              {/* NE - ni odgovora */}
-              {onOfferNoResponse && (
-                <button
-                  onClick={() => onOfferNoResponse(
-                    reminder.company?.id || reminder.company_id || '',
-                    reminder.id,
-                    reminder.reminder_type || ''
-                  )}
-                  className="px-3 py-2 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 flex items-center gap-1"
-                  title={reminder.reminder_type === 'offer_followup_1' ? 'Čakaj še 2 dni' : 'Ustvari opomnik za klic'}
-                >
-                  <ThumbsDown size={16} />
-                  NE
-                </button>
-              )}
+              {/* NE - razširi opcije (klic ali email) */}
+              <button
+                onClick={() => setExpandedNoResponseId(expandedNoResponseId === reminder.id ? null : reminder.id)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 ${
+                  expandedNoResponseId === reminder.id
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                }`}
+                title="Ni odgovora - izberi akcijo"
+              >
+                <ThumbsDown size={16} />
+                NE
+              </button>
               {/* Odpri */}
               <button
                 onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
@@ -296,6 +297,77 @@ export default function UrgentReminders({
                   <X size={14} />
                   Ni interesa
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Razširjen meni za NE opcije - klic ali email */}
+          {expandedNoResponseId === reminder.id && (
+            <div className="mt-3 pt-3 border-t border-yellow-300 space-y-2">
+              <span className="text-xs text-yellow-700 block mb-2">Kaj boš naredil?</span>
+
+              {/* Opcija 1: Pokliči */}
+              {onOfferNoResponse && (
+                <button
+                  onClick={() => {
+                    onOfferNoResponse(
+                      reminder.company?.id || reminder.company_id || '',
+                      reminder.id,
+                      reminder.reminder_type || ''
+                    );
+                    setExpandedNoResponseId(null);
+                  }}
+                  className="w-full px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-2"
+                >
+                  <Phone size={16} />
+                  Pokliči stranko
+                  <span className="text-xs opacity-75 ml-auto">
+                    {reminder.reminder_type === 'offer_followup_1' ? '(čez 2 dni)' : '(jutri)'}
+                  </span>
+                </button>
+              )}
+
+              {/* Opcija 2: Follow-up email */}
+              {onSendFollowupEmail && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-yellow-600 font-medium">Pošlji follow-up email:</p>
+                  <button
+                    onClick={() => {
+                      onSendFollowupEmail(
+                        reminder.company?.id || reminder.company_id || '',
+                        reminder.id,
+                        'short',
+                        reminder.reminder_type || ''
+                      );
+                      setExpandedNoResponseId(null);
+                    }}
+                    className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 flex items-center gap-2 text-left"
+                  >
+                    <Mail size={16} />
+                    <div>
+                      <span className="block">Kratek opomnik</span>
+                      <span className="text-xs opacity-75">"...pošiljam kratek opomnik glede ponudbe..."</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onSendFollowupEmail(
+                        reminder.company?.id || reminder.company_id || '',
+                        reminder.id,
+                        'friendly',
+                        reminder.reminder_type || ''
+                      );
+                      setExpandedNoResponseId(null);
+                    }}
+                    className="w-full px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600 flex items-center gap-2 text-left"
+                  >
+                    <Mail size={16} />
+                    <div>
+                      <span className="block">Prijazna preveritev</span>
+                      <span className="text-xs opacity-75">"...preverim, ali ste uspeli pregledati ponudbo..."</span>
+                    </div>
+                  </button>
+                </div>
               )}
             </div>
           )}

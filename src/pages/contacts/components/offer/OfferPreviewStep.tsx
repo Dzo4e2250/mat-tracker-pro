@@ -71,6 +71,10 @@ export default function OfferPreviewStep({
   const getSubject = () => {
     const companyName = company?.name || '';
     if (offerType === 'primerjava') {
+      // Check if it's 2x najem (dimension comparison) vs najem+nakup
+      if (hasNajemItems && !hasNakupItems) {
+        return `Ponudba za najem predpražnikov - ${companyName}`;
+      }
       return `Ponudba za nakup in najem predpražnikov - ${companyName}`;
     } else if (offerType === 'dodatna') {
       if (hasNajemItems && hasNakupItems) return `Ponudba za najem in nakup predpražnikov - ${companyName}`;
@@ -83,7 +87,11 @@ export default function OfferPreviewStep({
   };
 
   const getSubjectLabel = () => {
-    if (offerType === 'primerjava' || offerType === 'dodatna') return 'nakup in najem';
+    if (offerType === 'primerjava') {
+      if (hasNajemItems && !hasNakupItems) return 'najem';
+      return 'nakup in najem';
+    }
+    if (offerType === 'dodatna') return 'nakup in najem';
     if (offerType === 'nakup') return 'nakup';
     return 'najem';
   };

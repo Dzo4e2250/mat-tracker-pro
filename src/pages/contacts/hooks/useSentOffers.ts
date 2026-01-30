@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
@@ -44,6 +45,7 @@ export function useSentOffers({
   offerItemsNajem,
 }: UseSentOffersProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [sentOffers, setSentOffers] = useState<SentOffer[]>([]);
   const [loadingSentOffers, setLoadingSentOffers] = useState(false);
 
@@ -163,6 +165,76 @@ export function useSentOffers({
         }
       }
 
+      // Update company offer_sent_at and pipeline_status
+      await supabase
+        .schema('mat_tracker')
+        .from('companies')
+        .update({
+          offer_sent_at: new Date().toISOString(),
+          pipeline_status: 'offer_sent',
+        })
+        .eq('id', selectedCompany.id);
+
+      // Create automatic note with offer details
+      const offerTypeLabel =
+        dbOfferType === 'rental' ? 'NAJEM' :
+        dbOfferType === 'purchase' ? 'NAKUP' :
+        'NAJEM + NAKUP';
+
+      const itemsList = items
+        .filter(item => item.code || item.itemType === 'custom')
+        .map(item => {
+          const sizeStr = item.size || 'po meri';
+          const priceStr = item.purpose === 'nakup'
+            ? `${item.pricePerUnit?.toFixed(2) || '0.00'}€`
+            : `${item.pricePerUnit?.toFixed(2) || '0.00'}€/teden`;
+          const qtyStr = item.quantity > 1 ? ` x${item.quantity}` : '';
+          return `• ${item.code || item.name || 'Artikel'} (${sizeStr}) - ${priceStr}${qtyStr}`;
+        })
+        .join('\n');
+
+      const frequencyText = dbOfferType !== 'purchase' ? `\nMenjava: ${offerFrequency} ${offerFrequency === '1' ? 'teden' : 'tedne'}` : '';
+
+      const noteContent = `📧 PONUDBA POSLANA (${offerTypeLabel})
+Na: ${email}
+Zadeva: ${subject}${frequencyText}
+
+Artikli:
+${itemsList}`;
+
+      await supabase
+        .from('company_notes')
+        .insert({
+          company_id: selectedCompany.id,
+          note_date: new Date().toISOString().split('T')[0],
+          content: noteContent,
+          created_by: userId,
+        });
+
+      // Create automatic follow-up reminder for 2 days from now
+      const followupDate = new Date();
+      followupDate.setDate(followupDate.getDate() + 2);
+      followupDate.setHours(9, 0, 0, 0);
+
+      const companyName = selectedCompany.display_name || selectedCompany.name;
+
+      await supabase
+        .from('reminders')
+        .insert({
+          company_id: selectedCompany.id,
+          user_id: userId,
+          reminder_at: followupDate.toISOString(),
+          note: `Ali si dobil odgovor na ponudbo? - ${companyName}`,
+          reminder_type: 'offer_followup_1',
+          is_completed: false,
+        });
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['company-notes', selectedCompany.id] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['offer-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+
       fetchSentOffers(selectedCompany.id);
       return true;
     } catch (error: any) {
@@ -173,7 +245,7 @@ export function useSentOffers({
       });
       return false;
     }
-  }, [selectedCompany, userId, offerType, offerFrequency, offerItemsNakup, offerItemsNajem, fetchSentOffers, toast]);
+  }, [selectedCompany, userId, offerType, offerFrequency, offerItemsNakup, offerItemsNajem, fetchSentOffers, toast, queryClient]);
 
   /**
    * Izbriši poslano ponudbo

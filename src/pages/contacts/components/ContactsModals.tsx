@@ -73,6 +73,17 @@ interface ContactsModalsProps {
     setNewNoteDate: (date: string | null) => void;
     newNoteContent: string;
     setNewNoteContent: (content: string) => void;
+    // D365 fields
+    d365Category: string;
+    setD365Category: (value: string) => void;
+    d365Subcategory: string;
+    setD365Subcategory: (value: string) => void;
+    d365AppointmentType: string;
+    setD365AppointmentType: (value: string) => void;
+    d365StartTime: string;
+    setD365StartTime: (value: string) => void;
+    d365EndTime: string;
+    setD365EndTime: (value: string) => void;
   };
 
   // Data
@@ -140,13 +151,12 @@ export function ContactsModals({
         />
       )}
 
-      {modals.showExistingCompanyModal && modals.existingCompanyState.company && modals.existingCompanyState.pendingContactData && (
+      {modals.showExistingCompanyModal && modals.existingCompanyState.company && (
         <ExistingCompanyModal
           company={modals.existingCompanyState.company}
-          pendingContact={modals.existingCompanyState.pendingContactData}
           isLoading={actions.addContact.isPending}
-          onAddToExisting={actions.handleAddToExistingCompany}
-          onCreateNewAnyway={actions.handleCreateNewAnyway}
+          onSelectExistingContact={actions.handleSelectExistingContact}
+          onAddNewContact={actions.handleAddNewContactToExisting}
           onClose={modals.closeExistingCompanyModal}
         />
       )}
@@ -211,6 +221,17 @@ export function ContactsModals({
           onDeleteCompany={detailHandlers.handleDeleteCompany}
           onContractSent={actions.handleContractSent}
           onSelectCompany={detailHandlers.handleSelectCompany}
+          onToggleD365={detailHandlers.handleToggleD365}
+          d365Category={modals.d365Category}
+          d365Subcategory={modals.d365Subcategory}
+          d365AppointmentType={modals.d365AppointmentType}
+          d365StartTime={modals.d365StartTime}
+          d365EndTime={modals.d365EndTime}
+          onD365CategoryChange={modals.setD365Category}
+          onD365SubcategoryChange={modals.setD365Subcategory}
+          onD365AppointmentTypeChange={modals.setD365AppointmentType}
+          onD365StartTimeChange={modals.setD365StartTime}
+          onD365EndTimeChange={modals.setD365EndTime}
         />
       )}
 
