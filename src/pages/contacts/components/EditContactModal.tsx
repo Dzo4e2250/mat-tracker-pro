@@ -11,6 +11,7 @@ export interface EditContactFormData {
   last_name?: string;
   role?: string;
   phone?: string;
+  work_phone?: string;
   email?: string;
   contact_since?: string;
   is_primary?: boolean;
@@ -90,13 +91,24 @@ export default function EditContactModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Telefon</label>
+            <label className="block text-sm font-medium mb-1">Mobilni telefon</label>
             <input
               type="tel"
               value={formData.phone || ''}
               onChange={(e) => updateField('phone', e.target.value)}
               className="w-full p-3 border rounded-lg"
               placeholder="040 123 456"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Službeni telefon</label>
+            <input
+              type="tel"
+              value={formData.work_phone || ''}
+              onChange={(e) => updateField('work_phone', e.target.value)}
+              className="w-full p-3 border rounded-lg"
+              placeholder="01 234 56 78"
             />
           </div>
 

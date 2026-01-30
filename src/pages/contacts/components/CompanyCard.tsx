@@ -17,6 +17,7 @@ interface Contact {
   first_name: string;
   last_name: string;
   phone?: string;
+  work_phone?: string;
   email?: string;
   role?: string;
   is_primary?: boolean;
@@ -90,6 +91,9 @@ const generateVCard = (contact: Contact, companyName?: string): string => {
   }
   if (contact.phone) {
     lines.push(`TEL;TYPE=CELL:${contact.phone}`);
+  }
+  if (contact.work_phone) {
+    lines.push(`TEL;TYPE=WORK:${contact.work_phone}`);
   }
   if (contact.email) {
     lines.push(`EMAIL:${contact.email}`);
@@ -304,7 +308,8 @@ export default function CompanyCard({
                     {contact.role && <span className="text-gray-400 font-normal"> • {contact.role}</span>}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {contact.phone && <span className="mr-3">{contact.phone}</span>}
+                    {contact.phone && <span className="mr-3">📱 {contact.phone}</span>}
+                    {contact.work_phone && <span className="mr-3">🏢 {contact.work_phone}</span>}
                     {contact.email && <span>{contact.email}</span>}
                   </div>
                 </div>
@@ -333,17 +338,30 @@ export default function CompanyCard({
       {!selectionMode && company.contacts.length > 0 && (
         <div className="border-t flex divide-x">
           {/* Klic */}
-          {company.contacts.some(c => c.phone) && (
-            company.contacts.filter(c => c.phone).length === 1 ? (
-              <a
-                href={`tel:${company.contacts.find(c => c.phone)?.phone}`}
-                className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-blue-600 hover:bg-blue-50"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Phone size={16} />
-                <span className="text-sm">Klic</span>
-              </a>
-            ) : (
+          {company.contacts.some(c => c.phone || c.work_phone) && (() => {
+            // Zberi vse telefonske številke
+            const allPhones: { contact: Contact; type: 'mobile' | 'work'; number: string }[] = [];
+            company.contacts.forEach(c => {
+              if (c.phone) allPhones.push({ contact: c, type: 'mobile', number: c.phone });
+              if (c.work_phone) allPhones.push({ contact: c, type: 'work', number: c.work_phone });
+            });
+
+            // Če je samo ena številka, prikaži direktno povezavo
+            if (allPhones.length === 1) {
+              return (
+                <a
+                  href={`tel:${allPhones[0].number}`}
+                  className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-blue-600 hover:bg-blue-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Phone size={16} />
+                  <span className="text-sm">Klic</span>
+                </a>
+              );
+            }
+
+            // Več številk - prikaži dropdown
+            return (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <button className="flex-1 py-2.5 flex items-center justify-center gap-1 text-blue-600 hover:bg-blue-50">
@@ -353,18 +371,25 @@ export default function CompanyCard({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  {company.contacts.filter(c => c.phone).map(contact => (
-                    <DropdownMenuItem key={contact.id} asChild>
-                      <a href={`tel:${contact.phone}`} className="flex items-center gap-2">
-                        <Phone size={14} />
-                        <span>{contact.first_name} {contact.last_name}</span>
+                  {allPhones.map((item, idx) => (
+                    <DropdownMenuItem key={`${item.contact.id}-${item.type}-${idx}`} asChild>
+                      <a href={`tel:${item.number}`} className="flex items-center gap-2">
+                        {item.type === 'mobile' ? (
+                          <Phone size={14} className="text-blue-500" />
+                        ) : (
+                          <Building2 size={14} className="text-green-500" />
+                        )}
+                        <span>{item.contact.first_name} {item.contact.last_name}</span>
+                        <span className="text-xs text-gray-400 ml-1">
+                          {item.type === 'mobile' ? '(mob)' : '(služ)'}
+                        </span>
                       </a>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-            )
-          )}
+            );
+          })()}
           {/* Shrani v telefon */}
           {company.contacts.length === 1 ? (
             <button

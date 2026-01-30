@@ -282,6 +282,7 @@ export type Database = {
           last_name: string
           email: string | null
           phone: string | null
+          work_phone: string | null
           role: string | null
           is_decision_maker: boolean
           is_primary: boolean
@@ -301,6 +302,7 @@ export type Database = {
           last_name: string
           email?: string | null
           phone?: string | null
+          work_phone?: string | null
           role?: string | null
           is_decision_maker?: boolean
           is_primary?: boolean
@@ -320,6 +322,7 @@ export type Database = {
           last_name?: string
           email?: string | null
           phone?: string | null
+          work_phone?: string | null
           role?: string | null
           is_decision_maker?: boolean
           is_primary?: boolean

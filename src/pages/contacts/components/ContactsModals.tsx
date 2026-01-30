@@ -288,6 +288,7 @@ export function ContactsModals({
                   first_name: modals.editContactData.first_name.trim(),
                   last_name: modals.editContactData.last_name?.trim() || '',
                   phone: modals.editContactData.phone?.trim() || null,
+                  work_phone: modals.editContactData.work_phone?.trim() || null,
                   email: modals.editContactData.email?.trim() || null,
                   role: modals.editContactData.role?.trim() || null,
                   is_primary: modals.editContactData.is_primary || false,

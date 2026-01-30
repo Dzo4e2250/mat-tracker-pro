@@ -27,6 +27,7 @@ interface Contact {
   first_name: string;
   last_name: string;
   phone?: string;
+  work_phone?: string;
   email?: string;
   role?: string;
   is_primary?: boolean;
@@ -804,8 +805,18 @@ export default function CompanyDetailModal({
                         <a
                           href={`tel:${contact.phone}`}
                           className="flex items-center gap-1 text-sm text-blue-600"
+                          title="Mobilni telefon"
                         >
                           <Phone size={14} /> {contact.phone}
+                        </a>
+                      )}
+                      {contact.work_phone && (
+                        <a
+                          href={`tel:${contact.work_phone}`}
+                          className="flex items-center gap-1 text-sm text-green-600"
+                          title="Službeni telefon"
+                        >
+                          <Building2 size={14} /> {contact.work_phone}
                         </a>
                       )}
                       {contact.email && (
