@@ -333,6 +333,7 @@ export function useAddContact() {
         first_name: string;
         last_name?: string;
         phone?: string;
+        work_phone?: string;
         email?: string;
         role?: string;
         is_primary?: boolean;
@@ -348,6 +349,7 @@ export function useAddContact() {
           first_name: contact.first_name,
           last_name: contact.last_name || '',
           phone: contact.phone || null,
+          work_phone: contact.work_phone || null,
           email: contact.email || null,
           role: contact.role || null,
           is_primary: contact.is_primary || false,

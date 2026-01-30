@@ -261,7 +261,7 @@ export default function HomeView({
     return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [cycles, statusFilter]);
 
-  // Export to Excel
+  // Export to Excel - summary + detailed by company
   const exportToExcel = () => {
     if (!cycles) return;
 
@@ -273,22 +273,104 @@ export default function HomeView({
     if (cyclesToExport.length === 0) return;
 
     const statusLabel = statusFilter === 'dirty' ? 'Umazani' : 'Čaka šoferja';
-    const data = cyclesToExport.map(c => ({
-      'QR Koda': c.qr_code?.code || '',
-      'Tip': c.mat_type?.code || c.mat_type?.name || '',
-      'Podjetje': c.company?.display_name || c.company?.name || '',
-      'Naslov': c.company?.address_street || '',
-      'Mesto': c.company?.address_city || '',
-      'Status': statusLabel,
-    }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    // ===== TABELA 1: Povzetek po tipu =====
+    const typeCounts = new Map<string, number>();
+    cyclesToExport.forEach(c => {
+      const type = c.mat_type?.code || 'Neznano';
+      typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+    });
+
+    const summaryData = Array.from(typeCounts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([type, count]) => ({
+        'Tip': type,
+        'Število': count,
+      }));
+
+    // ===== TABELA 2: Podrobnosti po podjetjih =====
+    // Group cycles by company
+    const byCompany = new Map<string, typeof cyclesToExport>();
+    cyclesToExport.forEach(c => {
+      const companyId = c.company?.id || 'unknown';
+      if (!byCompany.has(companyId)) {
+        byCompany.set(companyId, []);
+      }
+      byCompany.get(companyId)!.push(c);
+    });
+
+    // Build detailed rows
+    const detailRows: Record<string, string | number>[] = [];
+
+    // Sort companies by name
+    const sortedCompanies = Array.from(byCompany.entries()).sort((a, b) => {
+      const nameA = a[1][0]?.company?.display_name || a[1][0]?.company?.name || '';
+      const nameB = b[1][0]?.company?.display_name || b[1][0]?.company?.name || '';
+      return nameA.localeCompare(nameB);
+    });
+
+    for (const [, companyCycles] of sortedCompanies) {
+      const firstCycle = companyCycles[0];
+      const company = firstCycle?.company;
+      const count = companyCycles.length;
+
+      // Format address
+      const addressParts = [
+        company?.address_street,
+        company?.address_city,
+        company?.address_postal_code,
+      ].filter(Boolean);
+      const address = addressParts.join(', ');
+
+      // Format coordinates
+      const coords = company?.latitude && company?.longitude
+        ? `${company.latitude}, ${company.longitude}`
+        : '';
+
+      // First row has all company info
+      companyCycles.forEach((cycle, index) => {
+        if (index === 0) {
+          detailRows.push({
+            'QR Koda': cycle.qr_code?.code || '',
+            'Tip': cycle.mat_type?.code || cycle.mat_type?.name || '',
+            'Št.': count,
+            'Koordinate': coords,
+            'Naslov': address,
+            'Podjetje': company?.display_name || company?.name || '',
+          });
+        } else {
+          // Additional rows only have QR code and type
+          detailRows.push({
+            'QR Koda': cycle.qr_code?.code || '',
+            'Tip': cycle.mat_type?.code || cycle.mat_type?.name || '',
+            'Št.': '',
+            'Koordinate': '',
+            'Naslov': '',
+            'Podjetje': '',
+          });
+        }
+      });
+    }
+
+    // Create workbook with both tables
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, statusLabel);
 
-    ws['!cols'] = [
-      { wch: 15 }, { wch: 10 }, { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 15 }
+    // Sheet 1: Summary
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 15 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Povzetek');
+
+    // Sheet 2: Details
+    const wsDetails = XLSX.utils.json_to_sheet(detailRows);
+    wsDetails['!cols'] = [
+      { wch: 15 }, // QR Koda
+      { wch: 10 }, // Tip
+      { wch: 5 },  // Št.
+      { wch: 22 }, // Koordinate
+      { wch: 35 }, // Naslov
+      { wch: 30 }, // Podjetje
     ];
+    XLSX.utils.book_append_sheet(wb, wsDetails, 'Podrobnosti');
 
     const dateStr = new Date().toISOString().split('T')[0];
     const typeStr = matTypeFilter !== 'all' ? `_${matTypeFilter}` : '';

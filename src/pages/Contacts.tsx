@@ -235,6 +235,16 @@ export default function Contacts() {
     }
   }, [searchParams, companies, modals, setSearchParams]);
 
+  // Sync selectedCompany with companies data when it changes (e.g., after contact update)
+  useEffect(() => {
+    if (modals.selectedCompanyId && companies) {
+      const updatedCompany = companies.find(c => c.id === modals.selectedCompanyId);
+      if (updatedCompany) {
+        modals.setSelectedCompany(updatedCompany);
+      }
+    }
+  }, [companies, modals.selectedCompanyId, modals.setSelectedCompany]);
+
   return (
     <div className="min-h-screen bg-gray-100 pb-20">
       <ContactsHeader

@@ -251,6 +251,7 @@ export function useCompanyDetailHandlers({
       first_name: contact.first_name || '',
       last_name: contact.last_name || '',
       phone: contact.phone || '',
+      work_phone: contact.work_phone || '',
       email: contact.email || '',
       role: contact.role || '',
       is_primary: contact.is_primary || false,

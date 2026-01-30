@@ -10,6 +10,7 @@ export interface AddContactFormData {
   newContactName?: string;
   newContactRole?: string;
   newContactPhone?: string;
+  newContactWorkPhone?: string;
   newContactEmail?: string;
   newContactSince?: string;
   hasDifferentLocation?: boolean;
@@ -76,13 +77,24 @@ export default function AddContactModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Telefon</label>
+            <label className="block text-sm font-medium mb-1">Mobilni telefon</label>
             <input
               type="tel"
               value={formData.newContactPhone || ''}
               onChange={(e) => updateField('newContactPhone', e.target.value)}
               className="w-full p-3 border rounded-lg"
               placeholder="040 123 456"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Službeni telefon</label>
+            <input
+              type="tel"
+              value={formData.newContactWorkPhone || ''}
+              onChange={(e) => updateField('newContactWorkPhone', e.target.value)}
+              className="w-full p-3 border rounded-lg"
+              placeholder="01 234 56 78"
             />
           </div>
 

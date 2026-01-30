@@ -84,8 +84,6 @@ export default function UrgentReminders({
   onSendFollowupEmail,
 }: UrgentRemindersProps) {
   const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
-  const [expandedOfferReminderId, setExpandedOfferReminderId] = useState<string | null>(null);
-  const [expandedNoResponseId, setExpandedNoResponseId] = useState<string | null>(null);
 
   // Kategoriziraj opomnike po tipu
   const contractFollowupReminders = dueReminders?.filter(r => r.reminder_type === 'contract_followup') || [];
@@ -133,6 +131,7 @@ export default function UrgentReminders({
       </h3>
 
       {/* ========== OFFER CALL REMINDERS - ORANŽNE ========== */}
+      {/* Poenostavljen flow: DA = poklical in dobil odgovor, NE = ni dosegljiv */}
       {offerCallReminders.map(reminder => (
         <div
           key={reminder.id}
@@ -152,57 +151,51 @@ export default function UrgentReminders({
                 })}
               </p>
             </div>
-            <div className="flex gap-1.5 ml-2 flex-wrap justify-end">
-              {/* Poklical - želi pogodbo */}
-              {onOfferResponseContract && (
-                <button
-                  onClick={() => onOfferResponseContract(reminder.company?.id || reminder.company_id || '', reminder.id)}
-                  className="px-2 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 flex items-center gap-1"
-                  title="Stranka želi pogodbo"
-                >
-                  <FileCheck size={14} />
-                  Pogodba
-                </button>
-              )}
-              {/* Poklical - potrebuje čas */}
-              {onOfferResponseNeedsTime && (
-                <button
-                  onClick={() => onOfferResponseNeedsTime(reminder.company?.id || reminder.company_id || '', reminder.id)}
-                  className="px-2 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 flex items-center gap-1"
-                  title="Stranka potrebuje več časa"
-                >
-                  <Hourglass size={14} />
-                  Čas
-                </button>
-              )}
-              {/* Poklical - ni interesa */}
-              {onOfferResponseNoInterest && (
-                <button
-                  onClick={() => onOfferResponseNoInterest(reminder.company?.id || reminder.company_id || '', reminder.id)}
-                  className="px-2 py-1.5 bg-gray-500 text-white rounded-lg text-xs font-medium hover:bg-gray-600 flex items-center gap-1"
-                  title="Ni interesa"
-                >
-                  <X size={14} />
-                  Ni int.
-                </button>
-              )}
-              {/* Ni dosegljiv */}
-              {onOfferCallNotReachable && (
-                <button
-                  onClick={() => onOfferCallNotReachable(reminder.company?.id || reminder.company_id || '', reminder.id)}
-                  className="px-2 py-1.5 bg-orange-600 text-white rounded-lg text-xs font-medium hover:bg-orange-700 flex items-center gap-1"
-                  title="Ni dosegljiv - poskusi jutri"
-                >
-                  <Phone size={14} />
-                  Ni dos.
-                </button>
-              )}
+            <div className="flex gap-1.5 ml-2">
+              {/* DA - poklical in dobil odgovor, odpri podjetje */}
+              <button
+                onClick={() => {
+                  if (reminder.company) {
+                    onOpenCompany(reminder.company.id);
+                    onCompleteReminder(reminder.id);
+                  }
+                }}
+                className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 flex items-center gap-1"
+                title="Poklical - odpri podjetje za vnos rezultata"
+              >
+                <ThumbsUp size={16} />
+                DA
+              </button>
+              {/* NE - ni dosegljiv, prestavi na jutri */}
+              <button
+                onClick={() => {
+                  if (onPostponeReminder) {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0);
+                    onPostponeReminder(reminder.id, tomorrow);
+                  }
+                }}
+                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center gap-1"
+                title="Ni dosegljiv - prestavi na jutri"
+              >
+                <ThumbsDown size={16} />
+                NE
+              </button>
+              {/* Odpri */}
+              <button
+                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                className="px-3 py-2 bg-white border border-orange-300 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-100"
+              >
+                Odpri
+              </button>
             </div>
           </div>
         </div>
       ))}
 
       {/* ========== OFFER FOLLOWUP REMINDERS - RUMENE ========== */}
+      {/* Poenostavljen flow kot pri pogodbah: DA = odpri podjetje, NE = prestavi na jutri */}
       {offerFollowupReminders.map(reminder => (
         <div
           key={reminder.id}
@@ -223,27 +216,33 @@ export default function UrgentReminders({
               </p>
             </div>
             <div className="flex gap-1.5 ml-2">
-              {/* DA - razširi opcije */}
+              {/* DA - odpre podjetje kjer izbereš rezultat */}
               <button
-                onClick={() => setExpandedOfferReminderId(expandedOfferReminderId === reminder.id ? null : reminder.id)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                  expandedOfferReminderId === reminder.id
-                    ? 'bg-green-600 text-white'
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
+                onClick={() => {
+                  if (reminder.company) {
+                    onOpenCompany(reminder.company.id);
+                    // Zaključi opomnik ker ga bomo obdelali v podjetju
+                    onCompleteReminder(reminder.id);
+                  }
+                }}
+                className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 flex items-center gap-1"
+                title="Dobil sem odgovor - odpri podjetje"
               >
                 <ThumbsUp size={16} />
                 DA
               </button>
-              {/* NE - razširi opcije (klic ali email) */}
+              {/* NE - prestavi na jutri */}
               <button
-                onClick={() => setExpandedNoResponseId(expandedNoResponseId === reminder.id ? null : reminder.id)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                  expandedNoResponseId === reminder.id
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-yellow-500 text-white hover:bg-yellow-600'
-                }`}
-                title="Ni odgovora - izberi akcijo"
+                onClick={() => {
+                  if (onPostponeReminder) {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0);
+                    onPostponeReminder(reminder.id, tomorrow);
+                  }
+                }}
+                className="px-3 py-2 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 flex items-center gap-1"
+                title="Ni odgovora - prestavi na jutri"
               >
                 <ThumbsDown size={16} />
                 NE
@@ -257,120 +256,6 @@ export default function UrgentReminders({
               </button>
             </div>
           </div>
-
-          {/* Razširjen meni za DA opcije */}
-          {expandedOfferReminderId === reminder.id && (
-            <div className="mt-3 pt-3 border-t border-yellow-300 flex flex-wrap gap-2">
-              <span className="text-xs text-yellow-700 w-full mb-1">Kakšen je bil odgovor?</span>
-              {onOfferResponseContract && (
-                <button
-                  onClick={() => {
-                    onOfferResponseContract(reminder.company?.id || reminder.company_id || '', reminder.id);
-                    setExpandedOfferReminderId(null);
-                  }}
-                  className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs hover:bg-green-600 flex items-center gap-1"
-                >
-                  <FileCheck size={14} />
-                  Želi pogodbo
-                </button>
-              )}
-              {onOfferResponseNeedsTime && (
-                <button
-                  onClick={() => {
-                    onOfferResponseNeedsTime(reminder.company?.id || reminder.company_id || '', reminder.id);
-                    setExpandedOfferReminderId(null);
-                  }}
-                  className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600 flex items-center gap-1"
-                >
-                  <Hourglass size={14} />
-                  Potrebuje čas
-                </button>
-              )}
-              {onOfferResponseNoInterest && (
-                <button
-                  onClick={() => {
-                    onOfferResponseNoInterest(reminder.company?.id || reminder.company_id || '', reminder.id);
-                    setExpandedOfferReminderId(null);
-                  }}
-                  className="px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs hover:bg-gray-600 flex items-center gap-1"
-                >
-                  <X size={14} />
-                  Ni interesa
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Razširjen meni za NE opcije - klic ali email */}
-          {expandedNoResponseId === reminder.id && (
-            <div className="mt-3 pt-3 border-t border-yellow-300 space-y-2">
-              <span className="text-xs text-yellow-700 block mb-2">Kaj boš naredil?</span>
-
-              {/* Opcija 1: Pokliči */}
-              {onOfferNoResponse && (
-                <button
-                  onClick={() => {
-                    onOfferNoResponse(
-                      reminder.company?.id || reminder.company_id || '',
-                      reminder.id,
-                      reminder.reminder_type || ''
-                    );
-                    setExpandedNoResponseId(null);
-                  }}
-                  className="w-full px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-2"
-                >
-                  <Phone size={16} />
-                  Pokliči stranko
-                  <span className="text-xs opacity-75 ml-auto">
-                    {reminder.reminder_type === 'offer_followup_1' ? '(čez 2 dni)' : '(jutri)'}
-                  </span>
-                </button>
-              )}
-
-              {/* Opcija 2: Follow-up email */}
-              {onSendFollowupEmail && (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-yellow-600 font-medium">Pošlji follow-up email:</p>
-                  <button
-                    onClick={() => {
-                      onSendFollowupEmail(
-                        reminder.company?.id || reminder.company_id || '',
-                        reminder.id,
-                        'short',
-                        reminder.reminder_type || ''
-                      );
-                      setExpandedNoResponseId(null);
-                    }}
-                    className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 flex items-center gap-2 text-left"
-                  >
-                    <Mail size={16} />
-                    <div>
-                      <span className="block">Kratek opomnik</span>
-                      <span className="text-xs opacity-75">"...pošiljam kratek opomnik glede ponudbe..."</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onSendFollowupEmail(
-                        reminder.company?.id || reminder.company_id || '',
-                        reminder.id,
-                        'friendly',
-                        reminder.reminder_type || ''
-                      );
-                      setExpandedNoResponseId(null);
-                    }}
-                    className="w-full px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600 flex items-center gap-2 text-left"
-                  >
-                    <Mail size={16} />
-                    <div>
-                      <span className="block">Prijazna preveritev</span>
-                      <span className="text-xs opacity-75">"...preverim, ali ste uspeli pregledati ponudbo..."</span>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       ))}
 

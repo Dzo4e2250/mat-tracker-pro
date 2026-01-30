@@ -541,6 +541,7 @@ export function useCompanyActions({
           first_name: formData.newContactName.split(' ')[0],
           last_name: formData.newContactName.split(' ').slice(1).join(' '),
           phone: formData.newContactPhone,
+          work_phone: formData.newContactWorkPhone,
           email: formData.newContactEmail,
           role: formData.newContactRole,
           contact_since: formData.newContactSince || null,
