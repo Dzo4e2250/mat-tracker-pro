@@ -3,7 +3,7 @@
  * @description Modal za dajanje predpražnika na test
  */
 
-import { MapPin, Users, X } from 'lucide-react';
+import { MapPin, Users, X, AlertTriangle, FileCheck, Package } from 'lucide-react';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { getCityByPostalCode } from '@/utils/postalCodes';
 
@@ -47,6 +47,15 @@ export default function PutOnTestModal({
 }: PutOnTestModalProps) {
   const selectedCompany = companies?.find(c => c.id === formData.companyId);
   const contacts = selectedCompany?.contacts || [];
+
+  // Check for existing tests and signed contract
+  const hasSignedContract = selectedCompany?.contract_signed === true;
+  const activeTestsCount = selectedCompany?.cycleStats?.onTest || 0;
+  const hasActiveTests = activeTestsCount > 0;
+  const showWarning = hasSignedContract || hasActiveTests;
+
+  // Get active test details from history
+  const activeTests = companyHistoryData?.filter(c => c.status === 'on_test') || [];
 
   return (
     <div>
@@ -95,6 +104,61 @@ export default function PutOnTestModal({
             <p className="text-xs text-gray-500 mt-1 text-center">ali pusti prazno za novo podjetje</p>
           )}
         </div>
+
+        {/* WARNING: Existing tests or signed contract */}
+        {formData.companyId && showWarning && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2 text-red-700 font-bold">
+              <AlertTriangle size={20} className="text-red-600" />
+              POZOR - Obstoječi podatki!
+            </div>
+
+            {hasSignedContract && (
+              <div className="flex items-center gap-2 bg-white p-2 rounded border border-red-200">
+                <FileCheck size={18} className="text-green-600" />
+                <span className="text-sm">
+                  <span className="font-medium text-green-700">Pogodba podpisana</span>
+                  {selectedCompany?.contract_signed_at && (
+                    <span className="text-gray-500 ml-1">
+                      ({new Date(selectedCompany.contract_signed_at).toLocaleDateString('sl-SI')})
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {hasActiveTests && (
+              <div className="bg-white p-2 rounded border border-red-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Package size={18} className="text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700">
+                    {activeTestsCount} {activeTestsCount === 1 ? 'predpražnik' : activeTestsCount < 5 ? 'predpražniki' : 'predpražnikov'} na testu
+                  </span>
+                </div>
+                {activeTests.length > 0 && (
+                  <div className="text-xs text-gray-600 pl-6 space-y-0.5">
+                    {activeTests.slice(0, 3).map((test) => (
+                      <div key={test.id} className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                        <span>
+                          Od {test.test_start_date ? new Date(test.test_start_date).toLocaleDateString('sl-SI') : 'neznan datum'}
+                          {test.salesperson && ` (${test.salesperson.first_name})`}
+                        </span>
+                      </div>
+                    ))}
+                    {activeTests.length > 3 && (
+                      <div className="text-gray-400">... in {activeTests.length - 3} več</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="text-sm text-red-600 font-medium pt-1 border-t border-red-200">
+              Ali res želiš dodati nov test predpražnik?
+            </div>
+          </div>
+        )}
 
         {/* Show existing contacts when company is selected */}
         {formData.companyId && contacts.length > 0 && (

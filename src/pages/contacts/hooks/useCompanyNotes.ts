@@ -13,6 +13,49 @@ interface UseCompanyNotesProps {
   userId: string | undefined;
 }
 
+// D365 Activity Categories
+export const D365_ACTIVITY_CATEGORIES = [
+  { value: 'first_visit', label: 'First Visit to Prospect' },
+  { value: 'second_visit', label: 'Second/Further visit to Prospect' },
+  { value: 'sales_visit', label: 'Sales visit to customer' },
+] as const;
+
+export const D365_SUBCATEGORIES = [
+  { value: 'needs_analysis', label: 'Needs analysis' },
+  { value: 'offer_negotiation', label: 'Offer/Contract negotiation' },
+  { value: 'service_presentation', label: 'Service/Product presentation' },
+] as const;
+
+export const D365_APPOINTMENT_TYPES = [
+  { value: 'face_to_face', label: 'Face to Face' },
+  { value: 'virtual', label: 'Virtual Meeting' },
+] as const;
+
+export type D365ActivityCategory = typeof D365_ACTIVITY_CATEGORIES[number]['value'];
+export type D365Subcategory = typeof D365_SUBCATEGORIES[number]['value'];
+export type D365AppointmentType = typeof D365_APPOINTMENT_TYPES[number]['value'];
+
+interface AddNoteParams {
+  companyId: string;
+  noteDate: string;
+  content: string;
+  activityCategory?: string | null;
+  activitySubcategory?: string | null;
+  appointmentType?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+/**
+ * Combines a date string (YYYY-MM-DD) with a time string (HH:MM) to create a full ISO timestamp
+ * Returns null if time is not provided
+ */
+function combineDateTime(dateStr: string, timeStr: string | null | undefined): string | null {
+  if (!timeStr) return null;
+  // dateStr is in format YYYY-MM-DD, timeStr is in format HH:MM
+  return `${dateStr}T${timeStr}:00`;
+}
+
 interface UseCompanyNotesReturn {
   // Notes data
   companyNotes: CompanyNote[] | undefined;
@@ -25,9 +68,9 @@ interface UseCompanyNotesReturn {
   } | undefined;
 
   // Mutations
-  addNoteMutation: ReturnType<typeof useMutation<CompanyNote, Error, { companyId: string; noteDate: string; content: string }>>;
+  addNoteMutation: ReturnType<typeof useMutation<CompanyNote, Error, AddNoteParams>>;
   deleteNoteMutation: ReturnType<typeof useMutation<void, Error, string>>;
-  editNoteMutation: ReturnType<typeof useMutation<void, Error, { noteId: string; content: string; noteDate: string }>>;
+  editNoteMutation: ReturnType<typeof useMutation<void, Error, { noteId: string; content: string; noteDate: string; activityCategory?: string | null; activitySubcategory?: string | null; appointmentType?: string | null; startTime?: string | null; endTime?: string | null }>>;
 }
 
 export function useCompanyNotes({
@@ -112,7 +155,7 @@ export function useCompanyNotes({
 
   // Add note mutation
   const addNoteMutation = useMutation({
-    mutationFn: async ({ companyId, noteDate, content }: { companyId: string; noteDate: string; content: string }) => {
+    mutationFn: async ({ companyId, noteDate, content, activityCategory, activitySubcategory, appointmentType, startTime, endTime }: AddNoteParams) => {
       const { data, error } = await supabase
         .from('company_notes')
         .insert({
@@ -120,6 +163,11 @@ export function useCompanyNotes({
           note_date: noteDate,
           content,
           created_by: userId,
+          activity_category: activityCategory || null,
+          activity_subcategory: activitySubcategory || null,
+          appointment_type: appointmentType || null,
+          start_time: combineDateTime(noteDate, startTime),
+          end_time: combineDateTime(noteDate, endTime),
         })
         .select()
         .single();
@@ -157,12 +205,26 @@ export function useCompanyNotes({
 
   // Edit note mutation
   const editNoteMutation = useMutation({
-    mutationFn: async ({ noteId, content, noteDate }: { noteId: string; content: string; noteDate: string }) => {
+    mutationFn: async ({ noteId, content, noteDate, activityCategory, activitySubcategory, appointmentType, startTime, endTime }: {
+      noteId: string;
+      content: string;
+      noteDate: string;
+      activityCategory?: string | null;
+      activitySubcategory?: string | null;
+      appointmentType?: string | null;
+      startTime?: string | null;
+      endTime?: string | null;
+    }) => {
       const { error } = await supabase
         .from('company_notes')
         .update({
           content,
           note_date: noteDate,
+          activity_category: activityCategory,
+          activity_subcategory: activitySubcategory,
+          appointment_type: appointmentType,
+          start_time: combineDateTime(noteDate, startTime),
+          end_time: combineDateTime(noteDate, endTime),
         })
         .eq('id', noteId);
       if (error) throw error;

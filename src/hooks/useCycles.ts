@@ -684,3 +684,78 @@ export function useBatchExtendTest() {
     },
   });
 }
+
+// Batch remove - return all cycles to clean status (undo test placement)
+export function useBatchRemove() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cycleIds,
+      userId,
+    }: {
+      cycleIds: string[];
+      userId: string;
+    }) => {
+      const results: any[] = [];
+
+      for (const cycleId of cycleIds) {
+        // Get current cycle data for history
+        const { data: currentCycle } = await supabase
+          .from('cycles')
+          .select('status, company_id, qr_code_id')
+          .eq('id', cycleId)
+          .single();
+
+        // Reset cycle to clean status
+        const { data, error } = await supabase
+          .from('cycles')
+          .update({
+            status: 'clean',
+            company_id: null,
+            contact_id: null,
+            test_start_date: null,
+            test_end_date: null,
+            notes: null,
+            contract_signed: false,
+            extensions_count: 0,
+          })
+          .eq('id', cycleId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        results.push(data);
+
+        // Reset QR code status to active (available)
+        if (currentCycle?.qr_code_id) {
+          await supabase
+            .from('qr_codes')
+            .update({ status: 'active' })
+            .eq('id', currentCycle.qr_code_id);
+        }
+
+        // Add history entry
+        await supabase.from('cycle_history').insert({
+          cycle_id: cycleId,
+          action: 'removed_batch',
+          old_status: currentCycle?.status || 'on_test',
+          new_status: 'clean',
+          metadata: {
+            batch_operation: true,
+            previous_company_id: currentCycle?.company_id,
+          },
+          performed_by: userId,
+        });
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
+    },
+  });
+}

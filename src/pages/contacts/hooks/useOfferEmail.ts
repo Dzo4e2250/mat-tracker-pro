@@ -297,6 +297,44 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
     return `<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 10px;"><thead><tr style="background-color: ${tableStyles.headerBg}; color: ${tableStyles.headerText};"><th colspan="2" style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: left;">Artikel</th><th colspan="4" style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: center;">Opis, količina, cena</th></tr><tr style="background-color: ${tableStyles.headerBg}; color: ${tableStyles.headerText};"><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Koda</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Naziv</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Velikost</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Kupcu prilagojen izdelek</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Količina</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Cena/kos<br/><em>NAKUP</em></th></tr></thead><tbody>${rows}</tbody></table><p style="font-size: 11px; color: #0066cc; margin: 5px 0;"><a href="#" style="color: #0066cc;">Cene ne vključujejo DDV</a></p><p style="font-size: 12px; margin: 15px 0 5px 0;"><strong>Število predpražnikov:</strong> ${totals.totalItems} KOS</p><p style="font-size: 12px; margin: 5px 0;"><strong>Cena:</strong> ${totals.totalPrice.toFixed(2)} €</p>`;
   }, [offerItemsNajem]);
 
+  // Generate HTML table for a single item (for dimension comparison)
+  const generateSingleItemTableHTML = useCallback((item: OfferItem) => {
+    const frequencyText = offerFrequency === '1' ? '1 teden' : `${offerFrequency} tedna`;
+    const isSeasonal = item.seasonal && item.seasonalFromWeek && item.seasonalToWeek && item.seasonalPrice;
+
+    let rows = '';
+    let summaryHTML = '';
+
+    if (isSeasonal) {
+      // Seasonal item - show two rows (normal and seasonal period)
+      const normalPeriod = `teden ${item.normalFromWeek || 13}-${item.normalToWeek || 44}`;
+      const seasonalPeriod = `teden ${item.seasonalFromWeek}-${item.seasonalToWeek}`;
+      const normalFreqText = item.normalFrequency === '1' ? '1 teden' : `${item.normalFrequency || '4'} tedne`;
+      const seasonalFreqText = item.seasonalFrequency === '1' ? '1 teden' : `${item.seasonalFrequency} tedna`;
+      const normalPrice = item.normalPrice || item.pricePerUnit;
+
+      const normalTotal = normalPrice * item.quantity * 4;
+      const seasonalTotal = item.seasonalPrice! * item.quantity * 4;
+
+      rows = `<tr><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.code || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.name}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.size || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.customized ? 'da' : 'ne'}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: center;">${item.quantity}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${normalFreqText}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${normalPeriod}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;">${normalPrice.toFixed(2)} €</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;">${(item.replacementCost || 0).toFixed(2)} €</td></tr><tr style="background-color: #fff8e6;"><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.code || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.name}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.size || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.customized ? 'da' : 'ne'}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: center;">${item.quantity}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;"><strong>${seasonalFreqText}</strong></td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;"><strong>${seasonalPeriod}</strong></td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;"><strong>${item.seasonalPrice!.toFixed(2)} €</strong></td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;">${(item.replacementCost || 0).toFixed(2)} €</td></tr>`;
+
+      summaryHTML = `
+        <p style="font-size: 12px; margin: 10px 0 5px 0;"><strong>4-tedenski obračun:</strong></p>
+        <ul style="font-size: 12px; margin: 5px 0 5px 20px; padding: 0; list-style: none;">
+          <li style="margin-bottom: 5px;"><strong>Obdobje 1</strong> (${normalPeriod}, menjava na ${normalFreqText}): <strong>${normalTotal.toFixed(2)} €</strong></li>
+          <li style="color: #b45309;"><strong>Obdobje 2</strong> (${seasonalPeriod}, menjava na ${seasonalFreqText}): <strong>${seasonalTotal.toFixed(2)} €</strong></li>
+        </ul>`;
+
+      return `<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 10px;"><thead><tr style="background-color: ${tableStyles.headerBg}; color: ${tableStyles.headerText};"><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Koda</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Naziv</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Velikost</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Prilagojen</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Količina</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Frekvenca</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Obdobje</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Cena/teden</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Povračilo</th></tr></thead><tbody>${rows}</tbody></table><p style="font-size: 11px; color: #0066cc; margin: 5px 0;"><a href="#" style="color: #0066cc;">Cene ne vključujejo DDV</a></p>${summaryHTML}`;
+    }
+
+    // Non-seasonal item
+    const fourWeekTotal = item.pricePerUnit * item.quantity * 4;
+    rows = `<tr><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.code || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.name}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.size || ''}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${item.customized ? 'da' : 'ne'}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: center;">${item.quantity}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px;">${frequencyText}</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;">${item.pricePerUnit.toFixed(2)} €</td><td style="border: 1px solid ${tableStyles.border}; padding: 8px; text-align: right;">${(item.replacementCost || 0).toFixed(2)} €</td></tr>`;
+
+    return `<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; margin-bottom: 10px;"><thead><tr style="background-color: ${tableStyles.headerBg}; color: ${tableStyles.headerText};"><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Koda</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Naziv</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Velikost</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Prilagojen</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Količina</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Frekvenca</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Cena/teden</th><th style="border: 1px solid ${tableStyles.border}; padding: 8px;">Povračilo</th></tr></thead><tbody>${rows}</tbody></table><p style="font-size: 11px; color: #0066cc; margin: 5px 0;"><a href="#" style="color: #0066cc;">Cene ne vključujejo DDV</a></p><p style="font-size: 12px; margin: 5px 0;"><strong>4-tedenski obračun:</strong> ${fourWeekTotal.toFixed(2)} €</p>`;
+  }, [offerFrequency]);
+
   // Generate full HTML email
   const generateEmailHTML = useCallback(() => {
     const signature = `<p style="margin-top: 20px;">Lep pozdrav,</p>`;
@@ -312,7 +350,31 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
 
     if (offerType === 'najem') return `<p>Pozdravljeni,</p><p>kot dogovorjeno pošiljam ponudbo za najem predpražnikov. V spodnji tabeli so navedene dimenzije, cene in pogostost menjave.</p>${seasonalText}${generateNajemTableHTML()}${serviceText}<p>Za vsa dodatna vprašanja ali morebitne prilagoditve ponudbe sem vam z veseljem na voljo.</p>${signature}`;
     if (offerType === 'nakup') return `<p>Pozdravljeni,</p><p>kot dogovorjeno pošiljam ponudbo za nakup profesionalnih predpražnikov. Podrobnosti o dimenzijah in cenah se nahajajo v spodnji tabeli.</p>${generateNakupTableHTML()}<p>Predpražniki so visoke kakovosti in primerni za dolgotrajno uporabo.</p><p>Za vsa dodatna vprašanja glede materialov ali dobavnih rokov sem vam na voljo.</p>${signature}`;
-    if (offerType === 'primerjava') return `<p>Pozdravljeni,</p><p>kot dogovorjeno pošiljam ponudbo za najem, prav tako pa spodaj prilagam tudi ponudbo za nakup predpražnikov, da lahko primerjate obe možnosti.</p>${seasonalText}<h3 style="color: ${tableStyles.headerBg};">1. Opcija: Najem in vzdrževanje</h3><p>Vključuje redno menjavo in čiščenje${hasSeasonalItems ? ' s sezonsko prilagoditvijo' : ''}.</p>${generateNajemTableHTML()}<h3 style="color: ${tableStyles.headerBg}; margin-top: 30px;">2. Opcija: Nakup predpražnikov</h3><p>Enkraten strošek nakupa predpražnikov v trajno last.</p>${generateNakupTableHTMLFromNajem()}<p>Za vsa dodatna vprašanja ali pomoč pri izbiri optimalne rešitve sem vam z veseljem na voljo.</p>${signature}`;
+
+    // Check if primerjava is 2x najem (dimension comparison) vs najem+nakup
+    if (offerType === 'primerjava') {
+      const najemItems = offerItemsNajem.filter(i => i.purpose !== 'nakup');
+      const is2xNajem = najemItems.length >= 2 && offerItemsNajem.every(i => i.purpose !== 'nakup');
+
+      if (is2xNajem) {
+        // Sort items by m2 or size to determine smaller vs larger
+        const sortedItems = [...najemItems].sort((a, b) => (a.m2 || 0) - (b.m2 || 0));
+        const smallerItem = sortedItems[0];
+        const largerItem = sortedItems[1];
+
+        // Check if any of the items has seasonal pricing
+        const hasSeasonalIn2xNajem = najemItems.some(item => item.seasonal && item.seasonalFromWeek && item.seasonalToWeek && item.seasonalPrice);
+
+        const serviceTextFor2xNajem = hasSeasonalIn2xNajem
+          ? `<p style="margin-top: 20px;">Cena vključuje predpražnik, redno menjavo, čiščenje in sezonsko prilagoditev (pogostejša menjava v času slabšega vremena).</p>`
+          : `<p style="margin-top: 20px;">Cena vključuje predpražnik, redno menjavo in čiščenje.</p>`;
+
+        return `<p>Pozdravljeni,</p><p>kot dogovorjeno sem pripravil informativno ponudbo za dve najpogostejši standardni dimenziji.</p><p>Tako boste imeli jasno predstavo o strošku za manjšo in večjo opcijo.</p><p>Spodaj prilagam ponudbo:</p><h3 style="color: ${tableStyles.headerBg};">Standardna dimenzija 1:</h3>${generateSingleItemTableHTML(smallerItem)}<h3 style="color: ${tableStyles.headerBg}; margin-top: 30px;">Standardna dimenzija 2:</h3>${generateSingleItemTableHTML(largerItem)}${serviceTextFor2xNajem}<p>Za vsa dodatna vprašanja ali pomoč pri izbiri optimalne rešitve sem vam z veseljem na voljo.</p>${signature}`;
+      }
+
+      // Standard primerjava (najem vs nakup)
+      return `<p>Pozdravljeni,</p><p>kot dogovorjeno pošiljam ponudbo za najem, prav tako pa spodaj prilagam tudi ponudbo za nakup predpražnikov, da lahko primerjate obe možnosti.</p>${seasonalText}<h3 style="color: ${tableStyles.headerBg};">1. Opcija: Najem in vzdrževanje</h3><p>Vključuje redno menjavo in čiščenje${hasSeasonalItems ? ' s sezonsko prilagoditvijo' : ''}.</p>${generateNajemTableHTML()}<h3 style="color: ${tableStyles.headerBg}; margin-top: 30px;">2. Opcija: Nakup predpražnikov</h3><p>Enkraten strošek nakupa predpražnikov v trajno last.</p>${generateNakupTableHTMLFromNajem()}<p>Za vsa dodatna vprašanja ali pomoč pri izbiri optimalne rešitve sem vam z veseljem na voljo.</p>${signature}`;
+    }
 
     if (offerType === 'dodatna') {
       const hasNajemItems = offerItemsNajem.some(i => i.purpose !== 'nakup');
@@ -343,7 +405,7 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
       return `${introText}${najemSection}${nakupSection}<p>Za vsa dodatna vprašanja sem vam na voljo.</p>${signature}`;
     }
     return '';
-  }, [offerType, offerItemsNajem, generateNajemTableHTML, generateNakupTableHTML, generateNakupTableHTMLFromNajem]);
+  }, [offerType, offerItemsNajem, generateNajemTableHTML, generateNakupTableHTML, generateNakupTableHTMLFromNajem, generateSingleItemTableHTML]);
 
   // Copy HTML to clipboard
   const copyHTMLToClipboard = useCallback(async () => {
@@ -374,7 +436,14 @@ Cena: ${totals.totalPrice.toFixed(2)} €`;
     let subject = 'Ponudba za predpražnike';
 
     if (offerType === 'primerjava') {
-      subject = `Ponudba za nakup in najem predpražnikov - ${companyName}`;
+      // Check if it's 2x najem (dimension comparison) vs najem+nakup
+      const hasNajemItems = offerItemsNajem.some(i => i.purpose !== 'nakup');
+      const hasNakupItems = offerItemsNajem.some(i => i.purpose === 'nakup');
+      if (hasNajemItems && !hasNakupItems) {
+        subject = `Ponudba za najem predpražnikov - ${companyName}`;
+      } else {
+        subject = `Ponudba za nakup in najem predpražnikov - ${companyName}`;
+      }
     } else if (offerType === 'dodatna') {
       const hasNajemItems = offerItemsNajem.some(i => i.purpose !== 'nakup');
       const hasNakupItems = offerItemsNajem.some(i => i.purpose === 'nakup');

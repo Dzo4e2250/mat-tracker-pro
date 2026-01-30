@@ -126,15 +126,33 @@ export function OfferModalWrapper({
     const item = offerItemsNajem.find(i => i.id === itemId);
     const designSize = DESIGN_SIZES.find(d => d.code === code);
     const m2 = designSize ? calculateM2FromDimensions(designSize.dimensions) : 0;
-    const price = item?.purpose === 'nakup'
-      ? calculateCustomPurchasePrice(m2)
-      : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+
+    // First check PRICE_LIST for predefined design sizes
+    const priceInfo = getPriceByCode(code);
+
+    let price: number;
+    let replacementCost: number;
+
+    if (priceInfo) {
+      // Use price from PRICE_LIST
+      price = item?.purpose === 'nakup'
+        ? priceInfo.odkup
+        : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+      replacementCost = item?.purpose !== 'nakup' ? priceInfo.odkup : 0;
+    } else {
+      // Fall back to m² calculation for non-standard sizes
+      price = item?.purpose === 'nakup'
+        ? calculateCustomPurchasePrice(m2)
+        : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      replacementCost = item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0;
+    }
+
     updateOfferItem(itemId, {
       code,
       size: designSize?.dimensions || '',
       m2,
       pricePerUnit: price,
-      replacementCost: item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
+      replacementCost,
       name: 'predpražnik po meri'
     }, 'najem');
   }, [offerItemsNajem, offerFrequency, updateOfferItem]);
@@ -178,10 +196,36 @@ export function OfferModalWrapper({
         newPrice = newPurpose === 'nakup'
           ? getPurchasePrice(item.code)
           : getRentalPrice(item.code, offerFrequency as FrequencyKey);
+      } else if (item.itemType === 'design') {
+        // Check PRICE_LIST first for design items
+        const priceInfo = getPriceByCode(item.code);
+        if (priceInfo) {
+          newPrice = newPurpose === 'nakup'
+            ? priceInfo.odkup
+            : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+        } else if (item.m2) {
+          newPrice = newPurpose === 'nakup'
+            ? calculateCustomPurchasePrice(item.m2)
+            : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
+        }
       } else if (item.m2) {
+        // Custom items - use m² calculation
         newPrice = newPurpose === 'nakup'
           ? calculateCustomPurchasePrice(item.m2)
           : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
+      }
+    }
+
+    // Calculate replacement cost
+    let replacementCost = 0;
+    if (newPurpose !== 'nakup') {
+      const priceInfo = item.code ? getPriceByCode(item.code) : null;
+      if (priceInfo) {
+        replacementCost = priceInfo.odkup;
+      } else if (item.m2) {
+        replacementCost = calculateCustomPurchasePrice(item.m2);
+      } else {
+        replacementCost = getReplacementCost(item.code);
       }
     }
 
@@ -193,7 +237,7 @@ export function OfferModalWrapper({
       m2: newM2,
       name: newName,
       pricePerUnit: newPrice,
-      replacementCost: newPurpose === 'nakup' ? 0 : (item.m2 ? calculateCustomPurchasePrice(item.m2) : getReplacementCost(item.code)),
+      replacementCost,
       discount: newPurpose === 'nakup' ? 0 : item.discount,
       originalPrice: newPurpose === 'nakup' ? undefined : item.originalPrice
     }, 'najem');
@@ -210,7 +254,14 @@ export function OfferModalWrapper({
 
     let subject = 'Ponudba za predpražnike';
     if (offerType === 'primerjava') {
-      subject = `Ponudba za nakup in najem predpražnikov - ${companyName}`;
+      // Check if it's 2x najem (dimension comparison) vs najem+nakup
+      const hasNajemItems = offerItemsNajem.some(i => i.purpose !== 'nakup');
+      const hasNakupItems = offerItemsNajem.some(i => i.purpose === 'nakup');
+      if (hasNajemItems && !hasNakupItems) {
+        subject = `Ponudba za najem predpražnikov - ${companyName}`;
+      } else {
+        subject = `Ponudba za nakup in najem predpražnikov - ${companyName}`;
+      }
     } else if (offerType === 'dodatna') {
       const hasNajemItems = offerItemsNajem.some(i => i.purpose !== 'nakup');
       const hasNakupItems = offerItemsNajem.some(i => i.purpose === 'nakup');
@@ -225,7 +276,7 @@ export function OfferModalWrapper({
 
     const saved = await saveOfferToDatabase(subject, email);
     if (saved) {
-      toast({ description: '✅ Ponudba shranjena' });
+      toast({ description: '📧 Ponudba shranjena - opomnik čez 2 dni' });
     }
   }, [selectedCompany, offerType, offerItemsNajem, saveOfferToDatabase, toast]);
 

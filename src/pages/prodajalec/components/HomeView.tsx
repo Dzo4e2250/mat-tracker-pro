@@ -3,10 +3,12 @@
  * @description Domača stran prodajalca - prikaz ciklov z opozorili in batch akcijami
  */
 
-import { X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { X, Download, Filter } from 'lucide-react';
 import type { CycleWithRelations } from '@/hooks/useCycles';
 import { STATUSES, type StatusKey } from '../utils/constants';
 import { getTimeRemaining, formatCountdown } from '../utils/timeHelpers';
+import * as XLSX from 'xlsx';
 
 interface CompanyMatsData {
   companyId: string;
@@ -232,6 +234,8 @@ export default function HomeView({
   onDismissAlert,
   onShowCompanyMats,
 }: HomeViewProps) {
+  const [matTypeFilter, setMatTypeFilter] = useState<string>('all');
+
   // Izračunaj statistiko
   const stats = {
     total: cycles?.length || 0,
@@ -241,14 +245,82 @@ export default function HomeView({
     waitingDriver: cycles?.filter(c => c.status === 'waiting_driver').length || 0,
   };
 
+  // Get mat type counts for current status filter
+  const matTypeCounts = useMemo(() => {
+    if (!cycles) return [];
+    const relevantCycles = cycles.filter(c => {
+      if (statusFilter === 'dirty') return c.status === 'dirty';
+      if (statusFilter === 'waiting_driver') return c.status === 'waiting_driver';
+      return false;
+    });
+    const counts = new Map<string, number>();
+    relevantCycles.forEach(c => {
+      const type = c.mat_type?.code || 'Neznano';
+      counts.set(type, (counts.get(type) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [cycles, statusFilter]);
+
+  // Export to Excel
+  const exportToExcel = () => {
+    if (!cycles) return;
+
+    let cyclesToExport = cycles.filter(c => c.status === statusFilter);
+    if (matTypeFilter !== 'all') {
+      cyclesToExport = cyclesToExport.filter(c => (c.mat_type?.code || 'Neznano') === matTypeFilter);
+    }
+
+    if (cyclesToExport.length === 0) return;
+
+    const statusLabel = statusFilter === 'dirty' ? 'Umazani' : 'Čaka šoferja';
+    const data = cyclesToExport.map(c => ({
+      'QR Koda': c.qr_code?.code || '',
+      'Tip': c.mat_type?.code || c.mat_type?.name || '',
+      'Podjetje': c.company?.display_name || c.company?.name || '',
+      'Naslov': c.company?.address_street || '',
+      'Mesto': c.company?.address_city || '',
+      'Status': statusLabel,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, statusLabel);
+
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 10 }, { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 15 }
+    ];
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const typeStr = matTypeFilter !== 'all' ? `_${matTypeFilter}` : '';
+    const fileName = statusFilter === 'dirty' ? 'Umazani' : 'Caka_soferja';
+    XLSX.writeFile(wb, `${fileName}${typeStr}_${dateStr}.xlsx`);
+  };
+
+  // Reset mat type filter when status filter changes
+  const handleStatusFilterChange = (filter: string) => {
+    setMatTypeFilter('all');
+    onStatusFilterChange(filter);
+  };
+
   // Filtriraj cikle - pri "on_test" izključi podpisane pogodbe
   const getFilteredCycles = () => {
     if (!cycles) return [];
-    if (statusFilter === 'all') return cycles;
-    if (statusFilter === 'on_test') {
-      return cycles.filter(c => c.status === 'on_test' && !c.contract_signed);
+    let result = cycles;
+
+    if (statusFilter === 'all') {
+      // No status filter
+    } else if (statusFilter === 'on_test') {
+      result = cycles.filter(c => c.status === 'on_test' && !c.contract_signed);
+    } else {
+      result = cycles.filter(c => c.status === statusFilter);
     }
-    return cycles.filter(c => c.status === statusFilter);
+
+    // Apply mat type filter for dirty/waiting_driver
+    if ((statusFilter === 'dirty' || statusFilter === 'waiting_driver') && matTypeFilter !== 'all') {
+      result = result.filter(c => (c.mat_type?.code || 'Neznano') === matTypeFilter);
+    }
+
+    return result;
   };
 
   const filteredCycles = getFilteredCycles();
@@ -336,7 +408,7 @@ export default function HomeView({
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => onStatusFilterChange(tab.key)}
+              onClick={() => handleStatusFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
                 statusFilter === tab.key
                   ? 'bg-blue-500 text-white'
@@ -347,6 +419,34 @@ export default function HomeView({
             </button>
           ))}
         </div>
+
+        {/* Mat type filter and Excel export for dirty/waiting_driver */}
+        {(statusFilter === 'dirty' || statusFilter === 'waiting_driver') && matTypeCounts.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <select
+              value={matTypeFilter}
+              onChange={(e) => setMatTypeFilter(e.target.value)}
+              className="text-sm border rounded px-2 py-1.5 bg-white flex-1"
+            >
+              <option value="all">
+                Vsi tipi ({statusFilter === 'dirty' ? stats.dirty : stats.waitingDriver})
+              </option>
+              {matTypeCounts.map(([type, count]) => (
+                <option key={type} value={type}>
+                  {type} ({count})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              <Download className="h-4 w-4" />
+              Excel
+            </button>
+          </div>
+        )}
 
         {/* Seznam */}
         {!cycles || cycles.length === 0 ? (

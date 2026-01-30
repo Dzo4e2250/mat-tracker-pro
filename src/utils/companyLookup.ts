@@ -1,6 +1,117 @@
 // EU VIES API za preverjanje DDV številk in pridobivanje podatkov o podjetjih
 // Brezplačen API brez potrebe po avtentikaciji
 
+import { supabase } from '@/integrations/supabase/client';
+
+// Interface for internal company with contacts
+export interface InternalCompanyData {
+  id: string;
+  name: string;
+  display_name?: string;
+  tax_number?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal?: string;
+  parent_company_id?: string;
+  parent_company?: {
+    id: string;
+    name: string;
+    display_name?: string;
+    tax_number?: string;
+  };
+  contacts: Array<{
+    id: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+    is_decision_maker?: boolean;
+  }>;
+}
+
+export interface LookupResult {
+  source: 'internal' | 'external';
+  internalCompany?: InternalCompanyData;
+  externalData?: CompanyData;
+}
+
+/**
+ * Najprej preveri interno bazo, nato zunanji API
+ * @param taxNumber - Davčna številka (8 števk)
+ * @returns Podatki iz interne baze ali zunanjega API-ja
+ */
+export async function lookupCompanyInternalFirst(taxNumber: string): Promise<LookupResult | null> {
+  const cleanTaxNumber = taxNumber.replace(/^SI/i, '').replace(/\s/g, '');
+
+  if (!/^\d{8}$/.test(cleanTaxNumber)) {
+    return null;
+  }
+
+  try {
+    // 1. Najprej preveri interno bazo
+    const { data: internalCompany, error } = await supabase
+      .schema('mat_tracker')
+      .from('companies')
+      .select(`
+        id,
+        name,
+        display_name,
+        tax_number,
+        address_street,
+        address_city,
+        address_postal,
+        parent_company_id,
+        parent_company:companies!parent_company_id (
+          id,
+          name,
+          display_name,
+          tax_number
+        ),
+        contacts (
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          role,
+          is_decision_maker
+        )
+      `)
+      .eq('tax_number', cleanTaxNumber)
+      .maybeSingle();
+
+    if (!error && internalCompany) {
+      // Podjetje že obstaja v interni bazi
+      return {
+        source: 'internal',
+        internalCompany: internalCompany as InternalCompanyData,
+      };
+    }
+
+    // 2. Če ni v bazi, preveri zunanji API
+    const externalData = await lookupCompanyByTaxNumber(cleanTaxNumber);
+    if (externalData) {
+      return {
+        source: 'external',
+        externalData,
+      };
+    }
+
+    return null;
+  } catch {
+    // Fallback to external API if internal lookup fails
+    const externalData = await lookupCompanyByTaxNumber(cleanTaxNumber);
+    if (externalData) {
+      return {
+        source: 'external',
+        externalData,
+      };
+    }
+    return null;
+  }
+}
+
 export interface VIESResponse {
   isValid: boolean;
   requestDate: string;

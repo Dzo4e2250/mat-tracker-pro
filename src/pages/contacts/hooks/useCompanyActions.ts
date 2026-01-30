@@ -6,7 +6,7 @@
 import { useToast } from '@/hooks/use-toast';
 import { useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useCreateReminder, useCompleteReminder, useUpdatePipelineStatus } from '@/hooks/useReminders';
-import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
+import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -84,42 +84,81 @@ export function useCompanyActions({
   const completeReminder = useCompleteReminder();
   const updatePipelineStatus = useUpdatePipelineStatus();
 
-  // Add contact to existing company (from QR scan)
-  const handleAddToExistingCompany = async () => {
-    if (!existingCompany || !pendingContactData || !userId) return;
+  // Select existing contact from found company - auto-fill form and select company
+  const handleSelectExistingContact = async (contact: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email?: string | null;
+    phone?: string | null;
+    role?: string | null;
+  }) => {
+    if (!existingCompany || !userId) return;
 
-    try {
-      await addContact.mutateAsync({
-        companyId: existingCompany.id,
-        contact: {
-          first_name: pendingContactData.contactName?.split(' ')[0] || 'Kontakt',
-          last_name: pendingContactData.contactName?.split(' ').slice(1).join(' ') || '',
-          phone: pendingContactData.contactPhone,
-          email: pendingContactData.contactEmail,
-          role: pendingContactData.contactRole,
-        },
-        userId,
-      });
+    // Izpolni formo s podatki o podjetju in kontaktu
+    setFormData({
+      companyName: existingCompany.name,
+      displayName: existingCompany.display_name || '',
+      taxNumber: existingCompany.tax_number || '',
+      addressStreet: existingCompany.address_street || '',
+      addressCity: existingCompany.address_city || '',
+      addressPostal: existingCompany.address_postal || '',
+      parentCompanyId: existingCompany.parent_company_id || '',
+      contactName: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+      contactPhone: contact.phone || '',
+      contactEmail: contact.email || '',
+      contactRole: contact.role || '',
+      // Flag da podjetje že obstaja - ne ustvarjaj novega
+      existingCompanyId: existingCompany.id,
+      existingContactId: contact.id,
+    });
 
-      toast({ description: '✅ Kontakt dodan k obstoječemu podjetju' });
-      setShowExistingCompanyModal(false);
-      setExistingCompany(null);
-      setPendingContactData(null);
-      setShowAddModal(false);
-    } catch (error) {
-      toast({ description: 'Napaka pri dodajanju kontakta', variant: 'destructive' });
-    }
-  };
-
-  // Create new company anyway (ignore existing)
-  const handleCreateNewAnyway = () => {
-    if (pendingContactData) {
-      setFormData({ ...formData, ...pendingContactData });
-    }
+    toast({
+      description: `✅ Podjetje in kontakt izbrana: ${existingCompany.display_name || existingCompany.name} - ${contact.first_name} ${contact.last_name}`,
+    });
     setShowExistingCompanyModal(false);
     setExistingCompany(null);
     setPendingContactData(null);
-    toast({ description: 'Podatki uvoženi - ustvarite novo podjetje' });
+    // Ne zapri AddModal - uporabnik lahko doda podjetje v svoj seznam
+  };
+
+  // Add new contact to existing company (opens add contact form)
+  const handleAddNewContactToExisting = () => {
+    if (!existingCompany) return;
+
+    // Izpolni formo samo s podatki o podjetju, kontakt ostane prazen
+    setFormData({
+      companyName: existingCompany.name,
+      displayName: existingCompany.display_name || '',
+      taxNumber: existingCompany.tax_number || '',
+      addressStreet: existingCompany.address_street || '',
+      addressCity: existingCompany.address_city || '',
+      addressPostal: existingCompany.address_postal || '',
+      parentCompanyId: existingCompany.parent_company_id || '',
+      // Flag da podjetje že obstaja
+      existingCompanyId: existingCompany.id,
+    });
+
+    toast({
+      description: `📝 Podatki o podjetju izpolnjeni - dodaj nov kontakt`,
+    });
+    setShowExistingCompanyModal(false);
+    setExistingCompany(null);
+    setPendingContactData(null);
+  };
+
+  // Legacy handlers for backwards compatibility
+  const handleAddToExistingCompany = async () => {
+    // Če ima obstoječe kontakte, uporabi prvega
+    if (existingCompany?.contacts?.[0]) {
+      await handleSelectExistingContact(existingCompany.contacts[0]);
+    } else {
+      handleAddNewContactToExisting();
+    }
+  };
+
+  const handleCreateNewAnyway = () => {
+    handleAddNewContactToExisting();
   };
 
   // Create reminder
@@ -230,6 +269,51 @@ export function useCompanyActions({
       return;
     }
 
+    // Check for duplicate company by tax number (most reliable)
+    if (formData.taxNumber?.trim() && companies) {
+      const taxToCheck = formData.taxNumber.trim().replace(/\s/g, '');
+      const duplicateByTax = companies.find(c =>
+        c.tax_number && c.tax_number.replace(/\s/g, '') === taxToCheck
+      );
+
+      if (duplicateByTax) {
+        const duplicateName = duplicateByTax.display_name || duplicateByTax.name;
+        toast({
+          description: `⚠️ Podjetje z davčno ${taxToCheck} že obstaja: "${duplicateName}"`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Check for duplicate company by name
+    const nameToCheck = formData.companyName?.trim() || formData.displayName?.trim();
+    if (nameToCheck && companies) {
+      const normalizedName = nameToCheck.toLowerCase().replace(/\s+/g, ' ');
+      const duplicate = companies.find(c => {
+        const existingName = (c.name || '').toLowerCase().replace(/\s+/g, ' ');
+        const existingDisplayName = (c.display_name || '').toLowerCase().replace(/\s+/g, ' ');
+        return existingName === normalizedName ||
+               existingDisplayName === normalizedName ||
+               existingName.includes(normalizedName) ||
+               existingDisplayName.includes(normalizedName) ||
+               normalizedName.includes(existingName) ||
+               normalizedName.includes(existingDisplayName);
+      });
+
+      if (duplicate) {
+        const duplicateName = duplicate.display_name || duplicate.name;
+        const confirmed = window.confirm(
+          `⚠️ Podobno podjetje "${duplicateName}" že obstaja!\n\n` +
+          `Ali si prepričan, da želiš ustvariti novo podjetje z imenom "${nameToCheck}"?\n\n` +
+          `Klikni "Prekliči" za preklic ali "V redu" za nadaljevanje.`
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
     const isOsnutek = !hasCompanyName;
     let companyName = formData.companyName?.trim();
 
@@ -294,27 +378,111 @@ export function useCompanyActions({
 
     setTaxLookupLoading(true);
     try {
-      const companyData = await lookupCompanyByTaxNumber(taxNumber);
+      const result = await lookupCompanyInternalFirst(taxNumber);
 
-      if (!companyData) {
+      if (!result) {
         toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
         return;
       }
 
-      if (!companyData.isValid) {
-        toast({ description: 'Davčna številka ni veljavna ali podjetje ni DDV zavezanec', variant: 'destructive' });
-        return;
+      if (result.source === 'internal' && result.internalCompany) {
+        // Podjetje že obstaja v bazi - prikaži obstoječe podjetje
+        const existingData = result.internalCompany;
+
+        // Ustvari CompanyWithContacts objekt za modal
+        const companyForModal: CompanyWithContacts = {
+          id: existingData.id,
+          name: existingData.name,
+          display_name: existingData.display_name || null,
+          tax_number: existingData.tax_number || null,
+          address_street: existingData.address_street || null,
+          address_city: existingData.address_city || null,
+          address_postal: existingData.address_postal || null,
+          parent_company_id: existingData.parent_company_id || null,
+          // Dodaj parent_company podatke za prikaz v modalu
+          parent_company: existingData.parent_company ? {
+            id: existingData.parent_company.id,
+            name: existingData.parent_company.name,
+            display_name: existingData.parent_company.display_name || null,
+            tax_number: existingData.parent_company.tax_number || null,
+          } : undefined,
+          contacts: existingData.contacts.map(c => ({
+            id: c.id,
+            company_id: existingData.id,
+            first_name: c.first_name || null,
+            last_name: c.last_name || null,
+            email: c.email || null,
+            phone: c.phone || null,
+            role: c.role || null,
+            is_decision_maker: c.is_decision_maker || false,
+            created_at: '',
+            updated_at: '',
+            location_address: null,
+            location_lat: null,
+            location_lng: null,
+            contact_since: null,
+            created_by: null,
+          })),
+          cycles: [],
+          cycleStats: { onTest: 0, signed: 0, total: 0, offerSent: false },
+          // Other required fields with defaults
+          created_at: '',
+          updated_at: '',
+          address_country: null,
+          website: null,
+          notes: null,
+          status: 'active',
+          pipeline_status: null,
+          source: null,
+          industry: null,
+          employee_count: null,
+          annual_revenue: null,
+          location_lat: null,
+          location_lng: null,
+          location_address: null,
+          contract_signed: false,
+          contract_frequency: null,
+          contract_signed_at: null,
+          contract_sent_at: null,
+          contract_called_at: null,
+          offer_sent_at: null,
+          offer_called_at: null,
+          pickup_requested_at: null,
+          driver_pickup_at: null,
+          created_by: null,
+        };
+
+        // Shrani pending podatke - niso več potrebni z novim flowom
+        setPendingContactData({});
+
+        setExistingCompany(companyForModal);
+        setShowExistingCompanyModal(true);
+
+        const contactCount = existingData.contacts?.length || 0;
+        const parentInfo = existingData.parent_company
+          ? ` (matično: ${existingData.parent_company.display_name || existingData.parent_company.name})`
+          : '';
+        toast({
+          description: `📋 Podjetje najdeno v bazi (${contactCount} kontakt${contactCount !== 1 ? 'ov' : ''})${parentInfo}`,
+        });
+      } else if (result.source === 'external' && result.externalData) {
+        // Podjetje ni v bazi - izpolni iz VIES API
+        const companyData = result.externalData;
+        if (!companyData.isValid) {
+          toast({ description: 'Davčna številka ni veljavna ali podjetje ni DDV zavezanec', variant: 'destructive' });
+          return;
+        }
+
+        setFormData((prev: any) => ({
+          ...prev,
+          companyName: companyData.name || prev.companyName,
+          addressStreet: companyData.street || prev.addressStreet,
+          addressCity: companyData.city || prev.addressCity,
+          addressPostal: companyData.postalCode || prev.addressPostal,
+        }));
+
+        toast({ description: `Podjetje najdeno: ${companyData.name}` });
       }
-
-      setFormData((prev: any) => ({
-        ...prev,
-        companyName: companyData.name || prev.companyName,
-        addressStreet: companyData.street || prev.addressStreet,
-        addressCity: companyData.city || prev.addressCity,
-        addressPostal: companyData.postalCode || prev.addressPostal,
-      }));
-
-      toast({ description: `Podjetje najdeno: ${companyData.name}` });
     } catch (error) {
       toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
     } finally {
@@ -480,6 +648,8 @@ export function useCompanyActions({
     // Handlers
     handleAddToExistingCompany,
     handleCreateNewAnyway,
+    handleSelectExistingContact,
+    handleAddNewContactToExisting,
     handleCreateReminder,
     handleContractSent,
     handleCompleteReminder,

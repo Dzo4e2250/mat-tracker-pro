@@ -13,13 +13,13 @@ import { useCameraScanner, useCycleActions, useProdajalecState } from './prodaja
 
 import { useMatTypes } from '@/hooks/useMatTypes';
 import { useQRCodes } from '@/hooks/useQRCodes';
-import { useCycles, useCycleHistory, useUpdateCycleStatus, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, CycleWithRelations } from '@/hooks/useCycles';
+import { useCycles, useCycleHistory, useUpdateCycleStatus, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, useBatchRemove, CycleWithRelations } from '@/hooks/useCycles';
 import { useCompanyHistory } from '@/hooks/useCompanies';
 import { useCompanyContacts, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
 import CompanySelectModal from '@/components/CompanySelectModal';
 import CompanyMatsModal from '@/components/CompanyMatsModal';
-import { lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
+import { lookupCompanyInternalFirst, isValidTaxNumberFormat } from '@/utils/companyLookup';
 
 // Ekstrahirane komponente
 import {
@@ -55,6 +55,7 @@ export default function ProdajalecDashboard() {
   const batchSignContracts = useBatchSignContracts();
   const batchPickupSelf = useBatchPickupSelf();
   const batchExtendTest = useBatchExtendTest();
+  const batchRemove = useBatchRemove();
 
   // UI State
   const [view, setView] = useState<ViewType | 'scan' | 'home'>(() => {
@@ -176,23 +177,52 @@ export default function ProdajalecDashboard() {
 
     setTaxLookupLoading(true);
     try {
-      const companyData = await lookupCompanyByTaxNumber(taxNumber);
-      if (!companyData) {
+      const result = await lookupCompanyInternalFirst(taxNumber);
+      if (!result) {
         toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
         return;
       }
-      if (!companyData.isValid) {
-        toast({ description: 'Davčna številka ni veljavna ali podjetje ni DDV zavezanec', variant: 'destructive' });
-        return;
+
+      if (result.source === 'internal' && result.internalCompany) {
+        // Podjetje že obstaja v bazi - avtomatsko izberi
+        const company = result.internalCompany;
+        const primaryContact = company.contacts?.[0];
+
+        setFormData((prev: any) => ({
+          ...prev,
+          companyId: company.id,
+          clientName: company.display_name || company.name,
+          addressStreet: company.address_street || '',
+          addressCity: company.address_city || '',
+          addressPostal: company.address_postal || '',
+          // Če ima kontakt, ga nastavi
+          contactId: primaryContact?.id || '',
+          useExistingContact: !!primaryContact,
+          contactPerson: primaryContact ? `${primaryContact.first_name || ''} ${primaryContact.last_name || ''}`.trim() : '',
+          phone: primaryContact?.phone || '',
+          email: primaryContact?.email || '',
+          contactRole: primaryContact?.role || '',
+          isDecisionMaker: primaryContact?.is_decision_maker || false,
+        }));
+        toast({
+          description: `✅ Podjetje že v bazi: ${company.display_name || company.name}${primaryContact ? ` (${primaryContact.first_name} ${primaryContact.last_name})` : ''}`,
+        });
+      } else if (result.source === 'external' && result.externalData) {
+        // Podjetje ni v bazi - izpolni iz VIES API
+        const companyData = result.externalData;
+        if (!companyData.isValid) {
+          toast({ description: 'Davčna številka ni veljavna ali podjetje ni DDV zavezanec', variant: 'destructive' });
+          return;
+        }
+        setFormData((prev: any) => ({
+          ...prev,
+          clientName: companyData.name || prev.clientName,
+          addressStreet: companyData.street || prev.addressStreet,
+          addressCity: companyData.city || prev.addressCity,
+          addressPostal: companyData.postalCode || prev.addressPostal,
+        }));
+        toast({ description: `Najdeno (novo): ${companyData.name}` });
       }
-      setFormData((prev: any) => ({
-        ...prev,
-        clientName: companyData.name || prev.clientName,
-        addressStreet: companyData.street || prev.addressStreet,
-        addressCity: companyData.city || prev.addressCity,
-        addressPostal: companyData.postalCode || prev.addressPostal,
-      }));
-      toast({ description: `Najdeno: ${companyData.name}` });
     } catch {
       toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
     } finally {
@@ -201,7 +231,7 @@ export default function ProdajalecDashboard() {
   };
 
   const handleCompanyMatsAction = async (
-    action: 'sign' | 'pickup' | 'extend',
+    action: 'sign' | 'pickup' | 'extend' | 'remove',
     params: any
   ) => {
     try {
@@ -214,6 +244,9 @@ export default function ProdajalecDashboard() {
       } else if (action === 'extend') {
         await batchExtendTest.mutateAsync({ cycleIds: params.cycleIds, userId: user?.id || '' });
         toast({ description: `Test podaljšan za ${params.cycleIds.length} predpražnikov (+7 dni)` });
+      } else if (action === 'remove') {
+        await batchRemove.mutateAsync({ cycleIds: params.cycleIds, userId: user?.id || '' });
+        toast({ description: `${params.cycleIds.length} predpražnikov odstranjenih in vrnjenih med čiste` });
       }
     } catch {
       toast({ description: 'Napaka pri shranjevanju', variant: 'destructive' });
@@ -536,7 +569,8 @@ export default function ProdajalecDashboard() {
           }
           onPickupAll={(cycleIds) => handleCompanyMatsAction('pickup', { cycleIds })}
           onExtendAll={(cycleIds) => handleCompanyMatsAction('extend', { cycleIds })}
-          isLoading={batchSignContracts.isPending || batchPickupSelf.isPending || batchExtendTest.isPending}
+          onRemoveAll={(cycleIds) => handleCompanyMatsAction('remove', { cycleIds })}
+          isLoading={batchSignContracts.isPending || batchPickupSelf.isPending || batchExtendTest.isPending || batchRemove.isPending}
         />
       )}
     </div>

@@ -65,72 +65,72 @@ const AppContent = () => {
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/inventar" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <InventarDashboard />
               </ProtectedRoute>
             } />
             <Route path="/inventar/accounts" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <AccountsManagement />
               </ProtectedRoute>
             } />
             <Route path="/inventar/prevzemi" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <Prevzemi />
               </ProtectedRoute>
             } />
             <Route path="/inventar/qr-kode" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <QRKode />
               </ProtectedRoute>
             } />
             <Route path="/inventar/narocila" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <OrderManagement />
               </ProtectedRoute>
             } />
             <Route path="/inventar/prodajalec/:id" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <SellerPage />
               </ProtectedRoute>
             } />
             <Route path="/inventar/zemljevid" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <MapView />
               </ProtectedRoute>
             } />
             <Route path="/inventar/dostavljalci" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <DriversManagement />
               </ProtectedRoute>
             } />
             <Route path="/inventar/analitika" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <Analytics />
               </ProtectedRoute>
             } />
             <Route path="/inventar/aktivnost" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <ActivityTracking />
               </ProtectedRoute>
             } />
             <Route path="/inventar/cenik" element={
-              <ProtectedRoute allowedRoles={['inventar']}>
+              <ProtectedRoute allowedRoles={['inventar', 'admin']}>
                 <PriceManagement />
               </ProtectedRoute>
             } />
             <Route path="/prodajalec" element={
-              <ProtectedRoute allowedRoles={['prodajalec']}>
+              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
                 <ProdajalecDashboard />
               </ProtectedRoute>
             } />
             <Route path="/contacts" element={
-              <ProtectedRoute allowedRoles={['prodajalec']}>
+              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
                 <Contacts />
               </ProtectedRoute>
             } />
             <Route path="/order-codes" element={
-              <ProtectedRoute allowedRoles={['prodajalec']}>
+              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
                 <OrderCodes />
               </ProtectedRoute>
             } />
