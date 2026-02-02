@@ -9,6 +9,7 @@ import {
   DESIGN_SIZES, calculateM2FromDimensions, calculateCustomPrice, calculateCustomPurchasePrice,
   FrequencyKey
 } from '@/utils/priceList';
+import { usePriceSettings } from '@/hooks/usePrices';
 import { OfferItem, ItemType } from '../types';
 
 type OfferType = 'najem' | 'nakup' | 'primerjava' | 'dodatna';
@@ -16,9 +17,10 @@ type OfferStep = 'type' | 'items-nakup' | 'items-najem' | 'preview';
 
 const createDefaultItem = (type: 'nakup' | 'najem'): OfferItem => ({
   id: '1',
-  itemType: 'standard',
+  // Za nakup privzeto 'design', za najem 'standard'
+  itemType: type === 'nakup' ? 'design' : 'standard',
   code: '',
-  name: 'Predpražnik',
+  name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
   size: '',
   customized: false,
   quantity: 1,
@@ -58,6 +60,7 @@ interface UseOfferStateReturn {
   handleStandardCodeSelect: (itemId: string, code: string, offerType: 'nakup' | 'najem') => void;
   handleDesignSizeSelect: (itemId: string, designCode: string, offerType: 'nakup' | 'najem') => void;
   handleCustomDimensionsChange: (itemId: string, dimensions: string, offerType: 'nakup' | 'najem') => void;
+  handleSpecialShapeChange: (itemId: string, specialShape: boolean, offerType: 'nakup' | 'najem') => void;
 
   // Price handlers
   handlePriceChange: (itemId: string, newPrice: number, offerType: 'nakup' | 'najem') => void;
@@ -90,6 +93,10 @@ export function useOfferState(): UseOfferStateReturn {
   const [offerType, setOfferType] = useState<OfferType>('najem');
   const [offerFrequency, setOfferFrequency] = useState<string>('2');
   const [offerStep, setOfferStep] = useState<OfferStep>('type');
+
+  // Price settings from admin panel
+  const { data: priceSettings } = usePriceSettings();
+  const specialShapeMultiplier = priceSettings?.special_shape_multiplier || 1.5;
 
   // Items
   const [offerItemsNakup, setOfferItemsNakup] = useState<OfferItem[]>([createDefaultItem('nakup')]);
@@ -139,9 +146,10 @@ export function useOfferState(): UseOfferStateReturn {
   const addCustomOfferItem = useCallback((type: 'nakup' | 'najem') => {
     const newItem: OfferItem = {
       id: Date.now().toString(),
-      itemType: 'standard',
+      // Za nakup privzeto 'design', za najem 'standard'
+      itemType: type === 'nakup' ? 'design' : 'standard',
       code: '',
-      name: 'Predpražnik',
+      name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
       size: '',
       customized: false,
       quantity: 1,
@@ -202,16 +210,19 @@ export function useOfferState(): UseOfferStateReturn {
     let basePrice: number;
     let replacementCost: number;
 
-    if (priceInfo) {
-      // Use price from PRICE_LIST (predefined design sizes)
-      basePrice = type === 'nakup' ? priceInfo.odkup : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
-      replacementCost = type === 'najem' ? priceInfo.odkup : 0;
+    // Za nakup VEDNO uporabi m² × 165 €/m² (nova izdelava)
+    // Za najem uporabi cene iz cenika, odkup pa kot replacement cost
+    if (type === 'nakup') {
+      basePrice = calculateCustomPurchasePrice(m2);
+      replacementCost = 0;
+    } else if (priceInfo) {
+      // Najem: uporabi cene iz PRICE_LIST
+      basePrice = priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+      replacementCost = priceInfo.odkup;
     } else {
-      // Fall back to custom m² calculation (non-standard sizes)
-      basePrice = type === 'nakup'
-        ? calculateCustomPurchasePrice(m2)
-        : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-      replacementCost = type === 'najem' ? calculateCustomPurchasePrice(m2) : 0;
+      // Najem: fall back to m² calculation for non-standard sizes
+      basePrice = calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      replacementCost = calculateCustomPurchasePrice(m2);
     }
 
     const updates: Partial<OfferItem> = {
@@ -228,11 +239,38 @@ export function useOfferState(): UseOfferStateReturn {
   }, [offerFrequency, updateOfferItem]);
 
   const handleCustomDimensionsChange = useCallback((itemId: string, dimensions: string, type: 'nakup' | 'najem') => {
+    const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
+    const item = items.find(i => i.id === itemId);
+    const specialShape = item?.specialShape ?? false;
+    const multiplier = specialShape ? specialShapeMultiplier : 1;
+
     const m2 = calculateM2FromDimensions(dimensions);
-    const basePrice = type === 'nakup' ? calculateCustomPurchasePrice(m2) : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-    const replacementCost = type === 'najem' ? calculateCustomPurchasePrice(m2) : 0;
+    const basePrice = type === 'nakup'
+      ? calculateCustomPurchasePrice(m2) * multiplier
+      : calculateCustomPrice(m2, offerFrequency as FrequencyKey) * multiplier;
+    const replacementCost = type === 'najem' ? calculateCustomPurchasePrice(m2) * multiplier : 0;
     updateOfferItem(itemId, { code: 'CUSTOM', size: dimensions, m2, pricePerUnit: basePrice, originalPrice: basePrice, discount: 0, replacementCost }, type);
-  }, [offerFrequency, updateOfferItem]);
+  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, updateOfferItem]);
+
+  const handleSpecialShapeChange = useCallback((itemId: string, specialShape: boolean, type: 'nakup' | 'najem') => {
+    const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
+    const item = items.find(i => i.id === itemId);
+    if (!item || !item.m2) return;
+
+    const multiplier = specialShape ? specialShapeMultiplier : 1;
+    const basePrice = type === 'nakup'
+      ? calculateCustomPurchasePrice(item.m2) * multiplier
+      : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey) * multiplier;
+    const replacementCost = type === 'najem' ? calculateCustomPurchasePrice(item.m2) * multiplier : 0;
+
+    updateOfferItem(itemId, {
+      specialShape,
+      pricePerUnit: basePrice,
+      originalPrice: basePrice,
+      discount: 0,
+      replacementCost
+    }, type);
+  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, updateOfferItem]);
 
   const handlePriceChange = useCallback((itemId: string, newPrice: number, type: 'nakup' | 'najem') => {
     const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
@@ -457,6 +495,7 @@ export function useOfferState(): UseOfferStateReturn {
     handleStandardCodeSelect,
     handleDesignSizeSelect,
     handleCustomDimensionsChange,
+    handleSpecialShapeChange,
     handlePriceChange,
     handleDiscountChange,
     handleSeasonalToggle,

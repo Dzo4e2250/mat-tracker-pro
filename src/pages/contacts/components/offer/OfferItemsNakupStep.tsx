@@ -22,9 +22,9 @@ interface OfferItemsNakupStepProps {
   onDesignSizeSelect: (itemId: string, code: string) => void;
   onCustomDimensionsChange: (itemId: string, dimensions: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
-  onPriceChange: (itemId: string, price: number) => void;
-  onDiscountChange: (itemId: string, discount: number) => void;
+  // Pri nakupu NI popustov - cena je vedno m² × 165€
   onCustomizedChange: (itemId: string, customized: boolean) => void;
+  onSpecialShapeChange: (itemId: string, specialShape: boolean) => void;
   onOptibrushChange: (itemId: string, updates: Partial<OfferItem>) => void;
   onAddItem: () => void;
   onRemoveItem: (itemId: string) => void;
@@ -46,9 +46,8 @@ export default function OfferItemsNakupStep({
   onDesignSizeSelect,
   onCustomDimensionsChange,
   onQuantityChange,
-  onPriceChange,
-  onDiscountChange,
   onCustomizedChange,
+  onSpecialShapeChange,
   onOptibrushChange,
   onAddItem,
   onRemoveItem,
@@ -172,16 +171,26 @@ export default function OfferItemsNakupStep({
 
             {/* Custom opcije */}
             {item.itemType === 'custom' && (
-              <div>
-                <label className="block text-xs text-gray-500">Dimenzije (cm)</label>
-                <input
-                  type="text"
-                  value={item.size}
-                  onChange={(e) => onCustomDimensionsChange(item.id, e.target.value)}
-                  className="w-full p-2 border rounded text-sm"
-                  placeholder="npr. 120*180"
-                />
-                {item.m2 ? <div className="text-xs text-gray-500 mt-1">{item.m2.toFixed(2)} m²</div> : null}
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-gray-500">Dimenzije (cm)</label>
+                  <input
+                    type="text"
+                    value={item.size}
+                    onChange={(e) => onCustomDimensionsChange(item.id, e.target.value)}
+                    className="w-full p-2 border rounded text-sm"
+                    placeholder="npr. 120*180"
+                  />
+                  {item.m2 ? <div className="text-xs text-gray-500 mt-1">{item.m2.toFixed(2)} m²</div> : null}
+                </div>
+                <label className="flex items-center gap-2 text-sm bg-purple-50 p-2 rounded">
+                  <input
+                    type="checkbox"
+                    checked={item.specialShape ?? false}
+                    onChange={(e) => onSpecialShapeChange(item.id, e.target.checked)}
+                  />
+                  <span>Posebna oblika <span className="text-purple-600 font-medium">(+50%)</span></span>
+                </label>
               </div>
             )}
 
@@ -362,8 +371,8 @@ export default function OfferItemsNakupStep({
               </div>
             )}
 
-            {/* Količina, cena, popust - za vse tipe */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* Količina in cena - pri nakupu NI popustov */}
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs text-gray-500">Količina</label>
                 <input
@@ -394,28 +403,21 @@ export default function OfferItemsNakupStep({
                   step="0.01"
                   min="0"
                   value={item.pricePerUnit || ''}
-                  onChange={(e) => onPriceChange(item.id, parseFloat(e.target.value) || 0)}
-                  className="w-full p-2 border rounded text-sm"
+                  readOnly
+                  className="w-full p-2 border rounded text-sm bg-gray-50"
                   placeholder="0.00"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500">Popust %</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={item.discount || ''}
-                  onChange={(e) => onDiscountChange(item.id, parseInt(e.target.value) || 0)}
-                  className="w-full p-2 border rounded text-sm"
-                  placeholder="0"
                 />
               </div>
             </div>
 
-            {item.discount && item.discount > 0 && item.originalPrice && (
-              <div className="text-xs text-green-600 bg-green-50 p-2 rounded">
-                💰 Izhodiščna: {item.originalPrice.toFixed(2)} € → <span className="font-bold">-{item.discount}%</span> = {item.pricePerUnit.toFixed(2)} €
+            {/* Prikaz m² in cene/m² za design/custom */}
+            {item.itemType !== 'optibrush' && item.m2 && item.m2 > 0 && (
+              <div className={`text-xs p-2 rounded ${item.specialShape ? 'text-purple-700 bg-purple-50' : 'text-blue-600 bg-blue-50'}`}>
+                {item.specialShape ? (
+                  <>{item.m2.toFixed(2)} m² × 165 €/m² × <span className="font-bold">1.5</span> = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
+                ) : (
+                  <>{item.m2.toFixed(2)} m² × 165 €/m² = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
+                )}
               </div>
             )}
 

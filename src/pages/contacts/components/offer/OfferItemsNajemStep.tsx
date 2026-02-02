@@ -44,6 +44,7 @@ interface OfferItemsNajemStepProps {
   onStandardSelect: (itemId: string, code: string) => void;
   onDesignSelect: (itemId: string, code: string) => void;
   onCustomDimensionsChange: (itemId: string, dimensions: string) => void;
+  onSpecialShapeChange: (itemId: string, specialShape: boolean) => void;
   onPurposeChange: (itemId: string, purpose: 'najem' | 'nakup') => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
   onPriceChange: (itemId: string, price: number) => void;
@@ -83,6 +84,7 @@ export default function OfferItemsNajemStep({
   onStandardSelect,
   onDesignSelect,
   onCustomDimensionsChange,
+  onSpecialShapeChange,
   onPurposeChange,
   onQuantityChange,
   onPriceChange,
@@ -255,20 +257,30 @@ export default function OfferItemsNajemStep({
 
             {/* Custom dimensions input */}
             {item.itemType === 'custom' && (
-              <div>
-                <label className="block text-xs text-gray-500">Dimenzije (cm)</label>
-                <input
-                  type="text"
-                  value={item.size}
-                  onChange={(e) => onCustomDimensionsChange(item.id, e.target.value)}
-                  className="w-full p-2 border rounded text-sm"
-                  placeholder="npr. 120*180"
-                />
-                {item.m2 && item.m2 > 0 && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    📐 {item.m2.toFixed(2)} m² {item.purpose === 'nakup' ? `× 165€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
-                  </div>
-                )}
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-gray-500">Dimenzije (cm)</label>
+                  <input
+                    type="text"
+                    value={item.size}
+                    onChange={(e) => onCustomDimensionsChange(item.id, e.target.value)}
+                    className="w-full p-2 border rounded text-sm"
+                    placeholder="npr. 120*180"
+                  />
+                  {item.m2 && item.m2 > 0 && (
+                    <div className={`text-xs mt-1 ${item.specialShape ? 'text-purple-600' : 'text-gray-500'}`}>
+                      📐 {item.m2.toFixed(2)} m² {item.specialShape && '× 1.5'} {item.purpose === 'nakup' ? `× 165€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-sm bg-purple-50 p-2 rounded">
+                  <input
+                    type="checkbox"
+                    checked={item.specialShape ?? false}
+                    onChange={(e) => onSpecialShapeChange(item.id, e.target.checked)}
+                  />
+                  <span>Posebna oblika <span className="text-purple-600 font-medium">(+50%)</span></span>
+                </label>
               </div>
             )}
 
