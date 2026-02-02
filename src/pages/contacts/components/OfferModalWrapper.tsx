@@ -48,6 +48,7 @@ export interface OfferModalWrapperProps {
   handleItemTypeChange: (id: string, type: 'standard' | 'design' | 'custom', category: 'nakup' | 'najem') => void;
   handleDesignSizeSelect: (id: string, code: string, category: 'nakup' | 'najem') => void;
   handleCustomDimensionsChange: (id: string, dims: string, category: 'nakup' | 'najem') => void;
+  handleSpecialShapeChange: (id: string, specialShape: boolean, category: 'nakup' | 'najem') => void;
   handlePriceChange: (id: string, price: number, category: 'nakup' | 'najem') => void;
   handleDiscountChange: (id: string, discount: number, category: 'nakup' | 'najem') => void;
   handleSeasonalToggle: (id: string, enabled: boolean) => void;
@@ -86,6 +87,7 @@ export function OfferModalWrapper({
   handleItemTypeChange,
   handleDesignSizeSelect,
   handleCustomDimensionsChange,
+  handleSpecialShapeChange,
   handlePriceChange,
   handleDiscountChange,
   handleSeasonalToggle,
@@ -133,18 +135,18 @@ export function OfferModalWrapper({
     let price: number;
     let replacementCost: number;
 
-    if (priceInfo) {
-      // Use price from PRICE_LIST
-      price = item?.purpose === 'nakup'
-        ? priceInfo.odkup
-        : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
-      replacementCost = item?.purpose !== 'nakup' ? priceInfo.odkup : 0;
+    // Za nakup VEDNO uporabi m² × 165 €/m² (nova izdelava)
+    if (item?.purpose === 'nakup') {
+      price = calculateCustomPurchasePrice(m2);
+      replacementCost = 0;
+    } else if (priceInfo) {
+      // Najem: uporabi cene iz PRICE_LIST
+      price = priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+      replacementCost = priceInfo.odkup;
     } else {
-      // Fall back to m² calculation for non-standard sizes
-      price = item?.purpose === 'nakup'
-        ? calculateCustomPurchasePrice(m2)
-        : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-      replacementCost = item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0;
+      // Najem: fall back to m² calculation for non-standard sizes
+      price = calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      replacementCost = calculateCustomPurchasePrice(m2);
     }
 
     updateOfferItem(itemId, {
@@ -197,16 +199,17 @@ export function OfferModalWrapper({
           ? getPurchasePrice(item.code)
           : getRentalPrice(item.code, offerFrequency as FrequencyKey);
       } else if (item.itemType === 'design') {
-        // Check PRICE_LIST first for design items
-        const priceInfo = getPriceByCode(item.code);
-        if (priceInfo) {
-          newPrice = newPurpose === 'nakup'
-            ? priceInfo.odkup
-            : priceInfo.prices[offerFrequency as FrequencyKey] || 0;
-        } else if (item.m2) {
-          newPrice = newPurpose === 'nakup'
-            ? calculateCustomPurchasePrice(item.m2)
-            : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
+        // Za nakup VEDNO uporabi m² × 165 €/m²
+        if (newPurpose === 'nakup' && item.m2) {
+          newPrice = calculateCustomPurchasePrice(item.m2);
+        } else {
+          // Za najem uporabi cene iz PRICE_LIST
+          const priceInfo = getPriceByCode(item.code);
+          if (priceInfo) {
+            newPrice = priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+          } else if (item.m2) {
+            newPrice = calculateCustomPrice(item.m2, offerFrequency as FrequencyKey);
+          }
         }
       } else if (item.m2) {
         // Custom items - use m² calculation
@@ -312,7 +315,7 @@ export function OfferModalWrapper({
               />
             )}
 
-            {/* Step 2a: Configure NAKUP items */}
+            {/* Step 2a: Configure NAKUP items - brez popustov, cena vedno m² × 165€ */}
             {offerStep === 'items-nakup' && (
               <OfferItemsNakupStep
                 items={offerItemsNakup}
@@ -321,9 +324,8 @@ export function OfferModalWrapper({
                 onItemTypeChange={(id, type) => handleItemTypeChange(id, type, 'nakup')}
                 onDesignSizeSelect={(id, code) => handleDesignSizeSelect(id, code, 'nakup')}
                 onCustomDimensionsChange={(id, dims) => handleCustomDimensionsChange(id, dims, 'nakup')}
+                onSpecialShapeChange={(id, specialShape) => handleSpecialShapeChange(id, specialShape, 'nakup')}
                 onQuantityChange={(id, qty) => updateOfferItem(id, { quantity: qty }, 'nakup')}
-                onPriceChange={(id, price) => handlePriceChange(id, price, 'nakup')}
-                onDiscountChange={(id, discount) => handleDiscountChange(id, discount, 'nakup')}
                 onCustomizedChange={(id, customized) => updateOfferItem(id, { customized }, 'nakup')}
                 onOptibrushChange={(id, updates) => updateOfferItem(id, updates, 'nakup')}
                 onAddItem={() => addCustomOfferItem('nakup')}
@@ -346,6 +348,7 @@ export function OfferModalWrapper({
                 onStandardSelect={handleStandardSelect}
                 onDesignSelect={handleDesignSelect}
                 onCustomDimensionsChange={handleNajemCustomDimensionsChange}
+                onSpecialShapeChange={(id, specialShape) => handleSpecialShapeChange(id, specialShape, 'najem')}
                 onPurposeChange={handlePurposeChange}
                 onQuantityChange={(itemId, quantity) => updateOfferItem(itemId, { quantity }, 'najem')}
                 onPriceChange={(itemId, price) => handlePriceChange(itemId, price, 'najem')}

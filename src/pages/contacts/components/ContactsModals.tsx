@@ -326,6 +326,7 @@ export function ContactsModals({
           handleItemTypeChange={offerState.handleItemTypeChange}
           handleDesignSizeSelect={offerState.handleDesignSizeSelect}
           handleCustomDimensionsChange={offerState.handleCustomDimensionsChange}
+          handleSpecialShapeChange={offerState.handleSpecialShapeChange}
           handlePriceChange={offerState.handlePriceChange}
           handleDiscountChange={offerState.handleDiscountChange}
           handleSeasonalToggle={offerState.handleSeasonalToggle}

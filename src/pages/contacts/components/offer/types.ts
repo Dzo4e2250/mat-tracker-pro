@@ -49,6 +49,7 @@ export interface OfferItem {
   name: string;
   size: string;
   m2?: number;
+  specialShape?: boolean; // Posebna oblika (+50%) - za custom artikle
   customized: boolean;
   quantity: number;
   pricePerUnit: number;

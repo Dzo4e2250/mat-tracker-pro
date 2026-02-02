@@ -1,23 +1,15 @@
 import type { OptibrushPrice, CustomM2Price } from '@/hooks/usePrices';
 
-export type TabType =
-  | 'vse'
-  | 'poslovni'
-  | 'ergonomski'
-  | 'zunanji'
-  | 'design'
-  | 'optibrush'
-  | 'custom_m2';
+// Poenostavljen tab sistem: samo NAJEM in NAKUP
+export type TabType = 'najem' | 'nakup';
 
 export const TABS: { key: TabType; label: string }[] = [
-  { key: 'vse', label: 'Vse cene' },
-  { key: 'poslovni', label: 'MBW' },
-  { key: 'ergonomski', label: 'ERM' },
-  { key: 'zunanji', label: 'Zunanji' },
-  { key: 'design', label: 'Design' },
-  { key: 'optibrush', label: 'Optibrush' },
-  { key: 'custom_m2', label: 'Custom m²' },
+  { key: 'najem', label: 'NAJEM' },
+  { key: 'nakup', label: 'NAKUP' },
 ];
+
+// Kategorije predpražnikov za najem
+export type MatCategory = 'poslovni' | 'ergonomski' | 'zunanji' | 'design';
 
 export const CATEGORY_LABELS: Record<string, string> = {
   poslovni: 'MBW',
