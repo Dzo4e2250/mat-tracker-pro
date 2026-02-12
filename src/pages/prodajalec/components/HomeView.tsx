@@ -9,6 +9,7 @@ import type { CycleWithRelations } from '@/hooks/useCycles';
 import { STATUSES, type StatusKey } from '../utils/constants';
 import { getTimeRemaining, formatCountdown } from '../utils/timeHelpers';
 import * as XLSX from 'xlsx';
+import AllMatsModal from './modals/AllMatsModal';
 
 interface CompanyMatsData {
   companyId: string;
@@ -71,14 +72,19 @@ function StatCard({
   label,
   bgColor,
   colSpan = 1,
+  onClick,
 }: {
   count: number;
   label: string;
   bgColor: string;
   colSpan?: number;
+  onClick?: () => void;
 }) {
   return (
-    <div className={`${bgColor} p-3 rounded ${colSpan > 1 ? 'col-span-2' : ''}`}>
+    <div
+      className={`${bgColor} p-3 rounded ${colSpan > 1 ? 'col-span-2' : ''} ${onClick ? 'cursor-pointer active:scale-[0.97] transition-transform' : ''}`}
+      onClick={onClick}
+    >
       <div className="text-2xl font-bold">{count}</div>
       <div className="text-sm">{label}</div>
     </div>
@@ -235,6 +241,7 @@ export default function HomeView({
   onShowCompanyMats,
 }: HomeViewProps) {
   const [matTypeFilter, setMatTypeFilter] = useState<string>('all');
+  const [showAllMatsModal, setShowAllMatsModal] = useState(false);
 
   // Izračunaj statistiko
   const stats = {
@@ -469,7 +476,7 @@ export default function HomeView({
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <h2 className="text-lg font-bold mb-4">Moji predpražniki</h2>
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <StatCard count={stats.total} label="💼 Skupaj" bgColor="bg-gray-50" />
+          <StatCard count={stats.total} label="💼 Skupaj" bgColor="bg-gray-50" onClick={() => setShowAllMatsModal(true)} />
           <StatCard count={stats.clean} label="💚 Čisti" bgColor="bg-green-50" />
           <StatCard count={stats.onTest} label="🔵 Na testu" bgColor="bg-blue-50" />
           <StatCard count={stats.dirty} label="🟠 Umazani" bgColor="bg-orange-50" />
@@ -567,6 +574,12 @@ export default function HomeView({
           </div>
         )}
       </div>
+
+      <AllMatsModal
+        isOpen={showAllMatsModal}
+        onClose={() => setShowAllMatsModal(false)}
+        cycles={cycles}
+      />
     </div>
   );
 }
