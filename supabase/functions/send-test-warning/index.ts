@@ -18,6 +18,21 @@ interface TestMat {
   daysOnTest: number;
 }
 
+// Validate email format and reject SMTP injection characters
+function isValidEmail(email: string): boolean {
+  return /^[^\r\n<>"]+@[^\r\n<>"]+\.[^\r\n<>"]+$/.test(email) && email.length < 254;
+}
+
+// Escape HTML to prevent XSS in email templates
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Simple SMTP send using raw TCP
 async function sendEmail(to: string, subject: string, htmlBody: string): Promise<void> {
   const encoder = new TextEncoder();
@@ -155,6 +170,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Validate email format to prevent SMTP header injection
+    if (!isValidEmail(sellerEmail)) {
+      return new Response(JSON.stringify({ error: 'Invalid email address' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Group mats by company
     const matsByCompany = mats.reduce((acc, mat) => {
       const key = mat.companyName || 'Neznana stranka';
@@ -171,15 +194,15 @@ Deno.serve(async (req) => {
     // Build items list HTML
     const itemsHtml = Object.entries(matsByCompany).map(([company, data]) => `
       <div style="margin: 20px 0; padding: 15px; background: #fff8f0; border-left: 4px solid #f97316; border-radius: 4px;">
-        <p style="margin: 0 0 5px 0;"><strong>Stranka:</strong> ${company}</p>
-        <p style="margin: 0 0 5px 0; color: #666;"><strong>Lokacija:</strong> ${data.address}</p>
+        <p style="margin: 0 0 5px 0;"><strong>Stranka:</strong> ${escapeHtml(company)}</p>
+        <p style="margin: 0 0 5px 0; color: #666;"><strong>Lokacija:</strong> ${escapeHtml(data.address)}</p>
         <p style="margin: 0 0 10px 0; color: #dc2626;"><strong>Status:</strong> POSKUSNO OBDOBJE POTEKLO</p>
         <p style="margin: 0 0 5px 0;"><strong>Zadrzani artikli:</strong></p>
         <ul style="margin: 5px 0 0 0; padding-left: 20px;">
           ${data.items.map(item => `
             <li style="margin: 3px 0;">
-              1x ${item.matTypeName}
-              <span style="color: #666; font-size: 12px;">(${item.qrCode}, ${item.daysOnTest} dni)</span>
+              1x ${escapeHtml(item.matTypeName)}
+              <span style="color: #666; font-size: 12px;">(${escapeHtml(item.qrCode)}, ${escapeHtml(String(item.daysOnTest))} dni)</span>
             </li>
           `).join('')}
         </ul>
@@ -198,7 +221,7 @@ Deno.serve(async (req) => {
           OPOZORILO: Poteklo poskusno obdobje (Testni predprazniki)
         </h2>
 
-        <p>Pozdravljen/a <strong>${sellerName}</strong>,</p>
+        <p>Pozdravljen/a <strong>${escapeHtml(sellerName)}</strong>,</p>
 
         <p>Obvescamo te, da se je za spodaj navedene stranke izteklo poskusno obdobje za testiranje predpraznikov.</p>
 
@@ -241,7 +264,7 @@ Deno.serve(async (req) => {
       );
     } catch (smtpError) {
       console.error('SMTP error:', smtpError);
-      return new Response(JSON.stringify({ error: `SMTP error: ${smtpError.message}` }), {
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

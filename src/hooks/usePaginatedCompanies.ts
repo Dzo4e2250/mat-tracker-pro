@@ -14,6 +14,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Company, Contact } from '@/integrations/supabase/types';
+import { sanitizeSearchQuery } from '@/lib/utils';
 
 export type PaginatedCompany = Company & {
   contacts: Contact[];
@@ -70,7 +71,8 @@ export function usePaginatedCompanies(
 
       // Add search filter
       if (searchQuery) {
-        query = query.or(`name.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%,tax_number.ilike.%${searchQuery}%`);
+        const q = sanitizeSearchQuery(searchQuery);
+        query = query.or(`name.ilike.%${q}%,display_name.ilike.%${q}%,tax_number.ilike.%${q}%`);
       }
 
       // Add status filter
@@ -157,7 +159,8 @@ export function useCompanyCount(userId?: string, searchQuery?: string) {
         .eq('created_by', userId);
 
       if (searchQuery) {
-        query = query.or(`name.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%`);
+        const q = sanitizeSearchQuery(searchQuery);
+        query = query.or(`name.ilike.%${q}%,display_name.ilike.%${q}%`);
       }
 
       const { count, error } = await query;

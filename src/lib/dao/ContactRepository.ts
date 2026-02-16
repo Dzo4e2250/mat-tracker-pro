@@ -6,6 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { BaseRepository, RepositoryError } from './BaseRepository';
 import type { Contact, Company } from '@/integrations/supabase/types';
+import { sanitizeSearchQuery } from '@/lib/utils';
 
 export interface ContactWithCompany extends Contact {
   company?: Company;
@@ -72,7 +73,7 @@ export class ContactRepository extends BaseRepository<Contact> {
         *,
         company:companies(*)
       `)
-      .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
+      .or(`first_name.ilike.%${sanitizeSearchQuery(searchQuery)}%,last_name.ilike.%${sanitizeSearchQuery(searchQuery)}%,email.ilike.%${sanitizeSearchQuery(searchQuery)}%,phone.ilike.%${sanitizeSearchQuery(searchQuery)}%`)
       .limit(50);
 
     if (userId) {

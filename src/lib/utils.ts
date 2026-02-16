@@ -51,3 +51,11 @@ export function generateUniqueQRCodes(
 
   return newCodes;
 }
+
+/**
+ * Sanitize a search query for use in PostgREST .or() filters.
+ * Strips characters that could inject additional filter conditions.
+ */
+export function sanitizeSearchQuery(query: string): string {
+  return query.replace(/[,.()\\\r\n]/g, '');
+}
