@@ -50,17 +50,17 @@ export function getCompanyAddress(company: CompanyWithContacts): string | null {
 }
 
 /**
- * Generira .ics datoteko za Outlook/Calendar
+ * Generira .ics datoteko za Outlook/Calendar - Outlook kompatibilno
  * @param company - Podjetje za katerega ustvarjamo dogodek
  * @param date - Datum sestanka/roka (YYYY-MM-DD)
  * @param time - Čas sestanka (HH:MM)
- * @param type - Tip dogodka ('sestanek', 'ponudba' ali 'izris')
+ * @param type - Tip dogodka ('sestanek' ali 'ponudba')
  */
 export function generateICSFile(
   company: CompanyWithContacts,
   date: string,
   time: string,
-  type: 'sestanek' | 'ponudba' | 'izris'
+  type: 'sestanek' | 'ponudba'
 ): void {
   const startDate = new Date(`${date}T${time}:00`);
   const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour
@@ -71,7 +71,11 @@ export function generateICSFile(
 
   const primaryContact = getPrimaryContact(company);
   const contactName = primaryContact ? `${primaryContact.first_name} ${primaryContact.last_name}` : '';
+  const contactPhone = primaryContact?.phone || (primaryContact as any)?.work_phone || '';
+  const contactEmail = primaryContact?.email || '';
   const companyName = company.display_name || company.name;
+  const fullCompanyName = company.name;
+  const taxNumber = company.tax_number || '';
 
   // Get address for location
   const c = company as any;
@@ -82,40 +86,63 @@ export function generateICSFile(
 
   const title = type === 'sestanek'
     ? `Sestanek - ${companyName}`
-    : type === 'ponudba'
-    ? `Poslati ponudbo - ${companyName}`
-    : `Poslati izris - ${companyName}`;
+    : `Poslati ponudbo - ${companyName}`;
 
-  const description = type === 'sestanek'
-    ? `Sestanek s stranko ${companyName}${contactName ? `\\nKontakt: ${contactName}` : ''}${primaryContact?.phone ? `\\nTel: ${primaryContact.phone}` : ''}`
-    : type === 'ponudba'
-    ? `Rok za pošiljanje ponudbe stranki ${companyName}`
-    : `Rok za pošiljanje izrisa stranki ${companyName}`;
+  // Build detailed description for Outlook
+  const descParts: string[] = [];
+  if (type === 'sestanek') {
+    descParts.push(`PODJETJE: ${fullCompanyName}`);
+    if (taxNumber) descParts.push(`Davčna: ${taxNumber}`);
+    if (contactName.trim()) descParts.push(`Kontakt: ${contactName}`);
+    if (contactPhone) descParts.push(`Tel: ${contactPhone}`);
+    if (contactEmail) descParts.push(`Email: ${contactEmail}`);
+    if (location) descParts.push(`Naslov: ${location}`);
+  } else {
+    descParts.push(`Rok za pošiljanje ponudbe stranki ${companyName}`);
+    if (contactEmail) descParts.push(`Email: ${contactEmail}`);
+  }
+  const description = descParts.join('\\n').replace(/,/g, '\\,');
 
-  const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Mat Tracker Pro//SL
-BEGIN:VEVENT
-UID:${Date.now()}@matpro.ristov.xyz
-DTSTAMP:${formatICSDate(new Date())}
-DTSTART:${formatICSDate(startDate)}
-DTEND:${formatICSDate(endDate)}
-SUMMARY:${title}
-DESCRIPTION:${description}
-LOCATION:${location}
-BEGIN:VALARM
-TRIGGER:-PT30M
-ACTION:DISPLAY
-DESCRIPTION:Reminder
-END:VALARM
-END:VEVENT
-END:VCALENDAR`;
+  const uid = `${type}-${Date.now()}@matpro.ristov.xyz`;
+
+  // Build ICS with CRLF line endings for Outlook compatibility
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Mat Tracker Pro//SL',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-MS-OLK-FORCEINSPECTOROPEN:TRUE',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${formatICSDate(new Date())}`,
+    `DTSTART:${formatICSDate(startDate)}`,
+    `DTEND:${formatICSDate(endDate)}`,
+    `SUMMARY:${title.replace(/,/g, '\\,')}`,
+    `DESCRIPTION:${description}`,
+    location ? `LOCATION:${location.replace(/,/g, '\\,')}` : '',
+    'SEQUENCE:0',
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+    'X-MICROSOFT-CDO-IMPORTANCE:1',
+    'X-MS-OLK-AUTOFILLLOCATION:FALSE',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Reminder',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean);
+
+  const icsContent = lines.join('\r\n');
 
   const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${type === 'sestanek' ? 'sestanek' : 'ponudba'}-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
+  link.download = `${type}-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -61,6 +61,8 @@ export interface Offer {
   items: OfferItem[];
 }
 
+export type InstitutionType = 'private' | 'public';
+
 export interface ContractItem {
   code: string;
   name: string;
@@ -96,6 +98,7 @@ export interface ContractFormData {
   serviceContactEmail: string;
   useSameAsService: boolean;
   contractType: 'new' | 'renewal';
+  institutionType: InstitutionType;
   items: ContractItem[];
   serviceStartDate: string;
   deliveryInstructions: string;
@@ -155,6 +158,7 @@ export const DEFAULT_FORM_DATA: ContractFormData = {
   serviceContactEmail: '',
   useSameAsService: true,
   contractType: 'new',
+  institutionType: 'private',
   items: [],
   serviceStartDate: new Date().toISOString().split('T')[0],
   deliveryInstructions: '',

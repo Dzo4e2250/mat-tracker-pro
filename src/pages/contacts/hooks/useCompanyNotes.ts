@@ -71,6 +71,8 @@ interface UseCompanyNotesReturn {
   addNoteMutation: ReturnType<typeof useMutation<CompanyNote, Error, AddNoteParams>>;
   deleteNoteMutation: ReturnType<typeof useMutation<void, Error, string>>;
   editNoteMutation: ReturnType<typeof useMutation<void, Error, { noteId: string; content: string; noteDate: string; activityCategory?: string | null; activitySubcategory?: string | null; appointmentType?: string | null; startTime?: string | null; endTime?: string | null }>>;
+  updateNoteDeadline: ReturnType<typeof useMutation<void, Error, { noteId: string; content: string; newDate: Date }>>;
+  markDeadlineDone: ReturnType<typeof useMutation<void, Error, { noteId: string; content: string }>>;
 }
 
 export function useCompanyNotes({

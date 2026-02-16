@@ -40,17 +40,19 @@ export function ApproveDialog({
   onApprove,
   isPending,
 }: ApproveDialogProps) {
-  const [approvedQuantity, setApprovedQuantity] = useState<number>(order?.quantity || 0);
+  const [approvedQuantity, setApprovedQuantity] = useState<string>(String(order?.quantity || ''));
 
   // Update quantity when order changes
-  if (order && approvedQuantity === 0) {
-    setApprovedQuantity(order.quantity);
+  if (order && approvedQuantity === '') {
+    setApprovedQuantity(String(order.quantity));
   }
 
   const handleClose = () => {
-    setApprovedQuantity(0);
+    setApprovedQuantity('');
     onClose();
   };
+
+  const quantityNum = parseInt(approvedQuantity) || 0;
 
   return (
     <Dialog open={!!order} onOpenChange={handleClose}>
@@ -86,10 +88,10 @@ export function ApproveDialog({
                 <Label htmlFor="approved_quantity">Odobrena količina</Label>
                 <Input
                   id="approved_quantity"
-                  type="number"
-                  min={1}
+                  type="text"
+                  inputMode="numeric"
                   value={approvedQuantity}
-                  onChange={(e) => setApprovedQuantity(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setApprovedQuantity(e.target.value.replace(/[^0-9]/g, ''))}
                 />
               </div>
             </>
@@ -100,8 +102,8 @@ export function ApproveDialog({
             Prekliči
           </Button>
           <Button
-            onClick={() => onApprove(approvedQuantity)}
-            disabled={isPending || approvedQuantity < 1 || !order?.salespersonPrefix}
+            onClick={() => onApprove(quantityNum)}
+            disabled={isPending || quantityNum < 1 || !order?.salespersonPrefix}
           >
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Odobri in generiraj kode

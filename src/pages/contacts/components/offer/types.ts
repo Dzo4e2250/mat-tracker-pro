@@ -56,6 +56,8 @@ export interface OfferItem {
   originalPrice?: number;
   discount?: number;
   replacementCost?: number;
+  // Per-item frequency override (when different from global)
+  frequencyOverride?: string;
   // Seasonal pricing fields
   seasonal?: boolean;
   // Normal period (obdobje 1)

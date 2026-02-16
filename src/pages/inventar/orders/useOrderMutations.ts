@@ -79,6 +79,9 @@ export function useApproveOrder(onSuccess?: () => void) {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['qr_codes'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['free_codes'] });
+      queryClient.invalidateQueries({ queryKey: ['qr_codes_with_cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['inventar', 'stats'] });
       toast({
         title: 'Naročilo odobreno',
         description: `Generirano ${data.generatedCodes.length} novih QR kod. Prodajalec jih lahko zdaj vidi.`,

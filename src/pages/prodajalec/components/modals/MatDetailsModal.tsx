@@ -305,12 +305,21 @@ export default function MatDetailsModal({
 
       <div className="space-y-2">
         {cycle.status === 'clean' && (
-          <button
-            onClick={onGoToPutOnTest}
-            className="w-full bg-blue-500 text-white py-2 rounded"
-          >
-            Daj na test
-          </button>
+          <>
+            <button
+              onClick={onGoToPutOnTest}
+              className="w-full bg-blue-500 text-white py-2 rounded"
+            >
+              Daj na test
+            </button>
+            <button
+              onClick={onMarkAsDirty}
+              disabled={isUpdatingStatus}
+              className="w-full bg-orange-500 text-white py-2 rounded disabled:opacity-50"
+            >
+              {isUpdatingStatus ? 'Shranjevanje...' : '📥 Dodaj med umazane'}
+            </button>
+          </>
         )}
         {cycle.status === 'on_test' && (
           <div className="space-y-2">

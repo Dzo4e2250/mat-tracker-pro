@@ -15,6 +15,7 @@ import {
   Loader2,
   Navigation,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
 import {
   useTravelLog,
@@ -23,6 +24,7 @@ import {
   useUpdateTravelLog,
   useBulkUpsertEntries,
   useMonthlyGpsData,
+  usePreviousMonthEndingOdometer,
   getDaysInMonth,
   formatDate,
   PURPOSE_LABELS,
@@ -71,23 +73,40 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Quick entry state
+  const todayStr = formatDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  const [quickDate, setQuickDate] = useState(todayStr);
+  const [quickRoute, setQuickRoute] = useState('');
+  const [quickOdometer, setQuickOdometer] = useState('');
+
   // Queries
   const { data: travelLog, isLoading: loadingLog } = useTravelLog(userId, selectedYear, selectedMonth);
   const { data: savedEntries, isLoading: loadingEntries } = useTravelLogEntries(travelLog?.id);
   const { data: gpsData } = useMonthlyGpsData(userId, selectedYear, selectedMonth);
+  const { data: prevMonthOdometer } = usePreviousMonthEndingOdometer(userId, selectedYear, selectedMonth);
 
   // Mutations
   const createTravelLog = useCreateTravelLog();
   const updateTravelLog = useUpdateTravelLog();
   const bulkUpsertEntries = useBulkUpsertEntries();
 
-  // Initialize entries when month changes or data loads
+  // Track which month has been initialized to avoid re-running on async data changes
+  const [initializedKey, setInitializedKey] = useState('');
+
+  // Initialize entries when month changes or initial data loads
   useEffect(() => {
+    const key = `${selectedYear}-${selectedMonth}`;
+    const dataReady = !loadingLog && !loadingEntries;
+
+    // Only initialize once per month, or when explicitly changing months
+    if (!dataReady) return;
+    if (initializedKey === key && hasChanges) return; // Don't overwrite unsaved changes
+
     const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
     const newEntries: DayEntry[] = [];
 
-    // Get previous month's ending odometer as starting point
-    let runningOdometer = travelLog?.starting_odometer || startingOdometer || 0;
+    const startOdo = travelLog?.starting_odometer || prevMonthOdometer || 0;
+    let runningOdometer = startOdo;
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = formatDate(selectedYear, selectedMonth, day);
@@ -125,15 +144,32 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
     }
 
     setEntries(newEntries);
+    setStartingOdometer(startOdo);
 
     // Set vehicle info from travel log
     if (travelLog) {
-      setStartingOdometer(travelLog.starting_odometer || 0);
       setVehicleBrand(travelLog.vehicle_brand || '');
       setVehicleRegistration(travelLog.vehicle_registration || '');
       setVehicleOwner(travelLog.vehicle_owner || '');
     }
-  }, [selectedYear, selectedMonth, travelLog, savedEntries, gpsData, startingOdometer]);
+
+    setInitializedKey(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, selectedMonth, travelLog, savedEntries, gpsData, prevMonthOdometer, loadingLog, loadingEntries]);
+
+  // Update GPS data without overwriting user entries
+  useEffect(() => {
+    if (!gpsData || entries.length === 0 || !initializedKey) return;
+    setEntries(prev => prev.map(entry => {
+      const dailyGps = gpsData.get(entry.date);
+      if (!dailyGps) return entry;
+      return {
+        ...entry,
+        gpsKm: Math.round(dailyGps.km * 10) / 10,
+        gpsRoute: dailyGps.route || entry.gpsRoute,
+      };
+    }));
+  }, [gpsData, initializedKey]); // Only depends on GPS data, not on entries
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -198,6 +234,51 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
       });
       setHasChanges(true);
     }
+  };
+
+  // Quick entry handler
+  const handleQuickAdd = () => {
+    if (!quickOdometer) {
+      toast({ description: 'Vnesi stanje števca', variant: 'destructive' });
+      return;
+    }
+
+    // Find the entry for the selected date
+    const entryIndex = entries.findIndex(e => e.date === quickDate);
+    if (entryIndex === -1) {
+      toast({ description: 'Datum ni v tem mesecu', variant: 'destructive' });
+      return;
+    }
+
+    const newOdometer = parseInt(quickOdometer);
+
+    // Find previous entry with odometer to calculate km
+    let prevOdometer = startingOdometer;
+    for (let i = entryIndex - 1; i >= 0; i--) {
+      if (entries[i].odometer > 0) {
+        prevOdometer = entries[i].odometer;
+        break;
+      }
+    }
+
+    const kmDriven = Math.max(0, newOdometer - prevOdometer);
+
+    setEntries(prev => {
+      const updated = [...prev];
+      updated[entryIndex] = {
+        ...updated[entryIndex],
+        route: quickRoute || updated[entryIndex].route,
+        kmBusiness: kmDriven,
+        odometer: newOdometer,
+        purpose: 'teren',
+      };
+      return recalculateOdometers(updated);
+    });
+
+    setHasChanges(true);
+    setQuickRoute('');
+    setQuickOdometer('');
+    toast({ description: `Dodano: ${kmDriven} km za ${quickDate}` });
   };
 
   // Navigate months
@@ -317,6 +398,52 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
         </div>
       </div>
 
+      {/* Quick entry */}
+      <div className="bg-blue-50 rounded-lg shadow p-4 space-y-3 border-2 border-blue-200">
+        <h3 className="font-medium flex items-center gap-2 text-blue-700">
+          <Plus size={18} />
+          Hitri vnos
+        </h3>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-xs text-gray-500">Datum</label>
+            <input
+              type="date"
+              value={quickDate}
+              onChange={(e) => setQuickDate(e.target.value)}
+              className="w-full p-2 border rounded-lg text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Mesta</label>
+            <input
+              type="text"
+              value={quickRoute}
+              onChange={(e) => setQuickRoute(e.target.value)}
+              placeholder="lj-mb-lj"
+              className="w-full p-2 border rounded-lg text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Števec</label>
+            <input
+              type="number"
+              value={quickOdometer}
+              onChange={(e) => setQuickOdometer(e.target.value)}
+              placeholder="112500"
+              className="w-full p-2 border rounded-lg text-sm"
+            />
+          </div>
+        </div>
+        <button
+          onClick={handleQuickAdd}
+          className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
+        >
+          <Plus size={18} />
+          Dodaj
+        </button>
+      </div>
+
       {/* Vehicle info & starting odometer */}
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
         <h3 className="font-medium flex items-center gap-2">
@@ -358,10 +485,11 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
         <div>
           <label className="text-xs text-gray-500">Začetno stanje števca</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={startingOdometer || ''}
             onChange={(e) => {
-              const val = parseInt(e.target.value) || 0;
+              const val = e.target.value === '' ? 0 : parseInt(e.target.value.replace(/[^0-9]/g, ''));
               setStartingOdometer(val);
               setEntries(prev => recalculateOdometers(prev.map((e, i) => i === 0 ? { ...e } : e)));
               setHasChanges(true);
@@ -478,20 +606,20 @@ export default function TravelLogView({ userId }: TravelLogViewProps) {
                       </td>
                       <td className="px-2 py-1.5">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={entry.kmBusiness || ''}
-                          onChange={(e) => updateEntry(index, 'kmBusiness', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateEntry(index, 'kmBusiness', e.target.value === '' ? 0 : parseInt(e.target.value.replace(/[^0-9]/g, '')))}
                           className="w-14 p-1 border rounded text-xs text-right"
-                          min="0"
                         />
                       </td>
                       <td className="px-2 py-1.5">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={entry.kmPrivate || ''}
-                          onChange={(e) => updateEntry(index, 'kmPrivate', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateEntry(index, 'kmPrivate', e.target.value === '' ? 0 : parseInt(e.target.value.replace(/[^0-9]/g, '')))}
                           className="w-14 p-1 border rounded text-xs text-right"
-                          min="0"
                         />
                       </td>
                       <td className="px-2 py-1.5 text-right font-mono text-xs text-gray-500">

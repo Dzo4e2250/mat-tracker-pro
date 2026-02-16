@@ -37,8 +37,8 @@ export default function QRKode() {
 
   // State
   const [newCodeCount, setNewCodeCount] = useState(1);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [printOption, setPrintOption] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<string>('inactive');
+  const [printOption, setPrintOption] = useState('inactive');
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(50);
   const [qrPerRow, setQrPerRow] = useState(3);
@@ -69,6 +69,9 @@ export default function QRKode() {
   // Filtered codes
   const filteredCodes = qrCodes.filter((code) => {
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'inactive') {
+      return (code.status === 'available' || code.status === 'pending') && !code.active_cycle;
+    }
     return getCodeStatus(code) === filterStatus;
   });
 
@@ -110,9 +113,18 @@ export default function QRKode() {
     printCodesList(filteredCodes, `${selectedSeller.first_name} ${selectedSeller.last_name}`, selectedSeller.code_prefix, stats);
   };
 
+  // Inactive codes for printing (available/pending WITHOUT active cycle)
+  const inactiveCodes = useMemo(() =>
+    qrCodes.filter((c) =>
+      (c.status === 'available' || c.status === 'pending') && !c.active_cycle
+    ),
+    [qrCodes]
+  );
+
   // Print codes
   const getPrintQrCodes = () => {
     if (!selectedSeller?.code_prefix) return [];
+    if (printOption === 'inactive') return inactiveCodes.map((c) => c.code);
     const allCodes = freeCodes.map((c) => c.code);
     if (printOption === 'all') return allCodes;
     if (printOption === 'range') {
@@ -255,6 +267,7 @@ export default function QRKode() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">Vse</SelectItem>
+                              <SelectItem value="inactive">Neaktivne</SelectItem>
                               <SelectItem value="available">Proste</SelectItem>
                               <SelectItem value="pending">Naročene</SelectItem>
                               <SelectItem value="clean">Čiste</SelectItem>
@@ -400,6 +413,10 @@ export default function QRKode() {
                       <div className="space-y-3">
                         <Label>Možnost tiskanja</Label>
                         <RadioGroup value={printOption} onValueChange={setPrintOption}>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="inactive" id="inactive" />
+                            <Label htmlFor="inactive" className="cursor-pointer">Neaktivne kode ({inactiveCodes.length})</Label>
+                          </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="all" id="all" />
                             <Label htmlFor="all" className="cursor-pointer">Vse proste kode ({freeCodes.length})</Label>

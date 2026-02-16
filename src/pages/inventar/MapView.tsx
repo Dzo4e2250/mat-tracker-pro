@@ -1,16 +1,27 @@
-import { useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
+import { useState, useMemo, useRef } from 'react';
+import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { InventarSidebar } from '@/components/InventarSidebar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Map, RefreshCw, Route, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Map, RefreshCw, Route, Pencil, Trash2, Search, X } from 'lucide-react';
 import { useRouteOptimization, RoutePoint } from '@/hooks/useRouteOptimization';
-import { useMapLocations, groupLocationsByProximity } from '@/hooks/useMapLocations';
+import { useMapLocations, groupLocationsByProximity, MapLocation } from '@/hooks/useMapLocations';
 import { useProfilesByRole } from '@/hooks/useProfiles';
 import { useDriverPickups } from '@/hooks/useDriverPickups';
 import { MapMarker, ClusterMarker } from '@/components/MapMarker';
 import 'leaflet/dist/leaflet.css';
+
+// Component to fly to a location
+function FlyToLocation({ location }: { location: MapLocation | null }) {
+  const map = useMap();
+
+  if (location) {
+    map.flyTo([location.lat, location.lng], 16, { duration: 1 });
+  }
+
+  return null;
+}
 
 // Fix for default marker icons in react-leaflet
 import L from 'leaflet';
@@ -182,6 +193,30 @@ export default function MapView() {
   // Route panel visibility
   const [showRoutePanel, setShowRoutePanel] = useState(false);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [flyToLocation, setFlyToLocation] = useState<MapLocation | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Search results - filter all locations by company name
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || !locations) return [];
+    const query = searchQuery.toLowerCase();
+    return locations
+      .filter(loc =>
+        loc.companyName?.toLowerCase().includes(query) ||
+        loc.qrCode?.toLowerCase().includes(query)
+      )
+      .slice(0, 10); // Limit to 10 results
+  }, [searchQuery, locations]);
+
+  const handleSelectSearchResult = (loc: MapLocation) => {
+    setFlyToLocation(loc);
+    setSearchQuery('');
+    // Reset flyToLocation after animation
+    setTimeout(() => setFlyToLocation(null), 1500);
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -196,6 +231,56 @@ export default function MapView() {
                 <h1 className="text-2xl font-bold text-gray-900">
                   Zemljevid predpražnikov
                 </h1>
+
+                {/* Search input */}
+                <div className="relative ml-4">
+                  <div className="flex items-center">
+                    <Search className="absolute left-3 h-4 w-4 text-gray-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Išči podjetje..."
+                      className="pl-9 pr-8 py-1.5 w-64 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search results dropdown */}
+                  {searchResults.length > 0 && (
+                    <div className="absolute top-full left-0 mt-1 w-80 bg-white border rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+                      {searchResults.map((loc) => (
+                        <button
+                          key={loc.cycleId}
+                          onClick={() => handleSelectSearchResult(loc)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-100 border-b last:border-b-0"
+                        >
+                          <div className="font-medium text-sm">{loc.companyName || 'Neznano'}</div>
+                          <div className="text-xs text-gray-500 flex justify-between">
+                            <span>{loc.qrCode}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-white text-xs ${
+                              loc.status === 'on_test' ? 'bg-blue-500' :
+                              loc.status === 'contract_signed' ? 'bg-green-500' :
+                              loc.status === 'waiting_driver' ? 'bg-purple-500' : 'bg-red-500'
+                            }`}>
+                              {loc.status === 'on_test' ? 'Na testu' :
+                               loc.status === 'contract_signed' ? 'Pogodba' :
+                               loc.status === 'waiting_driver' ? 'Čaka' : 'Umazan'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -302,6 +387,9 @@ export default function MapView() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
+
+                      {/* Fly to searched location */}
+                      <FlyToLocation location={flyToLocation} />
 
                       {/* Drawing layer */}
                       <DrawingLayer

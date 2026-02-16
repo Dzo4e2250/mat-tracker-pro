@@ -4,7 +4,7 @@
  * @version 4.0 - Fully modular
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -12,6 +12,7 @@ import {
   useContractPendingCompanies, useMarkContractCalled, useMarkContractReceived, usePostponeContractFollowup,
   useOfferPendingCompanies, useCreateOfferFollowup, useOfferResponseContract, useOfferResponseNeedsTime,
   useOfferResponseNoInterest, useOfferNoResponse, useMarkOfferCalled, useOfferCallNotReachable,
+  useHandleOfferResponse,
   PIPELINE_STATUSES
 } from '@/hooks/useReminders';
 import { useCompanyContacts, useCompanyDetails } from '@/hooks/useCompanyContacts';
@@ -30,7 +31,9 @@ import {
   ContactsHeader,
   CompanyList,
   ContactsModals,
+  OfferResponseModal,
 } from '@/pages/contacts/components';
+import type { OfferResponseType } from '@/pages/contacts/components';
 
 // Hooks
 import {
@@ -81,6 +84,22 @@ export default function Contacts() {
   const offerNoResponse = useOfferNoResponse();
   const markOfferCalled = useMarkOfferCalled();
   const offerCallNotReachable = useOfferCallNotReachable();
+  const handleOfferResponse = useHandleOfferResponse();
+
+  // Offer response modal state
+  const [offerResponseModal, setOfferResponseModal] = useState<{
+    isOpen: boolean;
+    companyId: string;
+    companyName: string;
+    reminderId: string;
+    reminderType: string;
+  }>({
+    isOpen: false,
+    companyId: '',
+    companyName: '',
+    reminderId: '',
+    reminderType: '',
+  });
 
   // "Ni interesa" companies
   const { data: noInterestCompanyIds } = useQuery({
@@ -153,6 +172,7 @@ export default function Contacts() {
     reminderDate: modals.reminderState.date,
     reminderTime: modals.reminderState.time,
     reminderNote: modals.reminderState.note,
+    reminderCreateTask: modals.reminderState.createTask,
     setShowReminderModal: modals.setShowReminderModal,
     setReminderCompanyId: (id) => modals.setReminderState(prev => ({ ...prev, companyId: id })),
     setReminderDate: (date) => modals.setReminderState(prev => ({ ...prev, date })),
@@ -199,6 +219,7 @@ export default function Contacts() {
     deleteCompany: actions.deleteCompany,
     newNoteContent: modals.newNoteContent,
     newNoteDate: modals.newNoteDate,
+    setNewNoteContent: modals.setNewNoteContent,
     meetingType: modals.meetingState.type,
     meetingDate: modals.meetingState.date,
     meetingTime: modals.meetingState.time,
@@ -459,6 +480,47 @@ Lep pozdrav,
 
             } catch {
               toast({ description: 'Napaka pri pošiljanju emaila', variant: 'destructive' });
+            }
+          }}
+          onOfferResponseClick={(companyId, companyName, reminderId, reminderType) => {
+            setOfferResponseModal({
+              isOpen: true,
+              companyId,
+              companyName,
+              reminderId,
+              reminderType,
+            });
+          }}
+        />
+
+        {/* Offer Response Modal */}
+        <OfferResponseModal
+          isOpen={offerResponseModal.isOpen}
+          onClose={() => setOfferResponseModal(prev => ({ ...prev, isOpen: false }))}
+          companyName={offerResponseModal.companyName}
+          onSubmit={async (response) => {
+            try {
+              await handleOfferResponse.mutateAsync({
+                companyId: offerResponseModal.companyId,
+                userId: user?.id || '',
+                reminderId: offerResponseModal.reminderId,
+                action: response.type,
+                note: response.note,
+                followupDays: response.followupDays,
+              });
+
+              // Toast based on action
+              if (response.type === 'wants_contract') {
+                toast({ description: 'Stranka želi pogodbo - status posodobljen!' });
+              } else if (response.type === 'no_interest_close' || response.type === 'too_expensive_close') {
+                toast({ description: 'Zabeleženo - podjetje vrnjeno v "Kontaktiran"' });
+              } else if (response.followupDays) {
+                toast({ description: `Opomnik ustvarjen za čez ${response.followupDays} dni` });
+              } else {
+                toast({ description: 'Opomba shranjena' });
+              }
+            } catch {
+              toast({ description: 'Napaka pri shranjevanju', variant: 'destructive' });
             }
           }}
         />

@@ -182,12 +182,12 @@ export function useSalespersonSummaries(dateRange: DateRange) {
     queryFn: async (): Promise<SalespersonSummary[]> => {
       const { fromStr, toStr } = getDateRangeStrings(dateRange);
 
-      // Get all active salespeople
+      // Get all active salespeople (including those with secondary_role = prodajalec)
       const { data: sellers } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, code_prefix')
-        .eq('role', 'prodajalec')
-        .eq('is_active', true);
+        .select('id, first_name, last_name, code_prefix, role, secondary_role')
+        .eq('is_active', true)
+        .or('role.eq.prodajalec,secondary_role.eq.prodajalec');
 
       if (!sellers) return [];
 

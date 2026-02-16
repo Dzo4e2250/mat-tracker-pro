@@ -5,7 +5,7 @@
 
 import { X, Calendar } from 'lucide-react';
 
-type MeetingType = 'sestanek' | 'ponudba' | 'izris';
+type MeetingType = 'sestanek' | 'ponudba';
 
 interface MeetingModalProps {
   type: MeetingType;
@@ -41,7 +41,6 @@ export default function MeetingModal({
     switch (type) {
       case 'sestanek': return 'Dogovorjen sestanek';
       case 'ponudba': return 'Pošlji ponudbo do';
-      case 'izris': return 'Pošlji izris do';
       default: return 'Opomnik';
     }
   };
@@ -50,7 +49,6 @@ export default function MeetingModal({
     switch (type) {
       case 'sestanek': return `Dogovorjen sestanek za ${formattedDate} ob ${time}`;
       case 'ponudba': return `Pošlji ponudbo do ${formattedDate}`;
-      case 'izris': return `Pošlji izris do ${formattedDate}`;
       default: return `Opomnik za ${formattedDate}`;
     }
   };

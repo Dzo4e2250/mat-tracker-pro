@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export type MapMarkerStatus = 'on_test' | 'contract_signed' | 'waiting_driver' | 'dirty';
+export type MapMarkerStatus = 'on_test' | 'contract_signed' | 'waiting_driver' | 'dirty' | 'completed';
 
 export interface MapLocation {
   cycleId: string;
@@ -30,12 +30,13 @@ export interface MapLocationGroup {
 }
 
 // Helper to determine the marker status
-// PRIORITETA: contract_signed (zelena) > waiting_driver (vijolična) > dirty > on_test
+// PRIORITETA: contract_signed (zelena) > waiting_driver (vijolična) > dirty/completed > on_test
 function getMarkerStatus(cycle: any): MapMarkerStatus {
   // Pogodba podpisana ima najvišjo prioriteto - zelena
   if (cycle.contract_signed) return 'contract_signed';
   if (cycle.status === 'waiting_driver') return 'waiting_driver';
-  if (cycle.status === 'dirty') return 'dirty';
+  // dirty, completed, picked_up = neuspeli prospect (siva/rdeča)
+  if (cycle.status === 'dirty' || cycle.status === 'completed' || cycle.status === 'picked_up') return 'completed';
   return 'on_test';
 }
 
@@ -69,11 +70,15 @@ export function useMapLocations(filters?: {
         .not('location_lng', 'is', null);
 
       // Določi katere statuse prikazati
+      // POMEMBNO: contract_signed je ločeno boolean polje, ne del status enuma
+      // Zato moramo uporabiti OR pogoj za vključitev podpisanih pogodb
+      // includeDirty vključuje tudi completed/picked_up - to so neuspeli prospecti (potencialne stranke)
       const statusesToShow = filters?.includeDirty
-        ? ['on_test', 'waiting_driver', 'dirty']
+        ? ['on_test', 'waiting_driver', 'dirty', 'completed', 'picked_up']
         : ['on_test', 'waiting_driver'];
 
-      query = query.in('status', statusesToShow);
+      // Vključi cikle z ustreznim statusom ALI s podpisano pogodbo
+      query = query.or(`status.in.(${statusesToShow.join(',')}),contract_signed.eq.true`);
 
       // Filter by salesperson if specified
       if (filters?.salespersonId) {
@@ -81,7 +86,6 @@ export function useMapLocations(filters?: {
       }
 
       const { data, error } = await query;
-
 
       if (error) {
         // Error handled
@@ -188,8 +192,8 @@ export function getMarkerColor(status: MapMarkerStatus): string {
       return '#22C55E'; // Green
     case 'waiting_driver':
       return '#8B5CF6'; // Violet
-    case 'dirty':
-      return '#EF4444'; // Red
+    case 'completed':
+      return '#EF4444'; // Red - neuspeli prospect
     default:
       return '#6B7280'; // Gray
   }
@@ -204,7 +208,7 @@ export function getStatusLabel(status: MapMarkerStatus): string {
       return 'Pogodba podpisana';
     case 'waiting_driver':
       return 'Čaka na prevzem';
-    case 'dirty':
+    case 'completed':
       return 'Neuspeli prospect';
     default:
       return 'Neznan status';

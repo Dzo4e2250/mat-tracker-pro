@@ -1,13 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.0';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://matpro.reitti.cloud',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      headers: { 
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      } 
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     if (roleError || !roleData || (roleData.role !== 'ADMIN' && roleData.role !== 'INVENTAR')) {
       return new Response(
         JSON.stringify({ error: 'Only ADMIN and INVENTAR users can delete users' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     if (!user_id) {
       return new Response(
         JSON.stringify({ error: 'Missing user_id' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     if (user_id === user.id) {
       return new Response(
         JSON.stringify({ error: 'Ne morete izbrisati svojega računa' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -144,13 +144,13 @@ Deno.serve(async (req) => {
       console.error('Error deleting user:', deleteError);
       return new Response(
         JSON.stringify({ error: deleteError.message }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
       JSON.stringify({ message: 'Uporabnik uspešno izbrisan' }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

@@ -5,7 +5,7 @@
 
 import { PDFDocument, rgb, PDFFont, PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { ContractFormData } from './types';
+import type { ContractFormData, InstitutionType } from './types';
 
 // Debug/calibration mode - set to true to show coordinate grid
 const DEBUG_COORDINATES = false;
@@ -165,12 +165,20 @@ function drawDebugGrid(page: PDFPage, font: PDFFont, height: number, width: numb
   }
 }
 
+interface SellerInfo {
+  fullName: string;
+  signatureUrl?: string | null;
+}
+
 export async function generateContractPdf(
   formData: ContractFormData,
-  parentCompany?: { id: string; name: string } | null
+  parentCompany?: { id: string; name: string } | null,
+  sellerInfo?: SellerInfo | null
 ): Promise<Blob> {
-  // Load the PDF template
-  const templateUrl = '/pogodba-template.pdf';
+  // Load the PDF template based on institution type
+  const templateUrl = formData.institutionType === 'public'
+    ? '/pogodba-template-javna.pdf'
+    : '/pogodba-template.pdf';
   const templateResponse = await fetch(templateUrl);
   const templateArrayBuffer = await templateResponse.arrayBuffer();
 
@@ -207,13 +215,13 @@ export async function generateContractPdf(
   const col2X = 245;
   const col3X = 400;
 
-  // Row Y positions
-  const row1Y = 143;
-  const row2Y = 170;
-  const row3Y = 195;
-  const row4Y = 220;
-  const row5Y = 250;
-  const checkboxY = 265;
+  // Row Y positions (adjusted +3 for 2026 template)
+  const row1Y = 146;
+  const row2Y = 173;
+  const row3Y = 198;
+  const row4Y = 223;
+  const row5Y = 253;
+  const checkboxY = 268;
 
   // Company info
   drawText(page1, formData.companyName || '', col1X, row1Y, helpers);
@@ -248,8 +256,8 @@ export async function generateContractPdf(
   drawCheckbox(page1, 53, checkboxY, formData.contractType === 'new', helpers);
   drawCheckbox(page1, 135, checkboxY - 4, formData.contractType === 'renewal', helpers);
 
-  // Items table
-  const itemsStartY = 385;
+  // Items table (adjusted +3 for 2026 template)
+  const itemsStartY = 388;
   const itemRowHeight = 17;
   const itemCols = {
     koda: 25,
@@ -267,7 +275,7 @@ export async function generateContractPdf(
     const rowOffsets = [0, 2.5, 5, 8.5, 8.5, 8.5, 8.5];
     const y = itemsStartY + (index * itemRowHeight) + (rowOffsets[index] || 0);
 
-    drawText(page1, item.code || '', itemCols.koda, y, helpers, smallFontSize);
+    drawText(page1, item.customized ? '' : (item.code || ''), itemCols.koda, y, helpers, smallFontSize);
 
     const naziv = item.name || 'Predpražnik';
     if (naziv.length > 12) {
@@ -290,13 +298,13 @@ export async function generateContractPdf(
   });
 
   // Additional fields
-  drawText(page1, formData.serviceStartDate ? new Date(formData.serviceStartDate).toLocaleDateString('sl-SI') : '', 225, 555, helpers);
-  drawWrappedText(page1, formData.deliveryInstructions || '', 225, 570, 505, 10, helpers);
-  drawText(page1, formData.workingHours || '', 270, 615, helpers);
-  drawText(page1, formData.doorCode || '', 250, 632, helpers);
-  drawCheckbox(page1, 400, 630, formData.hasKey === 'yes', helpers);
-  drawCheckbox(page1, 420, 631, formData.hasKey === 'no', helpers);
-  drawWrappedText(page1, formData.additionalInfo || '', 225, 650, 505, 10, helpers);
+  drawText(page1, formData.serviceStartDate ? new Date(formData.serviceStartDate).toLocaleDateString('sl-SI') : '', 225, 526, helpers);
+  drawWrappedText(page1, formData.deliveryInstructions || '', 225, 541, 505, 10, helpers);
+  drawText(page1, formData.workingHours || '', 268, 586, helpers);
+  drawText(page1, formData.doorCode || '', 250, 602, helpers);
+  drawCheckbox(page1, 400, 601, formData.hasKey === 'yes', helpers);
+  drawCheckbox(page1, 420, 602, formData.hasKey === 'no', helpers);
+  drawWrappedText(page1, formData.additionalInfo || '', 225, 621, 505, 10, helpers);
 
   // Page 2 - Payment section
   const page2Height = page2.getSize().height;
@@ -329,11 +337,64 @@ export async function generateContractPdf(
     }
   };
 
-  drawCheckboxPage2(259, 508, formData.paperInvoice);
-  drawTextPage2(formData.bankTransfer || '', 260, 525);
-  drawTextPage2(formData.eInvoice || '', 260, 542);
-  drawTextPage2(formData.emailInvoice || '', 260, 559);
-  drawTextPage2(formData.referenceNumber || '', 260, 576);
+  drawCheckboxPage2(259, 496, formData.paperInvoice);
+  drawTextPage2(formData.bankTransfer || '', 260, 513);
+  drawTextPage2(formData.eInvoice || '', 260, 532);
+  drawTextPage2(formData.emailInvoice || '', 260, 549);
+  drawTextPage2(formData.referenceNumber || '', 260, 566);
+
+  // Seller signature section on page 2 (right side)
+  if (sellerInfo) {
+    const sigX = 335;
+
+    // Date
+    const dateStr = new Date().toLocaleDateString('sl-SI');
+    drawTextPage2(dateStr, sigX + 5, 710, fontSize);
+
+    // Signature image
+    if (sellerInfo.signatureUrl) {
+      try {
+        const sigResponse = await fetch(sellerInfo.signatureUrl);
+        const sigBytes = await sigResponse.arrayBuffer();
+        const contentType = sigResponse.headers.get('content-type') || '';
+
+        let sigImage;
+        if (contentType.includes('png')) {
+          sigImage = await pdfDoc.embedPng(sigBytes);
+        } else {
+          sigImage = await pdfDoc.embedJpg(sigBytes);
+        }
+
+        const sigMaxWidth = 160;
+        const sigMaxHeight = 70;
+        const sigAspect = sigImage.width / sigImage.height;
+        let sigWidth = sigMaxWidth;
+        let sigHeight = sigWidth / sigAspect;
+        if (sigHeight > sigMaxHeight) {
+          sigHeight = sigMaxHeight;
+          sigWidth = sigHeight * sigAspect;
+        }
+
+        page2.drawImage(sigImage, {
+          x: sigX + 50,
+          y: page2Height - 680 - sigHeight,
+          width: sigWidth,
+          height: sigHeight,
+        });
+      } catch (e) {
+        // Signature image failed to load - skip silently
+      }
+    }
+
+    // Seller name below signature
+    page2.drawText(sellerInfo.fullName, {
+      x: sigX + 3,
+      y: page2Height - 746,
+      size: fontSize + 2,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+  }
 
   const pdfBytes = await pdfDoc.save();
   return new Blob([pdfBytes], { type: 'application/pdf' });
@@ -342,9 +403,10 @@ export async function generateContractPdf(
 export function useContractPdf() {
   const generatePdf = async (
     formData: ContractFormData,
-    parentCompany?: { id: string; name: string } | null
+    parentCompany?: { id: string; name: string } | null,
+    sellerInfo?: SellerInfo | null
   ): Promise<Blob> => {
-    return generateContractPdf(formData, parentCompany);
+    return generateContractPdf(formData, parentCompany, sellerInfo);
   };
 
   const downloadPdf = (blob: Blob, fileName: string) => {

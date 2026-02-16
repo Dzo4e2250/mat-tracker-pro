@@ -15,6 +15,11 @@ import {
   getPriceCategoryLabel,
   OptibrushConfig,
 } from '@/hooks/useOptibrushPrices';
+import {
+  useOptibrushPricesFromDB,
+  usePriceSettings,
+  calculateOptibrushPriceFromDB,
+} from '@/hooks/usePrices';
 
 interface WeekOption {
   value: number;
@@ -51,6 +56,7 @@ interface OfferItemsNajemStepProps {
   onDiscountChange: (itemId: string, discount: number) => void;
   onReplacementCostChange: (itemId: string, cost: number) => void;
   onCustomizedChange: (itemId: string, customized: boolean) => void;
+  onFrequencyOverride: (itemId: string, frequency: string | undefined) => void;
   onSeasonalToggle: (itemId: string, seasonal: boolean) => void;
   onOptibrushChange: (itemId: string, updates: Partial<OfferItem>) => void;
   // Seasonal callbacks
@@ -91,6 +97,7 @@ export default function OfferItemsNajemStep({
   onDiscountChange,
   onReplacementCostChange,
   onCustomizedChange,
+  onFrequencyOverride,
   onSeasonalToggle,
   onOptibrushChange,
   onNormalFrequencyChange,
@@ -109,6 +116,10 @@ export default function OfferItemsNajemStep({
   onNext,
   calculateTotals,
 }: OfferItemsNajemStepProps) {
+  // Fetch optibrush prices from DB
+  const { data: optibrushPricesDB } = useOptibrushPricesFromDB();
+  const { data: priceSettings } = usePriceSettings();
+
   // Validation - different for optibrush items
   const isValid = !items.some(i => {
     if (i.itemType === 'optibrush') {
@@ -132,10 +143,41 @@ export default function OfferItemsNajemStep({
     heightCm: item.optibrushHeightCm || 0,
   });
 
+  // Izračunaj optibrush ceno - uporabi DB cene če so na voljo
   const calculateOptibrush = (item: OfferItem) => {
     if (item.itemType !== 'optibrush') return null;
     if (!item.optibrushWidthCm || !item.optibrushHeightCm) return null;
-    return calculateOptibrushPrice(getOptibrushConfig(item));
+
+    const config = getOptibrushConfig(item);
+    const m2 = (config.widthCm * config.heightCm) / 10000;
+    const isStandard = config.hasEdge && OPTIBRUSH_STANDARD_SIZES.some(
+      s => (s.width === config.widthCm && s.height === config.heightCm) ||
+           (s.width === config.heightCm && s.height === config.widthCm)
+    );
+    const isLarge = m2 > 7.5;
+
+    // Try DB calculation first
+    if (optibrushPricesDB && priceSettings) {
+      const dbResult = calculateOptibrushPriceFromDB(
+        optibrushPricesDB,
+        {
+          hasEdge: config.hasEdge,
+          hasDrainage: config.hasDrainage,
+          isStandard,
+          isLarge,
+          colorCount: config.colorCount,
+          m2,
+          specialShape: config.specialShape,
+        },
+        priceSettings
+      );
+      if (dbResult) {
+        return { ...dbResult, m2: Math.round(m2 * 100) / 100 };
+      }
+    }
+
+    // Fallback to local calculation
+    return calculateOptibrushPrice(config);
   };
 
   // Ref za sledenje prejšnjim vrednostim da preprečimo nepotrebne update-e
@@ -158,7 +200,7 @@ export default function OfferItemsNajemStep({
       if (item.itemType !== 'optibrush') return;
       if (!item.optibrushWidthCm || !item.optibrushHeightCm) return;
 
-      const calc = calculateOptibrushPrice(getOptibrushConfig(item));
+      const calc = calculateOptibrush(item);
 
       if (calc && calc.totalPrice !== item.pricePerUnit) {
         const sizeStr = `${item.optibrushWidthCm}x${item.optibrushHeightCm}`;
@@ -172,7 +214,7 @@ export default function OfferItemsNajemStep({
         });
       }
     });
-  }, [items, onOptibrushChange]);
+  }, [items, onOptibrushChange, optibrushPricesDB, priceSettings]);
 
   const getHeaderText = () => {
     if (offerType === 'primerjava') return 'Artikli (najem + nakup)';
@@ -184,6 +226,9 @@ export default function OfferItemsNajemStep({
     <div className="space-y-4">
       <div className="bg-blue-50 p-2 rounded text-sm text-center font-medium">
         🔄 {getHeaderText()} - menjava na {offerFrequency} {offerFrequency === '1' ? 'teden' : 'tedne'}
+        {items.some(i => i.frequencyOverride && i.purpose !== 'nakup') && (
+          <span className="text-amber-600 ml-1">(+ individualne)</span>
+        )}
       </div>
 
       <div className="space-y-3 max-h-[40vh] overflow-y-auto">
@@ -269,7 +314,7 @@ export default function OfferItemsNajemStep({
                   />
                   {item.m2 && item.m2 > 0 && (
                     <div className={`text-xs mt-1 ${item.specialShape ? 'text-purple-600' : 'text-gray-500'}`}>
-                      📐 {item.m2.toFixed(2)} m² {item.specialShape && '× 1.5'} {item.purpose === 'nakup' ? `× 165€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
+                      📐 {item.m2.toFixed(2)} m² {item.specialShape && `× ${priceSettings?.special_shape_multiplier || 1.5}`} {item.purpose === 'nakup' ? `× ${priceSettings?.design_purchase_price_per_m2 || 165}€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
                     </div>
                   )}
                 </div>
@@ -299,6 +344,24 @@ export default function OfferItemsNajemStep({
             {/* NAJEM fields */}
             {item.purpose !== 'nakup' && (
               <>
+                {/* Per-item frequency override */}
+                {!item.seasonal && (
+                  <div>
+                    <label className="block text-xs text-gray-500">Frekvenca menjave</label>
+                    <select
+                      value={item.frequencyOverride || ''}
+                      onChange={(e) => onFrequencyOverride(item.id, e.target.value || undefined)}
+                      className={`w-full p-2 border rounded text-sm ${item.frequencyOverride ? 'border-amber-400 bg-amber-50 font-medium' : ''}`}
+                    >
+                      <option value="">Globalna ({offerFrequency} {offerFrequency === '1' ? 't.' : 't.'})</option>
+                      <option value="1">1 teden</option>
+                      <option value="2">2 tedna</option>
+                      <option value="3">3 tedne</option>
+                      <option value="4">4 tedne</option>
+                    </select>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-xs text-gray-500">Količina</label>
@@ -342,7 +405,7 @@ export default function OfferItemsNajemStep({
                       min="0"
                       max="100"
                       value={item.discount || ''}
-                      onChange={(e) => onDiscountChange(item.id, parseInt(e.target.value) || 0)}
+                      onChange={(e) => onDiscountChange(item.id, e.target.value === '' ? 0 : parseInt(e.target.value))}
                       className="w-full p-2 border rounded text-sm"
                       placeholder="0"
                     />
@@ -446,7 +509,7 @@ export default function OfferItemsNajemStep({
                           min="0"
                           max="100"
                           value={item.normalDiscount || ''}
-                          onChange={(e) => onNormalDiscountChange(item.id, parseInt(e.target.value) || 0)}
+                          onChange={(e) => onNormalDiscountChange(item.id, e.target.value === '' ? 0 : parseInt(e.target.value))}
                           className="w-full p-2 border border-blue-300 rounded text-sm bg-white"
                           placeholder="0"
                         />
@@ -514,7 +577,7 @@ export default function OfferItemsNajemStep({
                           min="0"
                           max="100"
                           value={item.seasonalDiscount || ''}
-                          onChange={(e) => onSeasonalDiscountChange(item.id, parseInt(e.target.value) || 0)}
+                          onChange={(e) => onSeasonalDiscountChange(item.id, e.target.value === '' ? 0 : parseInt(e.target.value))}
                           className="w-full p-2 border border-orange-300 rounded text-sm bg-white"
                           placeholder="0"
                         />
@@ -613,7 +676,7 @@ export default function OfferItemsNajemStep({
                                       <input
                                         type="number"
                                         value={item.optibrushWidthCm || ''}
-                                        onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: parseInt(e.target.value) || 0 })}
+                                        onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                                         className="w-full p-2 border rounded text-sm"
                                         placeholder="cm"
                                       />
@@ -623,7 +686,7 @@ export default function OfferItemsNajemStep({
                                       <input
                                         type="number"
                                         value={item.optibrushHeightCm || ''}
-                                        onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: parseInt(e.target.value) || 0 })}
+                                        onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                                         className="w-full p-2 border rounded text-sm"
                                         placeholder="cm"
                                       />
@@ -642,7 +705,7 @@ export default function OfferItemsNajemStep({
                             <input
                               type="number"
                               value={item.optibrushWidthCm || ''}
-                              onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: parseInt(e.target.value) || 0 })}
+                              onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                               className="w-full p-2 border rounded text-sm"
                               placeholder="cm"
                             />
@@ -652,7 +715,7 @@ export default function OfferItemsNajemStep({
                             <input
                               type="number"
                               value={item.optibrushHeightCm || ''}
-                              onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: parseInt(e.target.value) || 0 })}
+                              onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                               className="w-full p-2 border rounded text-sm"
                               placeholder="cm"
                             />

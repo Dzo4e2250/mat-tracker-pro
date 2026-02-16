@@ -3,14 +3,14 @@
  * @description Header za prodajalec dashboard
  */
 
-import { Menu, Navigation } from 'lucide-react';
+import { Menu, Car } from 'lucide-react';
 
 interface ProdajalecHeaderProps {
   firstName?: string;
   lastName?: string;
   view: string;
   onMenuOpen: () => void;
-  onTrackingView: () => void;
+  onTravelView: () => void;
 }
 
 export default function ProdajalecHeader({
@@ -18,7 +18,7 @@ export default function ProdajalecHeader({
   lastName,
   view,
   onMenuOpen,
-  onTrackingView,
+  onTravelView,
 }: ProdajalecHeaderProps) {
   return (
     <div className="bg-blue-600 text-white p-4 shadow">
@@ -37,13 +37,13 @@ export default function ProdajalecHeader({
           </div>
         </div>
         <button
-          onClick={onTrackingView}
-          className={`p-2 rounded flex items-center gap-1 ${view === 'tracking' ? 'bg-blue-700' : 'hover:bg-blue-700'}`}
-          title="Moja pot"
-          aria-label="Moja pot"
+          onClick={onTravelView}
+          className={`p-2 rounded flex items-center gap-1 ${view === 'travel' ? 'bg-blue-700' : 'hover:bg-blue-700'}`}
+          title="Potni nalog"
+          aria-label="Potni nalog"
         >
-          <Navigation size={20} />
-          <span className="text-sm hidden sm:inline">Pot</span>
+          <Car size={20} />
+          <span className="text-sm hidden sm:inline">Nalog</span>
         </button>
       </div>
     </div>

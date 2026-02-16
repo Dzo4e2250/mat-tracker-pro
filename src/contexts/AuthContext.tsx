@@ -22,6 +22,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   switchRole: (role: AppRole) => void;
   selectInitialRole: (role: AppRole) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -188,6 +189,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshProfile = async () => {
+    if (user?.id) {
+      await fetchUserProfile(user.id);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -202,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       switchRole,
       selectInitialRole,
+      refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>

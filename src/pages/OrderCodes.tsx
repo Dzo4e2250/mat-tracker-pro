@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Send, Check, Clock, X, Truck, Home, Camera, Users, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
+import { ArrowLeft, Package, Send, Check, Clock, X, Truck, Home, Camera, Users, ChevronDown, ChevronUp, QrCode, FileText, AlertTriangle } from 'lucide-react';
 import { useOrders, useCreateOrder, useOrderStats, useOrderCodes } from '@/hooks/useOrders';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useSellerDirtyMats } from '@/pages/inventar/seller/useSellerQueries';
+import { generateDirtyTransportDocument } from '@/pages/inventar/seller/generateDirtyTransportDocument';
 
 const STATUS_CONFIG = {
   pending: { label: 'Čaka odobritev', icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
@@ -81,7 +83,35 @@ export default function OrderCodes() {
 
   const { data: orders, isLoading: loadingOrders } = useOrders(user?.id);
   const { data: stats, isLoading: loadingStats } = useOrderStats(user?.id);
+  const { data: dirtyMats = [], isLoading: loadingDirty } = useSellerDirtyMats(user?.id);
   const createOrder = useCreateOrder();
+
+  // Filter only dirty status (not on_test or waiting_driver)
+  const dirtyMatsOnly = useMemo(() => {
+    return dirtyMats.filter(mat => mat.status === 'dirty');
+  }, [dirtyMats]);
+
+  // Get mat type counts for summary
+  const matTypeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    dirtyMatsOnly.forEach(mat => {
+      const type = mat.matTypeCode || 'Neznano';
+      counts.set(type, (counts.get(type) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [dirtyMatsOnly]);
+
+  const handleGenerateTransportDocument = () => {
+    if (dirtyMatsOnly.length === 0) return;
+    const seller = profile ? {
+      id: user?.id || '',
+      first_name: profile.first_name || '',
+      last_name: profile.last_name || '',
+      email: profile.email || '',
+      code_prefix: ''
+    } : undefined;
+    generateDirtyTransportDocument(dirtyMatsOnly, seller);
+  };
 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
@@ -185,6 +215,54 @@ export default function OrderCodes() {
                 <div className="text-2xl font-bold text-yellow-600">{stats?.pendingOrders || 0}</div>
                 <div className="text-sm text-gray-600">V obdelavi</div>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dirty Mats Section */}
+        <div className={`bg-white rounded-lg shadow p-4 ${dirtyMatsOnly.length > 0 ? 'border-2 border-red-200' : ''}`}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-gray-700 flex items-center gap-2">
+              <Truck className="h-5 w-5 text-red-500" />
+              Umazani predpražniki
+            </h2>
+            {dirtyMatsOnly.length > 0 && (
+              <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-sm font-bold">
+                {dirtyMatsOnly.length}
+              </span>
+            )}
+          </div>
+
+          {loadingDirty ? (
+            <div className="animate-pulse h-12 bg-gray-200 rounded"></div>
+          ) : dirtyMatsOnly.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
+              <p className="text-sm">Ni umazanih predpražnikov za odvoz</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Summary by type */}
+              <div className="flex flex-wrap gap-2">
+                {matTypeCounts.map(([type, count]) => (
+                  <span key={type} className="bg-gray-100 px-2 py-1 rounded text-sm">
+                    <strong>{type}:</strong> {count}
+                  </span>
+                ))}
+              </div>
+
+              {/* Download button */}
+              <button
+                onClick={handleGenerateTransportDocument}
+                className="w-full bg-red-600 text-white py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-red-700"
+              >
+                <FileText size={20} />
+                Prenesi odvozni nalog ({dirtyMatsOnly.length})
+              </button>
+
+              <p className="text-xs text-gray-500 text-center">
+                Dokument za šoferja s seznamom predpražnikov za prevzem
+              </p>
             </div>
           )}
         </div>

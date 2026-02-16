@@ -15,14 +15,17 @@ import {
   Loader2,
   Download,
   Filter,
+  FileText,
 } from "lucide-react";
-import type { DirtyMat } from "./types";
+import type { DirtyMat, SellerProfile } from "./types";
 import * as XLSX from 'xlsx';
+import { generateDirtyTransportDocument } from '../seller/generateDirtyTransportDocument';
 
 interface SellerDirtyMatsCardProps {
   dirtyMatsOnly: DirtyMat[];
   loadingDirty: boolean;
   selectedDirtyMats: Set<string>;
+  seller?: SellerProfile;
   onToggleDirtyMat: (cycleId: string) => void;
   onSelectAllDirty: () => void;
   onClearSelection: () => void;
@@ -34,6 +37,7 @@ export function SellerDirtyMatsCard({
   dirtyMatsOnly,
   loadingDirty,
   selectedDirtyMats,
+  seller,
   onToggleDirtyMat,
   onSelectAllDirty,
   onClearSelection,
@@ -112,6 +116,16 @@ export function SellerDirtyMatsCard({
                   ))}
                 </select>
               </div>
+
+              {/* Transport Document */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => generateDirtyTransportDocument(filteredMats, seller)}
+              >
+                <FileText className="h-4 w-4 mr-1" /> Odvozni nalog
+              </Button>
 
               {/* Excel Export */}
               <Button size="sm" variant="outline" onClick={exportToExcel}>

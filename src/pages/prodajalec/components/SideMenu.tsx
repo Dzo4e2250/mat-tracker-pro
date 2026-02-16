@@ -3,7 +3,7 @@
  * @description Stranski navigacijski meni za ProdajalecDashboard
  */
 
-import { X, Home, Camera, MapPin, Navigation, History, TrendingUp, Users, Package, ArrowRightLeft, Key, LogOut } from 'lucide-react';
+import { X, Home, Camera, MapPin, History, TrendingUp, Users, Package, ArrowRightLeft, Key, LogOut, CheckSquare, Car, Settings } from 'lucide-react';
 import type { ViewType } from './types';
 
 interface SideMenuProps {
@@ -15,6 +15,7 @@ interface SideMenuProps {
   availableRoles: string[];
   onSwitchRole: (role: string) => void;
   onChangePassword: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
 }
 
@@ -58,6 +59,7 @@ export function SideMenu({
   availableRoles,
   onSwitchRole,
   onChangePassword,
+  onSettings,
   onSignOut,
 }: SideMenuProps) {
   if (!isOpen) return null;
@@ -115,10 +117,10 @@ export function SideMenu({
               onClick={() => handleViewChange('map')}
             />
             <MenuItem
-              icon={<Navigation size={20} />}
-              label="Moja pot"
-              isActive={currentView === 'tracking'}
-              onClick={() => handleViewChange('tracking')}
+              icon={<Car size={20} />}
+              label="Potni nalog"
+              isActive={currentView === 'travel'}
+              onClick={() => handleViewChange('travel')}
             />
             <MenuItem
               icon={<History size={20} />}
@@ -131,6 +133,12 @@ export function SideMenu({
               label="Statistika"
               isActive={currentView === 'statistics'}
               onClick={() => handleViewChange('statistics')}
+            />
+            <MenuItem
+              icon={<CheckSquare size={20} />}
+              label="Naloge"
+              isActive={currentView === 'tasks'}
+              onClick={() => handleViewChange('tasks')}
             />
           </MenuSection>
 
@@ -164,10 +172,10 @@ export function SideMenu({
           )}
 
           <MenuItem
-            icon={<Key size={20} />}
-            label="Spremeni geslo"
+            icon={<Settings size={20} />}
+            label="Nastavitve"
             onClick={() => {
-              onChangePassword();
+              onSettings();
               onClose();
             }}
             className="mb-2"

@@ -5,7 +5,7 @@ export const STATUS_OPTIONS: { value: MapMarkerStatus; label: string }[] = [
   { value: 'on_test', label: 'Na testu' },
   { value: 'contract_signed', label: 'Pogodba podpisana' },
   { value: 'waiting_driver', label: 'Čaka na prevzem' },
-  { value: 'dirty', label: 'Neuspeli prospect' },
+  { value: 'completed', label: 'Neuspeli prospect' },
 ];
 
 export function useMapFilters() {
@@ -13,7 +13,7 @@ export function useMapFilters() {
     'on_test',
     'contract_signed',
     'waiting_driver',
-    'dirty',
+    'completed',
   ]);
   const [selectedSeller, setSelectedSeller] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
@@ -33,7 +33,7 @@ export function useMapFilters() {
     () => ({
       status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
       salespersonId: selectedSeller !== 'all' ? selectedSeller : undefined,
-      includeDirty: selectedStatuses.includes('dirty'),
+      includeDirty: selectedStatuses.includes('completed'),
     }),
     [selectedStatuses, selectedSeller]
   );

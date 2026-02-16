@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.0';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://matpro.reitti.cloud',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -125,6 +125,22 @@ Deno.serve(async (req) => {
     }
 
     console.log('Authenticated user:', user.email);
+
+    // Check that user has inventar or admin role
+    const { data: profileData } = await supabaseClient
+      .schema('mat_tracker')
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const userRole = profileData?.role;
+    if (!userRole || !['inventar', 'admin'].includes(userRole)) {
+      return new Response(JSON.stringify({ error: 'Insufficient permissions' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const { sellerEmail, sellerName, mats } = await req.json() as {
       sellerEmail: string;
