@@ -24,9 +24,8 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/auth" replace />;
   }
 
-  // Check if user has access through activeRole OR any of their available roles
-  const hasAccess = activeRole && allowedRoles.includes(activeRole) ||
-    availableRoles.some(r => allowedRoles.includes(r));
+  // Check if user has access through activeRole only
+  const hasAccess = activeRole && allowedRoles.includes(activeRole);
 
   if (!hasAccess) {
     // Redirect based on user's active role

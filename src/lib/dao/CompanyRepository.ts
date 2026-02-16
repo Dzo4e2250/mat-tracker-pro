@@ -6,6 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { BaseRepository, RepositoryError, type QueryOptions, type PaginatedResult } from './BaseRepository';
 import type { Company, Contact } from '@/integrations/supabase/types';
+import { sanitizeSearchQuery } from '@/lib/utils';
 
 export interface CompanyWithRelations extends Company {
   contacts?: Contact[];
@@ -40,7 +41,7 @@ export class CompanyRepository extends BaseRepository<Company> {
     let query = supabase
       .from(this.tableName)
       .select('*')
-      .or(`name.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%,tax_number.ilike.%${searchQuery}%`)
+      .or(`name.ilike.%${sanitizeSearchQuery(searchQuery)}%,display_name.ilike.%${sanitizeSearchQuery(searchQuery)}%,tax_number.ilike.%${sanitizeSearchQuery(searchQuery)}%`)
       .limit(limit);
 
     if (userId) {

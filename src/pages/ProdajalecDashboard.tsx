@@ -105,6 +105,20 @@ export default function ProdajalecDashboard() {
     cycles: CycleWithRelations[];
   } | null>(null);
 
+  // Reset formData when modal type changes to prevent stale data leaking
+  const prevModalType = useRef(modalType);
+  useEffect(() => {
+    if (modalType !== prevModalType.current) {
+      // Only reset when switching to a completely new flow (not stepping within a flow)
+      const sameFlow = ['putOnTest', 'selectAvailableMat', 'putOnTestSuccess'].includes(modalType) &&
+        ['putOnTest', 'selectAvailableMat', 'putOnTestSuccess'].includes(prevModalType.current);
+      if (!sameFlow && modalType !== 'matDetails') {
+        setFormData({});
+      }
+      prevModalType.current = modalType;
+    }
+  }, [modalType]);
+
   const { data: companyHistoryData } = useCompanyHistory(formData.companyId);
 
   // Travel log data for popup trigger

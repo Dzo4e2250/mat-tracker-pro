@@ -7,7 +7,7 @@
 rsync -avz --exclude 'node_modules' --exclude '.git' -e "ssh -i /home/ristov/.ssh/id_ed25519" /home/ristov/Applications/07-Web-Apps/mat-tracker-pro/ root@148.230.109.77:/root/mat-tracker-pro/
 
 # 2. Build in zaženi container - POMEMBNO: uporabi --network npm_npm_network
-ssh -i /home/ristov/.ssh/id_ed25519 root@148.230.109.77 "cd /root/mat-tracker-pro && docker build -t mat-tracker-pro . && docker stop mat-tracker-pro && docker rm mat-tracker-pro && docker run -d --name mat-tracker-pro --network npm_npm_network -p 3000:80 mat-tracker-pro"
+ssh -i /home/ristov/.ssh/id_ed25519 root@148.230.109.77 "cd /root/mat-tracker-pro && docker build -t mat-tracker-pro . && docker stop mat-tracker-pro && docker rm mat-tracker-pro && docker run -d --name mat-tracker-pro --restart unless-stopped --network npm_npm_network -p 3000:80 mat-tracker-pro"
 ```
 
 ### Zakaj kopiramo celoten projekt?

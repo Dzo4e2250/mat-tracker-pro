@@ -41,16 +41,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if the user is an ADMIN or INVENTAR
-    const { data: roleData, error: roleError } = await supabaseClient
-      .from('user_roles')
+    // Check if the user is an admin or inventar (using profiles table - canonical role source)
+    const { data: profileData, error: profileError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('profiles')
       .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle();
+      .eq('id', user.id)
+      .single();
 
-    if (roleError || !roleData || (roleData.role !== 'ADMIN' && roleData.role !== 'INVENTAR')) {
+    if (profileError || !profileData || !['admin', 'inventar'].includes(profileData.role)) {
       return new Response(
-        JSON.stringify({ error: 'Only ADMIN and INVENTAR users can delete users' }),
+        JSON.stringify({ error: 'Only admin and inventar users can delete users' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
