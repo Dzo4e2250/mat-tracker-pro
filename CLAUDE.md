@@ -16,7 +16,7 @@ Dockerfile izvaja `npm run build` na strežniku iz source kode. Če kopiramo sam
 ## Strežnik info
 - IP: 148.230.109.77
 - SSH ključ: /home/ristov/.ssh/id_ed25519
-- Domena: matpro.ristov.xyz
+- Domena: matpro.reitti.cloud
 - NPM (Nginx Proxy Manager) upravlja SSL in routing
 
 ## Pomembno

@@ -3,7 +3,7 @@
  * @description Hook za filtriranje, sortiranje in iskanje strank
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { FilterType, SortByType, PeriodFilterType, isTestOverdue } from '../types';
 
@@ -45,8 +45,18 @@ export function useContactsFilters({
   companies,
   noInterestCompanyIds,
 }: UseContactsFiltersProps): UseContactsFiltersReturn {
-  // Filter state
+  // Filter state - debounced search
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchQuery]);
+
   const [sortBy, setSortBy] = useState<SortByType>('name');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilterType>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -80,8 +90,8 @@ export function useContactsFilters({
     let filtered = [...companies];
 
     // Search filter - searches name, display_name, tax_number, city, address, phone
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter(c => {
         // Company fields
         const matchesCompany =
@@ -202,7 +212,7 @@ export function useContactsFilters({
     }
 
     // Put recent companies at the top (only when not searching)
-    if (!searchQuery && recentCompanyIds.length > 0) {
+    if (!debouncedSearch && recentCompanyIds.length > 0) {
       const recent: CompanyWithContacts[] = [];
       const rest: CompanyWithContacts[] = [];
 
@@ -220,7 +230,7 @@ export function useContactsFilters({
     }
 
     return filtered;
-  }, [companies, searchQuery, hideNoInterest, noInterestCompanyIds, periodFilter, statusFilter, filter, sortBy, recentCompanyIds]);
+  }, [companies, debouncedSearch, hideNoInterest, noInterestCompanyIds, periodFilter, statusFilter, filter, sortBy, recentCompanyIds]);
 
   // Pomožna funkcija za določitev prve črke podjetja
   const getCompanyFirstLetter = useCallback((company: CompanyWithContacts): string => {

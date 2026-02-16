@@ -145,8 +145,8 @@ export function useSentOffers({
         seasonal_to_week: item.seasonalToWeek || null,
         normal_from_week: item.normalFromWeek || null,
         normal_to_week: item.normalToWeek || null,
-        frequency: item.purpose !== 'nakup' ? (item.normalFrequency || offerFrequency) : null,
-        normal_frequency: item.normalFrequency || offerFrequency,
+        frequency: item.purpose !== 'nakup' ? (item.frequencyOverride || item.normalFrequency || offerFrequency) : null,
+        normal_frequency: item.frequencyOverride || item.normalFrequency || offerFrequency,
         seasonal_frequency: item.seasonalFrequency || '1',
         normal_price: item.normalPrice || item.pricePerUnit,
         seasonal_price: item.seasonalPrice || null,
@@ -177,30 +177,15 @@ export function useSentOffers({
 
       // Create automatic note with offer details
       const offerTypeLabel =
-        dbOfferType === 'rental' ? 'NAJEM' :
-        dbOfferType === 'purchase' ? 'NAKUP' :
-        'NAJEM + NAKUP';
+        dbOfferType === 'rental' ? 'najem' :
+        dbOfferType === 'purchase' ? 'nakup' :
+        'najem in nakup';
 
-      const itemsList = items
-        .filter(item => item.code || item.itemType === 'custom')
-        .map(item => {
-          const sizeStr = item.size || 'po meri';
-          const priceStr = item.purpose === 'nakup'
-            ? `${item.pricePerUnit?.toFixed(2) || '0.00'}€`
-            : `${item.pricePerUnit?.toFixed(2) || '0.00'}€/teden`;
-          const qtyStr = item.quantity > 1 ? ` x${item.quantity}` : '';
-          return `• ${item.code || item.name || 'Artikel'} (${sizeStr}) - ${priceStr}${qtyStr}`;
-        })
-        .join('\n');
+      const contactName = primaryContact
+        ? `${primaryContact.first_name || ''} ${primaryContact.last_name || ''}`.trim() || 'kontakt'
+        : 'kontakt';
 
-      const frequencyText = dbOfferType !== 'purchase' ? `\nMenjava: ${offerFrequency} ${offerFrequency === '1' ? 'teden' : 'tedne'}` : '';
-
-      const noteContent = `📧 PONUDBA POSLANA (${offerTypeLabel})
-Na: ${email}
-Zadeva: ${subject}${frequencyText}
-
-Artikli:
-${itemsList}`;
+      const noteContent = `Poslal sem ponudbo za ${offerTypeLabel} predpražnikov kontaktni osebi ${contactName} na mail: ${email}. Čez 2 dni naredim follow-up.`;
 
       await supabase
         .from('company_notes')

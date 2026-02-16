@@ -10,6 +10,7 @@ interface ActivityFiltersProps {
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   onExport: () => void;
+  onExportD365?: () => void;
   isExporting?: boolean;
 }
 
@@ -53,6 +54,7 @@ export function ActivityFilters({
   dateRange,
   onDateRangeChange,
   onExport,
+  onExportD365,
   isExporting,
 }: ActivityFiltersProps) {
   const activePreset = getActivePreset(dateRange);
@@ -114,16 +116,30 @@ export function ActivityFilters({
 
           <div className="flex-1" />
 
-          {/* Export button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExport}
-            disabled={isExporting}
-          >
-            <FileDown className="h-4 w-4 mr-2" />
-            Izvozi Excel
-          </Button>
+          {/* Export buttons */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExport}
+              disabled={isExporting}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Izvozi Excel
+            </Button>
+            {onExportD365 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onExportD365}
+                disabled={isExporting}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Izvozi za D365
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

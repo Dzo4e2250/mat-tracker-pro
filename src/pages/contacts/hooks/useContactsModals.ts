@@ -37,10 +37,11 @@ interface ReminderModalState {
   date: string;
   time: string;
   note: string;
+  createTask: boolean;
 }
 
 interface MeetingModalState {
-  type: 'sestanek' | 'ponudba' | 'izris';
+  type: 'sestanek' | 'ponudba';
   date: string;
   time: string;
 }
@@ -70,6 +71,12 @@ export function useContactsModals() {
   const [showContractConfirm, setShowContractConfirm] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
 
+  // Izris modal
+  const [showIzrisModal, setShowIzrisModal] = useState(false);
+
+  // Delivery info modal
+  const [showDeliveryInfoModal, setShowDeliveryInfoModal] = useState(false);
+
   // Edit states
   const [editingContact, setEditingContact] = useState<any>(null);
   const [editContactData, setEditContactData] = useState<any>({});
@@ -84,6 +91,7 @@ export function useContactsModals() {
     date: '',
     time: '09:00',
     note: '',
+    createTask: true, // Default: true - ustvari Kanban nalogo
   });
 
   // Meeting modal state
@@ -106,19 +114,33 @@ export function useContactsModals() {
   const [newNoteDate, setNewNoteDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [newNoteContent, setNewNoteContent] = useState('');
 
-  // D365 Activity fields
+  // Helper to get current time in HH:MM format
+  const getCurrentTime = () => {
+    const now = new Date();
+    return now.toTimeString().slice(0, 5); // "HH:MM"
+  };
+
+  const getEndTime = (startTime: string) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const endDate = new Date();
+    endDate.setHours(hours, minutes + 30);
+    return endDate.toTimeString().slice(0, 5);
+  };
+
+  // D365 Activity fields - use current time
   const [d365Category, setD365Category] = useState<string>('');
   const [d365Subcategory, setD365Subcategory] = useState<string>('');
   const [d365AppointmentType, setD365AppointmentType] = useState<string>('face_to_face');
-  const [d365StartTime, setD365StartTime] = useState<string>('09:00');
-  const [d365EndTime, setD365EndTime] = useState<string>('09:30');
+  const [d365StartTime, setD365StartTime] = useState<string>(() => getCurrentTime());
+  const [d365EndTime, setD365EndTime] = useState<string>(() => getEndTime(getCurrentTime()));
 
   const resetD365Fields = useCallback(() => {
+    const now = getCurrentTime();
     setD365Category('');
     setD365Subcategory('');
     setD365AppointmentType('face_to_face');
-    setD365StartTime('09:00');
-    setD365EndTime('09:30');
+    setD365StartTime(now);
+    setD365EndTime(getEndTime(now));
   }, []);
 
   // Tax lookup loading
@@ -134,6 +156,7 @@ export function useContactsModals() {
       date: new Date().toISOString().split('T')[0],
       time: '09:00',
       note: '',
+      createTask: true,
     });
     setShowReminderModal(true);
   }, []);
@@ -145,10 +168,11 @@ export function useContactsModals() {
       date: '',
       time: '09:00',
       note: '',
+      createTask: true,
     });
   }, []);
 
-  const openMeetingModal = useCallback((type: 'sestanek' | 'ponudba' | 'izris') => {
+  const openMeetingModal = useCallback((type: 'sestanek' | 'ponudba') => {
     setMeetingState({
       type,
       date: new Date().toISOString().split('T')[0],
@@ -213,6 +237,14 @@ export function useContactsModals() {
     setShowContractConfirm,
     showContractModal,
     setShowContractModal,
+
+    // Izris modal
+    showIzrisModal,
+    setShowIzrisModal,
+
+    // Delivery info modal
+    showDeliveryInfoModal,
+    setShowDeliveryInfoModal,
 
     // Edit states
     editingContact,

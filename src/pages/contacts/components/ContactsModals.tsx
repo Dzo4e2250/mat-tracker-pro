@@ -13,6 +13,8 @@ import type { UseSentOffersReturn } from '@/pages/contacts/hooks/useSentOffers';
 import type { UseOfferEmailReturn } from '@/pages/contacts/hooks/useOfferEmail';
 import type { UseQRScannerReturn } from '@/pages/contacts/hooks/useQRScanner';
 import { getGoogleMapsUrl } from '@/pages/contacts/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { SUPPLIERS, getSupplier } from '@/data/supplierColors';
 
 import {
   ReminderModal,
@@ -28,14 +30,17 @@ import {
   OfferModalWrapper,
   RoutePlannerModal,
   ContractModalContainer,
+  IzrisModal,
+  type IzrisData,
 } from './index';
+import DeliveryInfoModal from '@/components/DeliveryInfoModal';
 
 interface ContactsModalsProps {
   // Modal states
   modals: {
     showReminderModal: boolean;
-    reminderState: { companyId: string | null; date: string; time: string; note: string };
-    setReminderState: React.Dispatch<React.SetStateAction<{ companyId: string | null; date: string; time: string; note: string }>>;
+    reminderState: { companyId: string | null; date: string; time: string; note: string; createTask: boolean };
+    setReminderState: React.Dispatch<React.SetStateAction<{ companyId: string | null; date: string; time: string; note: string; createTask: boolean }>>;
     closeReminderModal: () => void;
     showRoutePlannerModal: boolean;
     setShowRoutePlannerModal: (show: boolean) => void;
@@ -84,6 +89,12 @@ interface ContactsModalsProps {
     setD365StartTime: (value: string) => void;
     d365EndTime: string;
     setD365EndTime: (value: string) => void;
+    // Izris modal
+    showIzrisModal: boolean;
+    setShowIzrisModal: (show: boolean) => void;
+    // Delivery info modal
+    showDeliveryInfoModal: boolean;
+    setShowDeliveryInfoModal: (show: boolean) => void;
   };
 
   // Data
@@ -135,9 +146,11 @@ export function ContactsModals({
           note={modals.reminderState.note}
           companyName={companies?.find(c => c.id === modals.reminderState.companyId)?.display_name || companies?.find(c => c.id === modals.reminderState.companyId)?.name}
           isLoading={createReminderPending}
+          createTask={modals.reminderState.createTask}
           onDateChange={(date) => modals.setReminderState(prev => ({ ...prev, date }))}
           onTimeChange={(time) => modals.setReminderState(prev => ({ ...prev, time }))}
           onNoteChange={(note) => modals.setReminderState(prev => ({ ...prev, note }))}
+          onCreateTaskChange={(createTask) => modals.setReminderState(prev => ({ ...prev, createTask }))}
           onSave={actions.handleCreateReminder}
           onClose={modals.closeReminderModal}
         />
@@ -232,6 +245,96 @@ export function ContactsModals({
           onD365AppointmentTypeChange={modals.setD365AppointmentType}
           onD365StartTimeChange={modals.setD365StartTime}
           onD365EndTimeChange={modals.setD365EndTime}
+          onOpenIzris={() => modals.setShowIzrisModal(true)}
+          onOpenDeliveryInfo={() => modals.setShowDeliveryInfoModal(true)}
+        />
+      )}
+
+      {modals.showIzrisModal && modals.selectedCompany && (
+        <IzrisModal
+          companyName={modals.selectedCompany.display_name || modals.selectedCompany.name}
+          companyId={modals.selectedCompany.id}
+          isOpen={modals.showIzrisModal}
+          onClose={() => modals.setShowIzrisModal(false)}
+          onSubmit={async (data: IzrisData) => {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) {
+                toast({ description: 'Napaka: uporabnik ni prijavljen', variant: 'destructive' });
+                return;
+              }
+
+              const supplierConfig = getSupplier(data.supplier);
+              const supplierName = supplierConfig?.name || data.supplier;
+              const dimensions = `${String(data.width).padStart(3, '0')}x${String(data.height).padStart(3, '0')}`;
+              const title = `${data.titlePrefix}-${data.companyName}-${dimensions}`;
+
+              // Build note content
+              const noteLines = [
+                `Pripravi izris - ${title}`,
+                `Dobavitelj: ${supplierName}`,
+                `Vrsta: ${data.orderType === 'najem' ? 'Najem (DESIGN)' : 'Nakup (PROMO)'}`,
+                `Barva ozadja: ${data.backgroundColorCode} - ${data.backgroundColorName}`,
+                data.isDesignerChoice
+                  ? 'Barva logotipa: Designer choice'
+                  : `Barva logotipa: ${data.logoColorCode} - ${data.logoColorName}`,
+                `Dimenzije: ${data.width}x${data.height} cm ${data.mbwCode ? `(${data.mbwCode})` : '(po meri)'}`,
+                `Orientacija: ${data.orientation === 'portret' ? 'Portret' : 'Landscape'}`,
+                data.selectedTemplate ? `Pozicija: ${data.selectedTemplate.label}` : '',
+              ].filter(Boolean).join('\n');
+
+              // Create note
+              notesHook.addNoteMutation.mutate({
+                companyId: data.companyId,
+                noteDate: new Date().toISOString().split('T')[0],
+                content: noteLines,
+              });
+
+              // Create Kanban task with template image
+              const taskDescription = [
+                `Dimenzije: ${data.width}x${data.height} cm`,
+                `Orientacija: ${data.orientation}`,
+                `Dobavitelj: ${supplierName}`,
+                `Barva ozadja: ${data.backgroundColorCode}`,
+                data.isDesignerChoice ? 'Logo: Designer choice' : `Logo: ${data.logoColorCode}`,
+              ].join('\n');
+
+              await supabase.from('tasks').insert({
+                title,
+                description: taskDescription,
+                status: 'todo',
+                salesperson_id: user.id,
+                company_id: data.companyId,
+                task_type: 'izris',
+                position: 0,
+                checklist_items: {
+                  izrisData: {
+                    supplier: data.supplier,
+                    orderType: data.orderType,
+                    backgroundColorCode: data.backgroundColorCode,
+                    backgroundColorName: data.backgroundColorName,
+                    logoColorCode: data.logoColorCode,
+                    logoColorName: data.logoColorName,
+                    isDesignerChoice: data.isDesignerChoice,
+                    matType: data.matType,
+                    mbwCode: data.mbwCode,
+                    width: data.width,
+                    height: data.height,
+                    orientation: data.orientation,
+                    templatePath: data.selectedTemplate?.path,
+                    templateLabel: data.selectedTemplate?.label,
+                    title,
+                  },
+                },
+              });
+
+              toast({ description: '✓ Izris dodan v opombe in Kanban' });
+              modals.setShowIzrisModal(false);
+            } catch (error: any) {
+              console.error('Error creating izris task:', error);
+              toast({ description: `Napaka: ${error.message}`, variant: 'destructive' });
+            }
+          }}
         />
       )}
 
@@ -319,6 +422,8 @@ export function ContactsModals({
           hasNakup={offerState.hasNakup}
           offerItemsNakup={offerState.offerItemsNakup}
           offerItemsNajem={offerState.offerItemsNajem}
+          designPurchasePricePerM2={offerState.designPurchasePricePerM2}
+          specialShapeMultiplier={offerState.specialShapeMultiplier}
           updateNajemPricesForFrequency={offerState.updateNajemPricesForFrequency}
           addCustomOfferItem={offerState.addCustomOfferItem}
           removeOfferItem={offerState.removeOfferItem}
@@ -336,6 +441,7 @@ export function ContactsModals({
           handleNormalFrequencyChange={offerState.handleNormalFrequencyChange}
           handleNormalPriceChange={offerState.handleNormalPriceChange}
           handleNormalDiscountChange={offerState.handleNormalDiscountChange}
+          handleFrequencyOverride={offerState.handleFrequencyOverride}
           calculateOfferTotals={offerState.calculateOfferTotals}
           generateEmailHTML={emailHook.generateEmailHTML}
           copyHTMLToClipboard={emailHook.copyHTMLToClipboard}
@@ -363,6 +469,16 @@ export function ContactsModals({
           onContractSaved={(contract) => {
             modals.setSavedContracts(prev => [...prev, contract]);
           }}
+        />
+      )}
+
+      {/* Delivery Info Modal */}
+      {modals.showDeliveryInfoModal && modals.selectedCompany && (
+        <DeliveryInfoModal
+          isOpen={modals.showDeliveryInfoModal}
+          onClose={() => modals.setShowDeliveryInfoModal(false)}
+          company={modals.selectedCompany}
+          contacts={modals.selectedCompany.contacts || []}
         />
       )}
     </>

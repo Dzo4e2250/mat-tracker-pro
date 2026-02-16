@@ -21,7 +21,7 @@ interface UseCompanyDetailHandlersProps {
   setEditAddressData: (data: any) => void;
   setShowEditAddressModal: (show: boolean) => void;
   setShowAddContactModal: (show: boolean) => void;
-  setMeetingType: (type: 'sestanek' | 'ponudba' | 'izris') => void;
+  setMeetingType: (type: 'sestanek' | 'ponudba') => void;
   setMeetingDate: (date: string) => void;
   setMeetingTime: (time: string) => void;
   setShowMeetingModal: (show: boolean) => void;
@@ -35,8 +35,9 @@ interface UseCompanyDetailHandlersProps {
   deleteCompany: { mutate: (id: string, options?: any) => void };
   newNoteContent: string;
   newNoteDate: string;
+  setNewNoteContent: (content: string) => void;
   // Meeting state
-  meetingType: 'sestanek' | 'ponudba' | 'izris';
+  meetingType: 'sestanek' | 'ponudba';
   meetingDate: string;
   meetingTime: string;
   // D365 fields
@@ -123,6 +124,7 @@ export function useCompanyDetailHandlers({
   deleteCompany,
   newNoteContent,
   newNoteDate,
+  setNewNoteContent,
   meetingType,
   meetingDate,
   meetingTime,
@@ -160,26 +162,133 @@ export function useCompanyDetailHandlers({
     setShowEditAddressModal(true);
   }, [selectedCompany, setEditAddressData, setShowEditAddressModal]);
 
-  const handleQuickNote = useCallback((content: string) => {
+  // Helper to get current time
+  const getCurrentTimeStrings = () => {
+    const now = new Date();
+    const startTime = now.toTimeString().slice(0, 5);
+    const endDate = new Date(now.getTime() + 30 * 60000); // +30 min
+    const endTime = endDate.toTimeString().slice(0, 5);
+    return { startTime, endTime };
+  };
+
+  const handleQuickNote = useCallback(async (content: string) => {
     if (!selectedCompany) return;
+
+    // Transform short phrases into full sentences
+    const getFullSentence = (shortPhrase: string): string => {
+      switch (shortPhrase) {
+        case 'Klical - ni dvignil':
+          return 'Klical sem kontaktno osebo, vendar ni dvignila telefona.';
+        case 'Ni interesa':
+          return 'Stranka trenutno nima interesa za naše storitve.';
+        case 'Podpisana pogodba':
+          return 'Stranka je podpisala pogodbo.';
+        default:
+          return shortPhrase;
+      }
+    };
+
+    const fullContent = getFullSentence(content);
 
     // Auto-detect D365 fields based on content and note count
     const isInD365 = (selectedCompany as any).is_in_d365 || false;
     const existingNotesCount = companyNotes?.length || 0;
     const autoFields = getAutoD365Fields(content, existingNotesCount, isInD365);
+    const { startTime, endTime } = getCurrentTimeStrings();
 
     addNoteMutation.mutate({
       companyId: selectedCompany.id,
       noteDate: new Date().toISOString().split('T')[0],
-      content,
+      content: fullContent,
       // Include auto-detected D365 fields
       activityCategory: autoFields.activityCategory,
       activitySubcategory: autoFields.activitySubcategory,
       appointmentType: autoFields.appointmentType,
-      startTime: isInD365 ? '09:00' : null,
-      endTime: isInD365 ? '09:30' : null,
+      startTime: isInD365 ? startTime : null,
+      endTime: isInD365 ? endTime : null,
     });
-  }, [selectedCompany, companyNotes, addNoteMutation]);
+
+    // Create Kanban task for "Pripravi izris"
+    if (content === 'Pripravi izris') {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const companyName = selectedCompany.display_name || selectedCompany.name;
+          await supabase.from('tasks').insert({
+            title: `Pripravi izris - ${companyName}`,
+            description: `Pripraviti izris za ${companyName}`,
+            status: 'todo',
+            salesperson_id: user.id,
+            company_id: selectedCompany.id,
+            task_type: 'izris',
+            position: 0,
+          });
+          toast({ description: '📋 Dodano v Kanban naloge' });
+        }
+      } catch (error) {
+        console.error('Error creating task:', error);
+      }
+    }
+
+    // Create two Kanban tasks for "Podpisana pogodba"
+    if (content === 'Podpisana pogodba') {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const companyName = selectedCompany.display_name || selectedCompany.name;
+          const deliveryAddress = (selectedCompany as any).delivery_address || selectedCompany.address_street || '';
+          const deliveryCity = (selectedCompany as any).delivery_city || selectedCompany.address_city || '';
+          const deliveryPostal = (selectedCompany as any).delivery_postal || selectedCompany.address_postal || '';
+          const fullAddress = [deliveryAddress, deliveryPostal, deliveryCity].filter(Boolean).join(', ');
+
+          // Task 1: Zaključi v CRM
+          await supabase.from('tasks').insert({
+            title: `Zaključi v CRM - ${companyName}`,
+            description: `Zaključiti stranko ${companyName} v D365 CRM sistemu`,
+            status: 'todo',
+            salesperson_id: user.id,
+            company_id: selectedCompany.id,
+            task_type: 'crm_close',
+            position: 0,
+          });
+
+          // Fetch user profile for salesRep info
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, first_name, last_name, phone')
+            .eq('id', user.id)
+            .single();
+
+          // Use full_name or combine first_name + last_name as fallback
+          const salesRepName = profile?.full_name ||
+            (profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : '');
+
+          // Task 2: Pripravi info o dostavnem mestu
+          await supabase.from('tasks').insert({
+            title: `Pripravi info o dostavi - ${companyName}`,
+            description: `Pripraviti informacije o dostavnem mestu za šoferja`,
+            status: 'todo',
+            salesperson_id: user.id,
+            company_id: selectedCompany.id,
+            task_type: 'delivery_info',
+            position: 0,
+            checklist_items: {
+              companyAddress: fullAddress,
+              companyName: companyName,
+              reportGenerated: false,
+              // Auto-fill from logged in user
+              salesRep: salesRepName,
+              salesRepPhone: profile?.phone || '',
+            },
+          });
+
+          toast({ description: '📋 Ustvarjeni 2 Kanban nalogi (CRM + Dostava)' });
+        }
+      } catch (error) {
+        console.error('Error creating tasks:', error);
+      }
+    }
+  }, [selectedCompany, companyNotes, addNoteMutation, toast]);
 
   const handleAddNote = useCallback(() => {
     if (!selectedCompany || !newNoteContent.trim()) return;
@@ -188,6 +297,7 @@ export function useCompanyDetailHandlers({
     const isInD365 = (selectedCompany as any).is_in_d365 || false;
     const existingNotesCount = companyNotes?.length || 0;
     const autoFields = getAutoD365Fields(newNoteContent, existingNotesCount, isInD365);
+    const { startTime: currentStart, endTime: currentEnd } = getCurrentTimeStrings();
 
     addNoteMutation.mutate({
       companyId: selectedCompany.id,
@@ -197,12 +307,13 @@ export function useCompanyDetailHandlers({
       activityCategory: d365Category || autoFields.activityCategory,
       activitySubcategory: d365Subcategory || autoFields.activitySubcategory,
       appointmentType: d365AppointmentType || autoFields.appointmentType,
-      startTime: d365StartTime || (isInD365 ? '09:00' : null),
-      endTime: d365EndTime || (isInD365 ? '09:30' : null),
+      startTime: d365StartTime || (isInD365 ? currentStart : null),
+      endTime: d365EndTime || (isInD365 ? currentEnd : null),
     });
-    // Reset D365 fields after adding note
+    // Reset note content and D365 fields after adding note
+    setNewNoteContent('');
     resetD365Fields();
-  }, [selectedCompany, companyNotes, newNoteContent, newNoteDate, addNoteMutation, d365Category, d365Subcategory, d365AppointmentType, d365StartTime, d365EndTime, resetD365Fields]);
+  }, [selectedCompany, companyNotes, newNoteContent, newNoteDate, addNoteMutation, setNewNoteContent, d365Category, d365Subcategory, d365AppointmentType, d365StartTime, d365EndTime, resetD365Fields]);
 
   const handleEditNote = useCallback((noteId: string, content: string, noteDate: string, d365Fields?: {
     activityCategory: string | null;
@@ -233,7 +344,7 @@ export function useCompanyDetailHandlers({
     setShowAddContactModal(true);
   }, [setShowAddContactModal]);
 
-  const handleShowMeeting = useCallback((type: 'sestanek' | 'ponudba' | 'izris') => {
+  const handleShowMeeting = useCallback((type: 'sestanek' | 'ponudba') => {
     setMeetingType(type);
     if (type === 'ponudba') {
       setMeetingDate(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
@@ -300,10 +411,8 @@ export function useCompanyDetailHandlers({
     if (!selectedCompany) return;
     const formattedDate = new Date(meetingDate).toLocaleDateString('sl-SI');
     const content = meetingType === 'sestanek'
-      ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}`
-      : meetingType === 'ponudba'
-      ? `Pošlji ponudbo do ${formattedDate}`
-      : `Pošlji izris do ${formattedDate}`;
+      ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}.`
+      : `Ponudbo moram poslati do ${formattedDate}.`;
 
     addNoteMutation.mutate({
       companyId: selectedCompany.id,
@@ -319,10 +428,8 @@ export function useCompanyDetailHandlers({
     if (!selectedCompany) return;
     const formattedDate = new Date(meetingDate).toLocaleDateString('sl-SI');
     const content = meetingType === 'sestanek'
-      ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}`
-      : meetingType === 'ponudba'
-      ? `Pošlji ponudbo do ${formattedDate}`
-      : `Pošlji izris do ${formattedDate}`;
+      ? `Dogovorjen sestanek za ${formattedDate} ob ${meetingTime}.`
+      : `Ponudbo moram poslati do ${formattedDate}.`;
 
     addNoteMutation.mutate({
       companyId: selectedCompany.id,

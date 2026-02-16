@@ -383,6 +383,7 @@ export default function SellerPage() {
                   dirtyMatsOnly={dirtyMatsOnly}
                   loadingDirty={loadingDirty}
                   selectedDirtyMats={selectedDirtyMats}
+                  seller={seller}
                   onToggleDirtyMat={toggleDirtyMat}
                   onSelectAllDirty={selectAllDirty}
                   onClearSelection={() => setSelectedDirtyMats(new Set())}

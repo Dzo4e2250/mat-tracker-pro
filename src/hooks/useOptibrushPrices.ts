@@ -132,9 +132,11 @@ export function calculateOptibrushPrice(
     return null;
   }
 
-  // Posebne oblike +30%
+  // Posebne oblike - multiplier se nastavi v admin panelu (privzeto +30%)
+  // Ta funkcija je za lokalni izračun brez dostopa do DB
+  // Za DB-driven cene uporabi calculateOptibrushPriceFromDB iz usePrices.ts
   if (specialShape) {
-    pricePerM2 = pricePerM2 * 1.3;
+    pricePerM2 = pricePerM2 * 1.3; // Fallback za offline izračun
   }
 
   const totalPrice = pricePerM2 * m2;

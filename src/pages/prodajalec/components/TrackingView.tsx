@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Play, Square, Loader2, Navigation, Calendar, Clock, Route } from 'lucide-react';
+import { Play, Square, Loader2, Navigation, Calendar, Clock, Route, Car, FileText } from 'lucide-react';
 import {
   useGpsTracker,
   useGpsTrackingSessions,
@@ -18,6 +18,7 @@ import type { GpsPoint, GpsTrackingSession } from '@/integrations/supabase/types
 
 interface TrackingViewProps {
   userId?: string;
+  onTravelView?: () => void;
 }
 
 // Slovenia center coordinates
@@ -78,7 +79,7 @@ function formatTime(dateStr: string): string {
   });
 }
 
-export default function TrackingView({ userId }: TrackingViewProps) {
+export default function TrackingView({ userId, onTravelView }: TrackingViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -141,10 +142,21 @@ export default function TrackingView({ userId }: TrackingViewProps) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold flex items-center gap-2">
-        <Navigation className="text-blue-500" size={24} />
-        Moja pot
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Navigation className="text-blue-500" size={24} />
+          Moja pot
+        </h2>
+        {onTravelView && (
+          <button
+            onClick={onTravelView}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+          >
+            <FileText size={18} />
+            <span className="text-sm font-medium">Potni nalog</span>
+          </button>
+        )}
+      </div>
 
       {/* Tracking Controls */}
       <div className="bg-white rounded-lg shadow p-4">

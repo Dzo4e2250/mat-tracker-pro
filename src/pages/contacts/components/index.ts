@@ -24,3 +24,5 @@ export { BottomNavigation } from './BottomNavigation';
 export { ContactsHeader } from './ContactsHeader';
 export { CompanyList } from './CompanyList';
 export { ContactsModals } from './ContactsModals';
+export { IzrisModal, type IzrisData } from './IzrisModal';
+export { OfferResponseModal, type OfferResponseType } from './OfferResponseModal';

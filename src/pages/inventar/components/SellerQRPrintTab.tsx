@@ -97,25 +97,30 @@ interface SellerQRPrintTabProps {
 }
 
 export function SellerQRPrintTab({ qrCodes, sellerName, codePrefix }: SellerQRPrintTabProps) {
-  const [printOption, setPrintOption] = useState<'available' | 'selected'>('available');
+  const [printOption, setPrintOption] = useState<'available' | 'active' | 'selected'>('available');
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [selectedLabelPreset, setSelectedLabelPreset] = useState<LabelPresetKey>('herma-8831');
   const [isPrintLoading, setIsPrintLoading] = useState(false);
   const qrRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
 
-  // Filter available codes
+  // Filter truly available codes (available in DB AND no active cycle)
   const availableCodes = useMemo(() =>
-    qrCodes.filter(c => c.status === 'available').map(c => c.code),
+    qrCodes.filter(c => c.status === 'available' && !c.active_cycle).map(c => c.code),
+    [qrCodes]
+  );
+
+  // Filter active codes (have an active cycle)
+  const activeCodes = useMemo(() =>
+    qrCodes.filter(c => c.active_cycle).map(c => c.code),
     [qrCodes]
   );
 
   // Get codes to print based on selection
   const codesToPrint = useMemo(() => {
-    if (printOption === 'available') {
-      return availableCodes;
-    }
+    if (printOption === 'available') return availableCodes;
+    if (printOption === 'active') return activeCodes;
     return Array.from(selectedCodes);
-  }, [printOption, availableCodes, selectedCodes]);
+  }, [printOption, availableCodes, activeCodes, selectedCodes]);
 
   const toggleCodeSelection = (code: string) => {
     setSelectedCodes(prev => {
@@ -248,7 +253,13 @@ export function SellerQRPrintTab({ qrCodes, sellerName, codePrefix }: SellerQRPr
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="available" id="available" />
                 <Label htmlFor="available" className="cursor-pointer">
-                  Vse proste kode ({availableCodes.length})
+                  Proste kode ({availableCodes.length})
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="active" id="active" />
+                <Label htmlFor="active" className="cursor-pointer">
+                  Aktivirane kode ({activeCodes.length})
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
@@ -277,7 +288,7 @@ export function SellerQRPrintTab({ qrCodes, sellerName, codePrefix }: SellerQRPr
               <div className="max-h-64 overflow-y-auto border rounded-lg p-3">
                 <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2">
                   {qrCodes.map((code) => {
-                    const isAvailable = code.status === 'available';
+                    const isAvailable = code.status === 'available' && !code.active_cycle;
                     const isSelected = selectedCodes.has(code.code);
                     return (
                       <label

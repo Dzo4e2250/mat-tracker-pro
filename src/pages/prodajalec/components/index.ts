@@ -8,6 +8,9 @@ export { default as HistoryView } from './HistoryView';
 export { default as StatisticsView } from './StatisticsView';
 export { default as TrackingView } from './TrackingView';
 export { default as TravelLogView } from './TravelLogView';
+export { default as TasksView } from './TasksView';
+export { default as DirtyMatsView } from './DirtyMatsView';
+export { TravelLogPopup } from './TravelLogPopup';
 
 // Navigation
 export { SideMenu } from './SideMenu';

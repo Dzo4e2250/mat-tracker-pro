@@ -13,16 +13,22 @@ import {
   getPriceCategoryLabel,
   OptibrushConfig,
 } from '@/hooks/useOptibrushPrices';
+import {
+  useOptibrushPricesFromDB,
+  usePriceSettings,
+  calculateOptibrushPriceFromDB,
+} from '@/hooks/usePrices';
 
 interface OfferItemsNakupStepProps {
   items: OfferItem[];
   hasNajem: boolean;
   totals: OfferTotals;
+  designPurchasePricePerM2: number;
+  specialShapeMultiplier: number;
   onItemTypeChange: (itemId: string, type: ItemType) => void;
   onDesignSizeSelect: (itemId: string, code: string) => void;
   onCustomDimensionsChange: (itemId: string, dimensions: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
-  // Pri nakupu NI popustov - cena je vedno m² × 165€
   onCustomizedChange: (itemId: string, customized: boolean) => void;
   onSpecialShapeChange: (itemId: string, specialShape: boolean) => void;
   onOptibrushChange: (itemId: string, updates: Partial<OfferItem>) => void;
@@ -42,6 +48,8 @@ export default function OfferItemsNakupStep({
   items,
   hasNajem,
   totals,
+  designPurchasePricePerM2,
+  specialShapeMultiplier,
   onItemTypeChange,
   onDesignSizeSelect,
   onCustomDimensionsChange,
@@ -54,6 +62,10 @@ export default function OfferItemsNakupStep({
   onBack,
   onNext,
 }: OfferItemsNakupStepProps) {
+  // Fetch optibrush prices from DB
+  const { data: optibrushPricesDB } = useOptibrushPricesFromDB();
+  const { data: priceSettings } = usePriceSettings();
+
   const isValid = !items.some(i => {
     if (i.itemType === 'optibrush') {
       return !i.optibrushWidthCm || !i.optibrushHeightCm || i.pricePerUnit <= 0;
@@ -71,11 +83,41 @@ export default function OfferItemsNakupStep({
     heightCm: item.optibrushHeightCm || 0,
   });
 
-  // Izračunaj optibrush ceno
+  // Izračunaj optibrush ceno - uporabi DB cene če so na voljo
   const calculateOptibrush = (item: OfferItem) => {
     if (item.itemType !== 'optibrush') return null;
     if (!item.optibrushWidthCm || !item.optibrushHeightCm) return null;
-    return calculateOptibrushPrice(getOptibrushConfig(item));
+
+    const config = getOptibrushConfig(item);
+    const m2 = (config.widthCm * config.heightCm) / 10000;
+    const isStandard = config.hasEdge && OPTIBRUSH_STANDARD_SIZES.some(
+      s => (s.width === config.widthCm && s.height === config.heightCm) ||
+           (s.width === config.heightCm && s.height === config.widthCm)
+    );
+    const isLarge = m2 > 7.5;
+
+    // Try DB calculation first
+    if (optibrushPricesDB && priceSettings) {
+      const dbResult = calculateOptibrushPriceFromDB(
+        optibrushPricesDB,
+        {
+          hasEdge: config.hasEdge,
+          hasDrainage: config.hasDrainage,
+          isStandard,
+          isLarge,
+          colorCount: config.colorCount,
+          m2,
+          specialShape: config.specialShape,
+        },
+        priceSettings
+      );
+      if (dbResult) {
+        return { ...dbResult, m2: Math.round(m2 * 100) / 100 };
+      }
+    }
+
+    // Fallback to local calculation
+    return calculateOptibrushPrice(config);
   };
 
   // Ref za sledenje prejšnjim vrednostim da preprečimo nepotrebne update-e
@@ -98,7 +140,7 @@ export default function OfferItemsNakupStep({
       if (item.itemType !== 'optibrush') return;
       if (!item.optibrushWidthCm || !item.optibrushHeightCm) return;
 
-      const calc = calculateOptibrushPrice(getOptibrushConfig(item));
+      const calc = calculateOptibrush(item);
 
       if (calc && calc.totalPrice !== item.pricePerUnit) {
         const sizeStr = `${item.optibrushWidthCm}x${item.optibrushHeightCm}`;
@@ -113,7 +155,7 @@ export default function OfferItemsNakupStep({
         });
       }
     });
-  }, [items, onOptibrushChange]);
+  }, [items, onOptibrushChange, optibrushPricesDB, priceSettings]);
 
   return (
     <div className="space-y-4">
@@ -274,7 +316,7 @@ export default function OfferItemsNakupStep({
                                   <input
                                     type="number"
                                     value={item.optibrushWidthCm || ''}
-                                    onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: parseInt(e.target.value) || 0 })}
+                                    onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                                     className="w-full p-2 border rounded text-sm"
                                     placeholder="cm"
                                   />
@@ -284,7 +326,7 @@ export default function OfferItemsNakupStep({
                                   <input
                                     type="number"
                                     value={item.optibrushHeightCm || ''}
-                                    onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: parseInt(e.target.value) || 0 })}
+                                    onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                                     className="w-full p-2 border rounded text-sm"
                                     placeholder="cm"
                                   />
@@ -303,7 +345,7 @@ export default function OfferItemsNakupStep({
                         <input
                           type="number"
                           value={item.optibrushWidthCm || ''}
-                          onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: parseInt(e.target.value) || 0 })}
+                          onChange={(e) => onOptibrushChange(item.id, { optibrushWidthCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                           className="w-full p-2 border rounded text-sm"
                           placeholder="cm"
                         />
@@ -313,7 +355,7 @@ export default function OfferItemsNakupStep({
                         <input
                           type="number"
                           value={item.optibrushHeightCm || ''}
-                          onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: parseInt(e.target.value) || 0 })}
+                          onChange={(e) => onOptibrushChange(item.id, { optibrushHeightCm: e.target.value === '' ? undefined : parseInt(e.target.value) })}
                           className="w-full p-2 border rounded text-sm"
                           placeholder="cm"
                         />
@@ -414,9 +456,9 @@ export default function OfferItemsNakupStep({
             {item.itemType !== 'optibrush' && item.m2 && item.m2 > 0 && (
               <div className={`text-xs p-2 rounded ${item.specialShape ? 'text-purple-700 bg-purple-50' : 'text-blue-600 bg-blue-50'}`}>
                 {item.specialShape ? (
-                  <>{item.m2.toFixed(2)} m² × 165 €/m² × <span className="font-bold">1.5</span> = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
+                  <>{item.m2.toFixed(2)} m² × {designPurchasePricePerM2} €/m² × <span className="font-bold">{specialShapeMultiplier}</span> = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
                 ) : (
-                  <>{item.m2.toFixed(2)} m² × 165 €/m² = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
+                  <>{item.m2.toFixed(2)} m² × {designPurchasePricePerM2} €/m² = <span className="font-bold">{item.pricePerUnit.toFixed(2)} €</span></>
                 )}
               </div>
             )}

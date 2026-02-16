@@ -4,7 +4,7 @@
  * Enkapsulira celoten offer UI (type → items → preview) in inline callback funkcije
  */
 
-import { lazy, Suspense, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,7 @@ import {
   STANDARD_TYPES, DESIGN_SIZES, calculateM2FromDimensions, calculateCustomPrice, calculateCustomPurchasePrice,
   FrequencyKey
 } from '@/utils/priceList';
+import { useMatPrices } from '@/hooks/usePrices';
 import { type OfferItem, WEEKS } from '@/pages/contacts/types';
 import { getPrimaryContact } from '@/pages/contacts/utils';
 
@@ -40,6 +41,10 @@ export interface OfferModalWrapperProps {
   offerItemsNakup: OfferItem[];
   offerItemsNajem: OfferItem[];
 
+  // Price settings from admin panel
+  designPurchasePricePerM2: number;
+  specialShapeMultiplier: number;
+
   // Offer actions from useOfferState hook
   updateNajemPricesForFrequency: (frequency: string) => void;
   addCustomOfferItem: (category: 'nakup' | 'najem') => void;
@@ -58,6 +63,7 @@ export interface OfferModalWrapperProps {
   handleNormalFrequencyChange: (id: string, frequency: string) => void;
   handleNormalPriceChange: (id: string, price: number) => void;
   handleNormalDiscountChange: (id: string, discount: number) => void;
+  handleFrequencyOverride: (id: string, frequency: string | undefined) => void;
   calculateOfferTotals: (category: 'nakup' | 'najem') => { subtotal: number; discount: number; total: number };
 
   // Email generation from useOfferEmail hook
@@ -80,6 +86,8 @@ export function OfferModalWrapper({
   hasNakup,
   offerItemsNakup,
   offerItemsNajem,
+  designPurchasePricePerM2,
+  specialShapeMultiplier,
   updateNajemPricesForFrequency,
   addCustomOfferItem,
   removeOfferItem,
@@ -97,12 +105,25 @@ export function OfferModalWrapper({
   handleNormalFrequencyChange,
   handleNormalPriceChange,
   handleNormalDiscountChange,
+  handleFrequencyOverride,
   calculateOfferTotals,
   generateEmailHTML,
   copyHTMLToClipboard,
   saveOfferToDatabase,
 }: OfferModalWrapperProps) {
   const { toast } = useToast();
+  const { data: matPrices } = useMatPrices();
+
+  // Povračilo (replacement cost) za custom = odkup cena iz DESIGN-100x100 (1m² = 90.30€/m²)
+  const customReplacementPricePerM2 = useMemo(() => {
+    const design100x100 = matPrices?.find(p => p.code === 'DESIGN-100x100');
+    return design100x100?.price_purchase || 90.30;
+  }, [matPrices]);
+
+  const calcCustomReplacementCost = useCallback((m2: number): number => {
+    if (m2 <= 0) return 0;
+    return Math.round(m2 * customReplacementPricePerM2 * 100) / 100;
+  }, [customReplacementPricePerM2]);
 
   // ============================================================================
   // NAJEM STEP CALLBACKS - encapsulated inline handlers
@@ -146,7 +167,7 @@ export function OfferModalWrapper({
     } else {
       // Najem: fall back to m² calculation for non-standard sizes
       price = calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-      replacementCost = calculateCustomPurchasePrice(m2);
+      replacementCost = calcCustomReplacementCost(m2); // Povračilo = 90.30€/m²
     }
 
     updateOfferItem(itemId, {
@@ -157,7 +178,7 @@ export function OfferModalWrapper({
       replacementCost,
       name: 'predpražnik po meri'
     }, 'najem');
-  }, [offerItemsNajem, offerFrequency, updateOfferItem]);
+  }, [offerItemsNajem, offerFrequency, updateOfferItem, calcCustomReplacementCost]);
 
   const handleNajemCustomDimensionsChange = useCallback((itemId: string, dims: string) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
@@ -170,10 +191,10 @@ export function OfferModalWrapper({
       m2: m2 || undefined,
       pricePerUnit: price,
       code: m2 > 0 ? `CUSTOM-${dims.replace('*', 'x')}` : '',
-      replacementCost: item?.purpose !== 'nakup' ? calculateCustomPurchasePrice(m2) : 0,
+      replacementCost: item?.purpose !== 'nakup' ? calcCustomReplacementCost(m2) : 0, // Povračilo = 90.30€/m²
       name: 'predpražnik po meri'
     }, 'najem');
-  }, [offerItemsNajem, offerFrequency, updateOfferItem]);
+  }, [offerItemsNajem, offerFrequency, updateOfferItem, calcCustomReplacementCost]);
 
   const handlePurposeChange = useCallback((itemId: string, newPurpose: 'najem' | 'nakup') => {
     const item = offerItemsNajem.find(i => i.id === itemId);
@@ -226,7 +247,7 @@ export function OfferModalWrapper({
       if (priceInfo) {
         replacementCost = priceInfo.odkup;
       } else if (item.m2) {
-        replacementCost = calculateCustomPurchasePrice(item.m2);
+        replacementCost = calcCustomReplacementCost(item.m2); // Povračilo = 90.30€/m²
       } else {
         replacementCost = getReplacementCost(item.code);
       }
@@ -244,7 +265,7 @@ export function OfferModalWrapper({
       discount: newPurpose === 'nakup' ? 0 : item.discount,
       originalPrice: newPurpose === 'nakup' ? undefined : item.originalPrice
     }, 'najem');
-  }, [offerItemsNajem, offerFrequency, updateOfferItem]);
+  }, [offerItemsNajem, offerFrequency, updateOfferItem, calcCustomReplacementCost]);
 
   // ============================================================================
   // PREVIEW STEP CALLBACKS
@@ -321,6 +342,8 @@ export function OfferModalWrapper({
                 items={offerItemsNakup}
                 hasNajem={hasNajem}
                 totals={calculateOfferTotals('nakup')}
+                designPurchasePricePerM2={designPurchasePricePerM2}
+                specialShapeMultiplier={specialShapeMultiplier}
                 onItemTypeChange={(id, type) => handleItemTypeChange(id, type, 'nakup')}
                 onDesignSizeSelect={(id, code) => handleDesignSizeSelect(id, code, 'nakup')}
                 onCustomDimensionsChange={(id, dims) => handleCustomDimensionsChange(id, dims, 'nakup')}
@@ -355,6 +378,7 @@ export function OfferModalWrapper({
                 onDiscountChange={(itemId, discount) => handleDiscountChange(itemId, discount, 'najem')}
                 onReplacementCostChange={(itemId, cost) => updateOfferItem(itemId, { replacementCost: cost }, 'najem')}
                 onCustomizedChange={(itemId, customized) => updateOfferItem(itemId, { customized }, 'najem')}
+                onFrequencyOverride={handleFrequencyOverride}
                 onSeasonalToggle={handleSeasonalToggle}
                 onOptibrushChange={(id, updates) => updateOfferItem(id, updates, 'najem')}
                 onNormalFrequencyChange={handleNormalFrequencyChange}

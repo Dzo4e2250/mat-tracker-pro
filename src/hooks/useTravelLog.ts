@@ -56,6 +56,53 @@ export function useTravelLog(userId?: string, year?: number, month?: number) {
   });
 }
 
+// Get previous month's ending odometer
+export function usePreviousMonthEndingOdometer(userId?: string, year?: number, month?: number) {
+  return useQuery({
+    queryKey: ['travel_log_prev_odometer', userId, year, month],
+    queryFn: async () => {
+      if (!userId || !year || !month) return null;
+
+      // Calculate previous month
+      let prevYear = year;
+      let prevMonth = month - 1;
+      if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear = year - 1;
+      }
+
+      // Get previous month's travel log
+      const { data: prevLog } = await supabase
+        .from('travel_logs')
+        .select('id, ending_odometer')
+        .eq('user_id', userId)
+        .eq('year', prevYear)
+        .eq('month', prevMonth)
+        .single();
+
+      if (prevLog?.ending_odometer) {
+        return prevLog.ending_odometer;
+      }
+
+      // If no ending_odometer, get last entry's odometer
+      if (prevLog?.id) {
+        const { data: lastEntry } = await supabase
+          .from('travel_log_entries')
+          .select('odometer_reading')
+          .eq('travel_log_id', prevLog.id)
+          .order('entry_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        return lastEntry?.odometer_reading || null;
+      }
+
+      return null;
+    },
+    enabled: !!userId && !!year && !!month,
+  });
+}
+
 // Get entries for a travel log
 export function useTravelLogEntries(travelLogId?: string) {
   return useQuery({

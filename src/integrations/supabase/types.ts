@@ -25,11 +25,14 @@ export type Database = {
           email: string
           first_name: string
           last_name: string
+          full_name: string
           phone: string | null
           role: 'prodajalec' | 'inventar' | 'admin'
           secondary_role: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix: string | null
           is_active: boolean
+          avatar_url: string | null
+          signature_url: string | null
           created_at: string
           updated_at: string
         }
@@ -43,6 +46,8 @@ export type Database = {
           secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix?: string | null
           is_active?: boolean
+          avatar_url?: string | null
+          signature_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -56,6 +61,8 @@ export type Database = {
           secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
           code_prefix?: string | null
           is_active?: boolean
+          avatar_url?: string | null
+          signature_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1163,6 +1170,79 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          status: 'todo' | 'in_progress' | 'done'
+          salesperson_id: string
+          company_id: string | null
+          reminder_id: string | null
+          task_type: string
+          checklist_items: Json
+          position: number
+          created_at: string
+          completed_at: string | null
+          archived_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: 'todo' | 'in_progress' | 'done'
+          salesperson_id: string
+          company_id?: string | null
+          reminder_id?: string | null
+          task_type?: string
+          checklist_items?: Json
+          position?: number
+          created_at?: string
+          completed_at?: string | null
+          archived_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          status?: 'todo' | 'in_progress' | 'done'
+          salesperson_id?: string
+          company_id?: string | null
+          reminder_id?: string | null
+          task_type?: string
+          checklist_items?: Json
+          position?: number
+          created_at?: string
+          completed_at?: string | null
+          archived_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "auth.users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1221,6 +1301,13 @@ export type TravelLogUpdate = MatTrackerTables['travel_logs']['Update']
 export type TravelLogEntry = MatTrackerTables['travel_log_entries']['Row']
 export type TravelLogEntryInsert = MatTrackerTables['travel_log_entries']['Insert']
 export type TravelLogEntryUpdate = MatTrackerTables['travel_log_entries']['Update']
+
+// Task types
+export type Task = MatTrackerTables['tasks']['Row']
+export type TaskInsert = MatTrackerTables['tasks']['Insert']
+export type TaskUpdate = MatTrackerTables['tasks']['Update']
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'needs_help'
+export const TASK_STATUSES = ['todo', 'in_progress', 'done', 'needs_help'] as const
 
 // Purpose types for travel log entries
 export const TRAVEL_PURPOSES = ['teren', 'bolniska', 'dopust', 'praznik', 'od_doma', 'prosto'] as const

@@ -6,7 +6,7 @@
 import { Bell, X, Calendar } from 'lucide-react';
 
 /**
- * Generira ICS (iCalendar) datoteko za opomnik
+ * Generira ICS (iCalendar) datoteko za opomnik - Outlook kompatibilno
  */
 const generateICS = (
   date: string,
@@ -17,14 +17,14 @@ const generateICS = (
   const startDate = new Date(`${date}T${time}:00`);
   const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // +30 min
 
-  // Format: 20260119T090000
-  const formatDate = (d: Date) => {
-    return d.toISOString().replace(/[-:]/g, '').split('.')[0];
+  // Format: 20260119T090000Z (UTC format za Outlook)
+  const formatDateUTC = (d: Date) => {
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   };
 
   const uid = `reminder-${Date.now()}@matpro.ristov.xyz`;
   const summary = `Opomnik: ${companyName}`;
-  const description = note ? note.replace(/\n/g, '\\n') : '';
+  const description = note ? note.replace(/\n/g, '\\n').replace(/,/g, '\\,') : '';
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -32,22 +32,23 @@ const generateICS = (
     'PRODID:-//Mat Tracker Pro//Reminder//SL',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    'X-MS-OLK-FORCEINSPECTOROPEN:TRUE',
     'BEGIN:VEVENT',
     `UID:${uid}`,
-    `DTSTAMP:${formatDate(new Date())}`,
-    `DTSTART:${formatDate(startDate)}`,
-    `DTEND:${formatDate(endDate)}`,
+    `DTSTAMP:${formatDateUTC(new Date())}`,
+    `DTSTART:${formatDateUTC(startDate)}`,
+    `DTEND:${formatDateUTC(endDate)}`,
     `SUMMARY:${summary}`,
     description ? `DESCRIPTION:${description}` : '',
+    'SEQUENCE:0',
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
+    'X-MICROSOFT-CDO-IMPORTANCE:1',
+    'X-MS-OLK-AUTOFILLLOCATION:FALSE',
     // Alarm 15 minut pred
     'BEGIN:VALARM',
     'TRIGGER:-PT15M',
-    'ACTION:DISPLAY',
-    `DESCRIPTION:${summary}`,
-    'END:VALARM',
-    // Alarm ob času
-    'BEGIN:VALARM',
-    'TRIGGER:PT0M',
     'ACTION:DISPLAY',
     `DESCRIPTION:${summary}`,
     'END:VALARM',
@@ -85,9 +86,11 @@ interface ReminderModalProps {
   note: string;
   companyName?: string;
   isLoading: boolean;
+  createTask?: boolean;
   onDateChange: (date: string) => void;
   onTimeChange: (time: string) => void;
   onNoteChange: (note: string) => void;
+  onCreateTaskChange?: (createTask: boolean) => void;
   onSave: () => void;
   onSaveAndExport?: () => void;
   onClose: () => void;
@@ -105,9 +108,11 @@ export default function ReminderModal({
   note,
   companyName,
   isLoading,
+  createTask = false,
   onDateChange,
   onTimeChange,
   onNoteChange,
+  onCreateTaskChange,
   onSave,
   onSaveAndExport,
   onClose,
@@ -210,6 +215,19 @@ export default function ReminderModal({
               rows={2}
             />
           </div>
+
+          {/* Kanban task checkbox */}
+          {onCreateTaskChange && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createTask}
+                onChange={(e) => onCreateTaskChange(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Dodaj tudi v Kanban naloge</span>
+            </label>
+          )}
 
           <div className="flex gap-2">
             <button

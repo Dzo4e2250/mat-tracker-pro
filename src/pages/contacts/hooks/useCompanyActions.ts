@@ -33,6 +33,7 @@ interface UseCompanyActionsProps {
   reminderDate: string;
   reminderTime: string;
   reminderNote: string;
+  reminderCreateTask: boolean;
   setShowReminderModal: (show: boolean) => void;
   setReminderCompanyId: (id: string | null) => void;
   setReminderDate: (date: string) => void;
@@ -64,6 +65,7 @@ export function useCompanyActions({
   reminderDate,
   reminderTime,
   reminderNote,
+  reminderCreateTask,
   setShowReminderModal,
   setReminderCompanyId,
   setReminderDate,
@@ -173,9 +175,11 @@ export function useCompanyActions({
         user_id: userId,
         reminder_at: reminderAt,
         note: reminderNote || null,
+        createTask: reminderCreateTask, // Ustvari tudi Kanban nalogo
       });
 
-      toast({ description: '✅ Opomnik dodan' });
+      const taskMsg = reminderCreateTask ? ' in Kanban naloga' : '';
+      toast({ description: `✅ Opomnik${taskMsg} dodan` });
       setShowReminderModal(false);
       setReminderCompanyId(null);
       setReminderDate('');

@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { X, FileSignature, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 import {
   useContractForm,
@@ -28,6 +29,7 @@ export default function ContractModal({
   childCompanies,
 }: ContractModalProps) {
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState<ModalStep>('edit');
   const [generatedPdfBlob, setGeneratedPdfBlob] = useState<Blob | null>(null);
@@ -67,7 +69,22 @@ export default function ContractModal({
   const handleGeneratePDF = async () => {
     setIsGenerating(true);
     try {
-      const pdfBlob = await generatePdf(formData, parentCompany);
+      let signatureUrl: string | null = null;
+      if (profile?.signature_url) {
+        // signature_url stores relative path - create signed URL for PDF fetch
+        const path = profile.signature_url.startsWith('http')
+          ? decodeURIComponent(profile.signature_url.split('/avatars/')[1] || '')
+          : profile.signature_url;
+        if (path) {
+          const { data } = await supabase.storage.from('avatars').createSignedUrl(path, 300);
+          signatureUrl = data?.signedUrl || null;
+        }
+      }
+      const sellerInfo = profile ? {
+        fullName: profile.full_name || `${profile.first_name} ${profile.last_name}`,
+        signatureUrl,
+      } : null;
+      const pdfBlob = await generatePdf(formData, parentCompany, sellerInfo);
       const fileName = generateFileName(formData.companyName);
 
       setGeneratedPdfBlob(pdfBlob);
@@ -100,6 +117,7 @@ export default function ContractModal({
 
     if (company?.id) {
       try {
+        // Update company status
         await supabase
           .from('companies')
           .update({
@@ -108,6 +126,20 @@ export default function ContractModal({
             updated_at: new Date().toISOString()
           })
           .eq('id', company.id);
+
+        // Add automatic note
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const noteContent = `Pogodbo sem poslal na email ${formData.billingContactEmail}. Čez par dni naredim follow-up.`;
+          await supabase
+            .from('company_notes')
+            .insert({
+              company_id: company.id,
+              note_date: new Date().toISOString().split('T')[0],
+              content: noteContent,
+              created_by: user.id,
+            });
+        }
       } catch (error) {
         // Error handled by toast
       }
@@ -441,6 +473,28 @@ export default function ContractModal({
                   className="w-4 h-4"
                 />
                 <span>Obnovitev pogodbe / Aneks</span>
+              </label>
+            </div>
+            <div className="flex gap-4 mt-3 pt-3 border-t">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="institutionType"
+                  checked={formData.institutionType === 'private'}
+                  onChange={() => updateField('institutionType', 'private')}
+                  className="w-4 h-4"
+                />
+                <span>Zasebno podjetje</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="institutionType"
+                  checked={formData.institutionType === 'public'}
+                  onChange={() => updateField('institutionType', 'public')}
+                  className="w-4 h-4"
+                />
+                <span>Javna institucija <span className="text-xs text-gray-500">(30-dnevni rok placila)</span></span>
               </label>
             </div>
           </div>

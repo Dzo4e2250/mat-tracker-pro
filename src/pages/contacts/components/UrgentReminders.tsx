@@ -62,6 +62,8 @@ interface UrgentRemindersProps {
   onOfferCallNotReachable?: (companyId: string, reminderId: string) => void;
   onCreateOfferFollowup?: (companyId: string) => void;
   onSendFollowupEmail?: (companyId: string, reminderId: string, templateType: 'short' | 'friendly', reminderType: string) => void;
+  // New: opens modal for offer response
+  onOfferResponseClick?: (companyId: string, companyName: string, reminderId: string, reminderType: string) => void;
 }
 
 export default function UrgentReminders({
@@ -82,6 +84,7 @@ export default function UrgentReminders({
   onOfferCallNotReachable,
   onCreateOfferFollowup,
   onSendFollowupEmail,
+  onOfferResponseClick,
 }: UrgentRemindersProps) {
   const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
 
@@ -152,16 +155,20 @@ export default function UrgentReminders({
               </p>
             </div>
             <div className="flex gap-1.5 ml-2">
-              {/* DA - poklical in dobil odgovor, odpri podjetje */}
+              {/* DA - poklical in dobil odgovor, odpre modal */}
               <button
                 onClick={() => {
-                  if (reminder.company) {
-                    onOpenCompany(reminder.company.id);
-                    onCompleteReminder(reminder.id);
+                  if (reminder.company && onOfferResponseClick) {
+                    onOfferResponseClick(
+                      reminder.company.id,
+                      reminder.company.name,
+                      reminder.id,
+                      reminder.reminder_type || 'offer_call'
+                    );
                   }
                 }}
                 className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 flex items-center gap-1"
-                title="Poklical - odpri podjetje za vnos rezultata"
+                title="Poklical - vnesi rezultat"
               >
                 <ThumbsUp size={16} />
                 DA
@@ -216,17 +223,20 @@ export default function UrgentReminders({
               </p>
             </div>
             <div className="flex gap-1.5 ml-2">
-              {/* DA - odpre podjetje kjer izbereš rezultat */}
+              {/* DA - odpre modal za vnos rezultata */}
               <button
                 onClick={() => {
-                  if (reminder.company) {
-                    onOpenCompany(reminder.company.id);
-                    // Zaključi opomnik ker ga bomo obdelali v podjetju
-                    onCompleteReminder(reminder.id);
+                  if (reminder.company && onOfferResponseClick) {
+                    onOfferResponseClick(
+                      reminder.company.id,
+                      reminder.company.name,
+                      reminder.id,
+                      reminder.reminder_type || 'offer_followup_1'
+                    );
                   }
                 }}
                 className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 flex items-center gap-1"
-                title="Dobil sem odgovor - odpri podjetje"
+                title="Dobil sem odgovor - vnesi rezultat"
               >
                 <ThumbsUp size={16} />
                 DA

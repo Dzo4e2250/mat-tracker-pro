@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, X } from 'lucide-react';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
+import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import { useMapLocations } from '@/hooks/useMapLocations';
 import { useCameraScanner, useCycleActions, useProdajalecState } from './prodajalec/hooks';
 
@@ -23,14 +24,16 @@ import { lookupCompanyInternalFirst, isValidTaxNumberFormat } from '@/utils/comp
 
 // Ekstrahirane komponente
 import {
-  HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView,
+  HomeView, ScanView, MapView, HistoryView, StatisticsView, TrackingView, TasksView,
   MatDetailsModal, PutOnTestModal, SelectAvailableMatModal, MapLocationSelectModal,
   SelectTypeModal, SignContractModal, PutOnTestSuccessModal,
-  SideMenu, ProdajalecHeader, ProdajalecBottomNav, ViewType
+  SideMenu, ProdajalecHeader, ProdajalecBottomNav, ViewType, TravelLogPopup
 } from './prodajalec/components';
+import TravelLogView from './prodajalec/components/TravelLogView';
+import { useTravelLog, useTravelLogEntries } from '@/hooks/useTravelLog';
 
 export default function ProdajalecDashboard() {
-  const { user, profile, signOut, availableRoles, switchRole } = useAuth();
+  const { user, profile, signOut, availableRoles, switchRole, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -72,6 +75,7 @@ export default function ProdajalecDashboard() {
   const [taxLookupLoading, setTaxLookupLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
@@ -84,6 +88,14 @@ export default function ProdajalecDashboard() {
     }
   });
 
+  // Travel log popup state
+  const [showTravelLogPopup, setShowTravelLogPopup] = useState(false);
+  const [travelPopupShownToday, setTravelPopupShownToday] = useState(() => {
+    const lastShown = localStorage.getItem('travelPopupLastShown');
+    if (!lastShown) return false;
+    return lastShown === new Date().toISOString().split('T')[0];
+  });
+
   // Company Mats Modal state
   const [showCompanyMatsModal, setShowCompanyMatsModal] = useState(false);
   const [selectedCompanyForMats, setSelectedCompanyForMats] = useState<{
@@ -94,6 +106,13 @@ export default function ProdajalecDashboard() {
   } | null>(null);
 
   const { data: companyHistoryData } = useCompanyHistory(formData.companyId);
+
+  // Travel log data for popup trigger
+  const today = new Date();
+  const { data: currentTravelLog } = useTravelLog(user?.id, today.getFullYear(), today.getMonth() + 1);
+  const { data: travelLogEntries } = useTravelLogEntries(currentTravelLog?.id);
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const hasTodayEntry = travelLogEntries?.some(e => e.entry_date === todayStr);
 
   // Cycle actions hook
   const {
@@ -133,6 +152,15 @@ export default function ProdajalecDashboard() {
       localStorage.setItem('dismissedAlerts', JSON.stringify([...dismissedAlerts]));
     }
   }, [dismissedAlerts]);
+
+  // Show travel log popup between 13:00-17:00 if no entry for today
+  useEffect(() => {
+    const hour = new Date().getHours();
+    const shouldShow = hour >= 13 && hour < 17 && !hasTodayEntry && !travelPopupShownToday;
+    if (shouldShow && !showTravelLogPopup) {
+      setShowTravelLogPopup(true);
+    }
+  }, [hasTodayEntry, travelPopupShownToday, showTravelLogPopup]);
 
   // Helper functions
   const getAvailableQRCodes = () => {
@@ -274,7 +302,7 @@ export default function ProdajalecDashboard() {
         lastName={profile?.last_name}
         view={view}
         onMenuOpen={() => setMenuOpen(true)}
-        onTrackingView={() => setView('tracking')}
+        onTravelView={() => setView('travel')}
       />
 
       <SideMenu
@@ -286,10 +314,11 @@ export default function ProdajalecDashboard() {
         availableRoles={availableRoles}
         onSwitchRole={switchRole}
         onChangePassword={() => setShowPasswordModal(true)}
+        onSettings={() => setShowSettingsModal(true)}
         onSignOut={signOut}
       />
 
-      <div className="max-w-4xl mx-auto p-4">
+      <div className={`mx-auto p-4 ${view === 'tasks' ? 'max-w-7xl' : 'max-w-4xl'}`}>
         {view === 'home' && (
           <HomeView
             cycles={cycles}
@@ -318,9 +347,11 @@ export default function ProdajalecDashboard() {
           />
         )}
 
-        {view === 'history' && <HistoryView cycleHistory={cycleHistory} />}
+        {view === 'history' && <HistoryView cycleHistory={cycleHistory} cycles={cycles} />}
         {view === 'statistics' && <StatisticsView cycleHistory={cycleHistory} />}
-        {view === 'tracking' && <TrackingView userId={user?.id} />}
+        {view === 'tracking' && <TrackingView userId={user?.id} onTravelView={() => setView('travel')} />}
+        {view === 'travel' && <TravelLogView userId={user?.id} />}
+        {view === 'tasks' && <TasksView userId={user?.id} />}
 
         {view === 'map' && (
           <MapView
@@ -531,6 +562,28 @@ export default function ProdajalecDashboard() {
 
       {/* Additional Modals */}
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      <ProfileSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        profile={profile}
+        onProfileUpdate={refreshProfile}
+      />
+
+      {/* Travel Log Popup - shown between 13:00-17:00 if no entry for today */}
+      <TravelLogPopup
+        userId={user?.id || ''}
+        isOpen={showTravelLogPopup}
+        onClose={() => {
+          setShowTravelLogPopup(false);
+          setTravelPopupShownToday(true);
+          localStorage.setItem('travelPopupLastShown', new Date().toISOString().split('T')[0]);
+        }}
+        onSuccess={() => {
+          toast({ description: 'Dnevnik poti shranjen' });
+          setTravelPopupShownToday(true);
+          localStorage.setItem('travelPopupLastShown', new Date().toISOString().split('T')[0]);
+        }}
+      />
 
       <CompanySelectModal
         companies={companies || []}

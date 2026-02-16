@@ -6,10 +6,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   getRentalPrice, getPurchasePrice, getReplacementCost, getPriceByCode,
-  DESIGN_SIZES, calculateM2FromDimensions, calculateCustomPrice, calculateCustomPurchasePrice,
+  DESIGN_SIZES, calculateM2FromDimensions,
   FrequencyKey
 } from '@/utils/priceList';
-import { usePriceSettings } from '@/hooks/usePrices';
+import { usePriceSettings, useCustomM2Prices, useMatPrices, CustomM2Price } from '@/hooks/usePrices';
 import { OfferItem, ItemType } from '../types';
 
 type OfferType = 'najem' | 'nakup' | 'primerjava' | 'dodatna';
@@ -22,13 +22,13 @@ const createDefaultItem = (type: 'nakup' | 'najem'): OfferItem => ({
   code: '',
   name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
   size: '',
-  customized: false,
+  customized: true,
   quantity: 1,
   pricePerUnit: 0,
   ...(type === 'najem' && { replacementCost: 0, seasonal: false }),
 });
 
-interface UseOfferStateReturn {
+export interface UseOfferStateReturn {
   // Modal state
   showOfferModal: boolean;
   setShowOfferModal: (show: boolean) => void;
@@ -75,6 +75,9 @@ interface UseOfferStateReturn {
   handleNormalPriceChange: (itemId: string, newPrice: number) => void;
   handleNormalDiscountChange: (itemId: string, discount: number) => void;
 
+  // Per-item frequency override
+  handleFrequencyOverride: (itemId: string, frequency: string | undefined) => void;
+
   // Calculations
   calculateOfferTotals: (type: 'nakup' | 'najem') => {
     totalItems: number;
@@ -83,6 +86,10 @@ interface UseOfferStateReturn {
     fourWeekTotal?: number;
     frequency?: string;
   };
+
+  // Price settings for UI display
+  designPurchasePricePerM2: number;
+  specialShapeMultiplier: number;
 }
 
 export function useOfferState(): UseOfferStateReturn {
@@ -96,7 +103,40 @@ export function useOfferState(): UseOfferStateReturn {
 
   // Price settings from admin panel
   const { data: priceSettings } = usePriceSettings();
+  const { data: customM2Prices } = useCustomM2Prices();
+  const { data: matPrices } = useMatPrices();
+
+  // Dynamic price values from admin panel
   const specialShapeMultiplier = priceSettings?.special_shape_multiplier || 1.5;
+  const designPurchasePricePerM2 = priceSettings?.design_purchase_price_per_m2 || 165;
+
+  // Povračilo (replacement cost) za custom artikle = odkup cena iz DESIGN-100x100 (1m² = 90.30€)
+  // Ta cena je iz cenika, ne za novo izdelavo
+  const design100x100 = matPrices?.find(p => p.code === 'DESIGN-100x100');
+  const customReplacementPricePerM2 = design100x100?.price_purchase || 90.30;
+
+  // Calculate custom rental price using database values
+  const calcCustomRentalPrice = useCallback((m2: number, frequency: FrequencyKey): number => {
+    if (m2 <= 0 || !customM2Prices) return 0;
+    const sizeCategory = m2 <= 2 ? 'small' : 'large';
+    const priceEntry = customM2Prices.find(
+      (p: CustomM2Price) => p.size_category === sizeCategory && p.frequency === frequency
+    );
+    if (!priceEntry) return 0;
+    return Math.round(m2 * priceEntry.price_per_m2 * 100) / 100;
+  }, [customM2Prices]);
+
+  // Calculate custom purchase price using database values (za novo izdelavo = 165€/m²)
+  const calcCustomPurchasePrice = useCallback((m2: number): number => {
+    if (m2 <= 0) return 0;
+    return Math.round(m2 * designPurchasePricePerM2 * 100) / 100;
+  }, [designPurchasePricePerM2]);
+
+  // Calculate custom replacement cost (povračilo) using odkup price from DESIGN-100x100 (90.30€/m²)
+  const calcCustomReplacementCost = useCallback((m2: number): number => {
+    if (m2 <= 0) return 0;
+    return Math.round(m2 * customReplacementPricePerM2 * 100) / 100;
+  }, [customReplacementPricePerM2]);
 
   // Items
   const [offerItemsNakup, setOfferItemsNakup] = useState<OfferItem[]>([createDefaultItem('nakup')]);
@@ -116,10 +156,12 @@ export function useOfferState(): UseOfferStateReturn {
     setShowOfferModal(true);
   }, []);
 
-  // Update najem prices when frequency changes
+  // Update najem prices when frequency changes - skip items with frequencyOverride
   const updateNajemPricesForFrequency = useCallback((newFrequency: string) => {
     setOfferFrequency(newFrequency);
     setOfferItemsNajem(prev => prev.map(item => {
+      // Skip items that have a per-item frequency override
+      if (item.frequencyOverride) return item;
       if (!item.code) return item;
       let newPrice: number;
 
@@ -129,7 +171,7 @@ export function useOfferState(): UseOfferStateReturn {
         newPrice = priceInfo.prices[newFrequency as FrequencyKey] || item.pricePerUnit;
       } else if (item.itemType === 'custom' && item.m2) {
         // Fall back to custom m² calculation for truly custom sizes
-        newPrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
+        newPrice = calcCustomRentalPrice(item.m2, newFrequency as FrequencyKey);
       } else {
         newPrice = item.pricePerUnit;
       }
@@ -141,7 +183,7 @@ export function useOfferState(): UseOfferStateReturn {
         discount: 0,
       };
     }));
-  }, []);
+  }, [calcCustomRentalPrice]);
 
   const addCustomOfferItem = useCallback((type: 'nakup' | 'najem') => {
     const newItem: OfferItem = {
@@ -151,7 +193,7 @@ export function useOfferState(): UseOfferStateReturn {
       code: '',
       name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
       size: '',
-      customized: false,
+      customized: true,
       quantity: 1,
       pricePerUnit: 0,
       ...(type === 'najem' && { replacementCost: 0, seasonal: false }),
@@ -213,7 +255,7 @@ export function useOfferState(): UseOfferStateReturn {
     // Za nakup VEDNO uporabi m² × 165 €/m² (nova izdelava)
     // Za najem uporabi cene iz cenika, odkup pa kot replacement cost
     if (type === 'nakup') {
-      basePrice = calculateCustomPurchasePrice(m2);
+      basePrice = calcCustomPurchasePrice(m2);
       replacementCost = 0;
     } else if (priceInfo) {
       // Najem: uporabi cene iz PRICE_LIST
@@ -221,8 +263,8 @@ export function useOfferState(): UseOfferStateReturn {
       replacementCost = priceInfo.odkup;
     } else {
       // Najem: fall back to m² calculation for non-standard sizes
-      basePrice = calculateCustomPrice(m2, offerFrequency as FrequencyKey);
-      replacementCost = calculateCustomPurchasePrice(m2);
+      basePrice = calcCustomRentalPrice(m2, offerFrequency as FrequencyKey);
+      replacementCost = calcCustomReplacementCost(m2); // Povračilo = 90.30€/m² (odkup iz cenika)
     }
 
     const updates: Partial<OfferItem> = {
@@ -236,7 +278,7 @@ export function useOfferState(): UseOfferStateReturn {
       name: 'predpražnik po meri'
     };
     updateOfferItem(itemId, updates, type);
-  }, [offerFrequency, updateOfferItem]);
+  }, [offerFrequency, calcCustomRentalPrice, calcCustomPurchasePrice, calcCustomReplacementCost, updateOfferItem]);
 
   const handleCustomDimensionsChange = useCallback((itemId: string, dimensions: string, type: 'nakup' | 'najem') => {
     const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
@@ -246,11 +288,11 @@ export function useOfferState(): UseOfferStateReturn {
 
     const m2 = calculateM2FromDimensions(dimensions);
     const basePrice = type === 'nakup'
-      ? calculateCustomPurchasePrice(m2) * multiplier
-      : calculateCustomPrice(m2, offerFrequency as FrequencyKey) * multiplier;
-    const replacementCost = type === 'najem' ? calculateCustomPurchasePrice(m2) * multiplier : 0;
+      ? calcCustomPurchasePrice(m2) * multiplier
+      : calcCustomRentalPrice(m2, offerFrequency as FrequencyKey) * multiplier;
+    const replacementCost = type === 'najem' ? calcCustomReplacementCost(m2) : 0; // Povračilo = 90.30€/m² (brez +50% za posebne oblike)
     updateOfferItem(itemId, { code: 'CUSTOM', size: dimensions, m2, pricePerUnit: basePrice, originalPrice: basePrice, discount: 0, replacementCost }, type);
-  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, updateOfferItem]);
+  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, calcCustomRentalPrice, calcCustomPurchasePrice, calcCustomReplacementCost, updateOfferItem]);
 
   const handleSpecialShapeChange = useCallback((itemId: string, specialShape: boolean, type: 'nakup' | 'najem') => {
     const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
@@ -259,9 +301,9 @@ export function useOfferState(): UseOfferStateReturn {
 
     const multiplier = specialShape ? specialShapeMultiplier : 1;
     const basePrice = type === 'nakup'
-      ? calculateCustomPurchasePrice(item.m2) * multiplier
-      : calculateCustomPrice(item.m2, offerFrequency as FrequencyKey) * multiplier;
-    const replacementCost = type === 'najem' ? calculateCustomPurchasePrice(item.m2) * multiplier : 0;
+      ? calcCustomPurchasePrice(item.m2) * multiplier
+      : calcCustomRentalPrice(item.m2, offerFrequency as FrequencyKey) * multiplier;
+    const replacementCost = type === 'najem' ? calcCustomReplacementCost(item.m2) : 0; // Povračilo = 90.30€/m² (brez +50% za posebne oblike)
 
     updateOfferItem(itemId, {
       specialShape,
@@ -270,7 +312,7 @@ export function useOfferState(): UseOfferStateReturn {
       discount: 0,
       replacementCost
     }, type);
-  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, updateOfferItem]);
+  }, [offerFrequency, offerItemsNakup, offerItemsNajem, specialShapeMultiplier, calcCustomRentalPrice, calcCustomPurchasePrice, calcCustomReplacementCost, updateOfferItem]);
 
   const handlePriceChange = useCallback((itemId: string, newPrice: number, type: 'nakup' | 'najem') => {
     const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
@@ -322,8 +364,8 @@ export function useOfferState(): UseOfferStateReturn {
         seasonalBasePrice = priceData.prices['1'];
       } else if (item.itemType === 'custom' && item.m2) {
         // Fall back to m² calculation for custom sizes
-        normalBasePrice = calculateCustomPrice(item.m2, '4');
-        seasonalBasePrice = calculateCustomPrice(item.m2, '1');
+        normalBasePrice = calcCustomRentalPrice(item.m2, '4');
+        seasonalBasePrice = calcCustomRentalPrice(item.m2, '1');
       }
       updateOfferItem(itemId, {
         seasonal: true,
@@ -357,7 +399,7 @@ export function useOfferState(): UseOfferStateReturn {
         seasonalDiscount: undefined
       }, 'najem');
     }
-  }, [offerItemsNajem, updateOfferItem]);
+  }, [offerItemsNajem, calcCustomRentalPrice, updateOfferItem]);
 
   const handleSeasonalFrequencyChange = useCallback((itemId: string, newFrequency: string) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
@@ -370,11 +412,11 @@ export function useOfferState(): UseOfferStateReturn {
       seasonalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
     } else if (item.itemType === 'custom' && item.m2) {
       // Fall back to m² calculation for custom sizes
-      seasonalBasePrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
+      seasonalBasePrice = calcCustomRentalPrice(item.m2, newFrequency as FrequencyKey);
     }
 
     updateOfferItem(itemId, { seasonalFrequency: newFrequency, seasonalPrice: seasonalBasePrice, seasonalOriginalPrice: seasonalBasePrice, seasonalDiscount: 0 }, 'najem');
-  }, [offerItemsNajem, updateOfferItem]);
+  }, [offerItemsNajem, calcCustomRentalPrice, updateOfferItem]);
 
   const handleSeasonalPriceChange = useCallback((itemId: string, newPrice: number) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
@@ -421,11 +463,11 @@ export function useOfferState(): UseOfferStateReturn {
       normalBasePrice = priceData.prices[newFrequency as FrequencyKey] || priceData.prices['1'];
     } else if (item.itemType === 'custom' && item.m2) {
       // Fall back to m² calculation for custom sizes
-      normalBasePrice = calculateCustomPrice(item.m2, newFrequency as FrequencyKey);
+      normalBasePrice = calcCustomRentalPrice(item.m2, newFrequency as FrequencyKey);
     }
 
     updateOfferItem(itemId, { normalFrequency: newFrequency, normalPrice: normalBasePrice, normalOriginalPrice: normalBasePrice, normalDiscount: 0 }, 'najem');
-  }, [offerItemsNajem, updateOfferItem]);
+  }, [offerItemsNajem, calcCustomRentalPrice, updateOfferItem]);
 
   const handleNormalPriceChange = useCallback((itemId: string, newPrice: number) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
@@ -460,6 +502,32 @@ export function useOfferState(): UseOfferStateReturn {
       normalOriginalPrice: originalPrice
     }, 'najem');
   }, [offerItemsNajem, updateOfferItem]);
+
+  // Per-item frequency override handler
+  const handleFrequencyOverride = useCallback((itemId: string, frequency: string | undefined) => {
+    const item = offerItemsNajem.find(i => i.id === itemId);
+    if (!item) return;
+
+    // If frequency is undefined, remove override and recalculate to global
+    const effectiveFrequency = frequency || offerFrequency;
+
+    let newPrice: number;
+    const priceInfo = getPriceByCode(item.code);
+    if (priceInfo) {
+      newPrice = priceInfo.prices[effectiveFrequency as FrequencyKey] || item.pricePerUnit;
+    } else if (item.itemType === 'custom' && item.m2) {
+      newPrice = calcCustomRentalPrice(item.m2, effectiveFrequency as FrequencyKey);
+    } else {
+      newPrice = item.pricePerUnit;
+    }
+
+    updateOfferItem(itemId, {
+      frequencyOverride: frequency,
+      pricePerUnit: newPrice,
+      originalPrice: newPrice,
+      discount: 0,
+    }, 'najem');
+  }, [offerItemsNajem, offerFrequency, calcCustomRentalPrice, updateOfferItem]);
 
   const calculateOfferTotals = useCallback((type: 'nakup' | 'najem') => {
     const items = type === 'nakup' ? offerItemsNakup : offerItemsNajem;
@@ -505,7 +573,10 @@ export function useOfferState(): UseOfferStateReturn {
     handleNormalFrequencyChange,
     handleNormalPriceChange,
     handleNormalDiscountChange,
+    handleFrequencyOverride,
     calculateOfferTotals,
+    designPurchasePricePerM2,
+    specialShapeMultiplier,
   };
 }
 

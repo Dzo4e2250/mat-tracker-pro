@@ -88,9 +88,10 @@ export default function ItemsTable({
                 </td>
                 <td className="px-1 py-1">
                   <input
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) => onUpdateItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                    type="text"
+                    inputMode="numeric"
+                    value={item.quantity || ''}
+                    onChange={(e) => onUpdateItem(index, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value.replace(/[^0-9]/g, '')))}
                     className="w-12 px-1 py-1 border rounded text-xs"
                   />
                 </td>

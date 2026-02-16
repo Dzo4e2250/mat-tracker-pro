@@ -30,6 +30,7 @@ const PriceManagement = lazy(() => import("./pages/inventar/PriceManagement"));
 const ProdajalecDashboard = lazy(() => import("./pages/ProdajalecDashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const OrderCodes = lazy(() => import("./pages/OrderCodes"));
+const WorklistPopup = lazy(() => import("./pages/WorklistPopup"));
 
 // Loading spinner for lazy loaded pages
 const PageLoader = () => (
@@ -50,6 +51,7 @@ const OfflineBanner = () => {
     </div>
   );
 };
+
 
 // App content with hooks
 const AppContent = () => {
@@ -132,6 +134,11 @@ const AppContent = () => {
             <Route path="/order-codes" element={
               <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
                 <OrderCodes />
+              </ProtectedRoute>
+            } />
+            <Route path="/worklist-popup" element={
+              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
+                <WorklistPopup />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

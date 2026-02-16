@@ -90,23 +90,49 @@ export function useContractPendingCompanies(userId?: string, daysThreshold: numb
   });
 }
 
-// Create a new reminder
+// Create a new reminder (and optionally a linked task)
 export function useCreateReminder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (reminder: ReminderInsert) => {
-      const { data, error } = await supabase
+    mutationFn: async (reminder: ReminderInsert & { createTask?: boolean }) => {
+      const { createTask, ...reminderData } = reminder;
+
+      // 1. Create the reminder
+      const { data: reminderResult, error } = await supabase
         .from('reminders')
-        .insert(reminder)
+        .insert(reminderData)
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+
+      // 2. Optionally create a linked task
+      if (createTask && reminderResult && reminderData.note) {
+        const { error: taskError } = await supabase
+          .from('tasks')
+          .insert({
+            title: reminderData.note,
+            description: null,
+            status: 'todo',
+            salesperson_id: reminderData.user_id,
+            company_id: reminderData.company_id,
+            reminder_id: reminderResult.id,
+            task_type: 'reminder',
+            position: 0,
+          });
+
+        if (taskError) {
+          console.error('Failed to create linked task:', taskError);
+          // Don't fail the whole operation if task creation fails
+        }
+      }
+
+      return reminderResult;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 }
@@ -682,6 +708,107 @@ export function useOfferCallNotReachable() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+}
+
+// ============================================
+// UNIFIED OFFER RESPONSE HANDLER
+// ============================================
+
+export type OfferResponseAction =
+  | 'wants_contract'
+  | 'no_interest_close'
+  | 'no_interest_followup'
+  | 'too_expensive_close'
+  | 'too_expensive_followup'
+  | 'needs_time'
+  | 'call_next_week'
+  | 'no_time'
+  | 'custom';
+
+export function useHandleOfferResponse() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      userId,
+      reminderId,
+      action,
+      note,
+      followupDays,
+    }: {
+      companyId: string;
+      userId: string;
+      reminderId: string;
+      action: OfferResponseAction;
+      note: string;
+      followupDays?: number;
+    }) => {
+      // 1. Always complete the current reminder
+      await supabase
+        .from('reminders')
+        .update({ is_completed: true, updated_at: new Date().toISOString() })
+        .eq('id', reminderId);
+
+      // 2. Always add note to company_notes
+      await supabase
+        .from('company_notes')
+        .insert({
+          company_id: companyId,
+          created_by: userId,
+          content: note,
+          note_date: new Date().toISOString().split('T')[0],
+        });
+
+      // 3. Handle specific actions
+      if (action === 'wants_contract') {
+        // Update company to contract_sent
+        await supabase
+          .from('companies')
+          .update({
+            pipeline_status: 'contract_sent',
+            contract_sent_at: new Date().toISOString(),
+            offer_called_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', companyId);
+      } else if (action === 'no_interest_close' || action === 'too_expensive_close') {
+        // Move back to contacted, clear offer fields
+        await supabase
+          .from('companies')
+          .update({
+            pipeline_status: 'contacted',
+            offer_sent_at: null,
+            offer_called_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', companyId);
+      } else if (followupDays && followupDays > 0) {
+        // Create followup reminder
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + followupDays);
+        futureDate.setHours(9, 0, 0, 0);
+
+        await supabase
+          .from('reminders')
+          .insert({
+            company_id: companyId,
+            user_id: userId,
+            reminder_at: futureDate.toISOString(),
+            note: `Followup: ${note}`,
+            reminder_type: 'offer_followup_1',
+            is_completed: false,
+          });
+      }
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      queryClient.invalidateQueries({ queryKey: ['company_notes'] });
     },
   });
 }
