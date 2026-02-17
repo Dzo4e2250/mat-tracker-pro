@@ -92,13 +92,13 @@ interface CycleHistoryQueryResult {
   } | null;
 }
 
-export function useCompanyHistory(companyId: string | undefined) {
+export function useCompanyHistory(companyId: string | undefined, options?: { salespersonId?: string }) {
   return useQuery({
-    queryKey: ['company-history', companyId],
+    queryKey: ['company-history', companyId, options?.salespersonId],
     queryFn: async (): Promise<CompanyCycleHistory[]> => {
       if (!companyId) return [];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('cycles')
         .select(`
           id,
@@ -109,7 +109,14 @@ export function useCompanyHistory(companyId: string | undefined) {
           contract_signed,
           profiles!cycles_salesperson_id_fkey(first_name, last_name)
         `)
-        .eq('company_id', companyId)
+        .eq('company_id', companyId);
+
+      // If salespersonId is provided, filter to only show that seller's cycles
+      if (options?.salespersonId) {
+        query = query.eq('salesperson_id', options.salespersonId);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(10);
 

@@ -119,7 +119,7 @@ export default function ProdajalecDashboard() {
     }
   }, [modalType]);
 
-  const { data: companyHistoryData } = useCompanyHistory(formData.companyId);
+  const { data: companyHistoryData } = useCompanyHistory(formData.companyId, { salespersonId: user?.id });
 
   // Travel log data for popup trigger
   const today = new Date();
