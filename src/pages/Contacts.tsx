@@ -332,7 +332,7 @@ export default function Contacts() {
           }}
           onMarkContractReceived={async (companyId, reminderId) => {
             try {
-              await markContractReceived.mutateAsync({ companyId, reminderId });
+              await markContractReceived.mutateAsync({ companyId, userId: user?.id || '', reminderId });
               toast({ description: 'Pogodba označena kot prejeta!' });
             } catch {
               toast({ description: 'Napaka pri označevanju pogodbe', variant: 'destructive' });
@@ -357,7 +357,7 @@ export default function Contacts() {
           }}
           onOfferResponseContract={async (companyId, reminderId) => {
             try {
-              await offerResponseContract.mutateAsync({ companyId, reminderId });
+              await offerResponseContract.mutateAsync({ companyId, userId: user?.id || '', reminderId });
               toast({ description: 'Stranka želi pogodbo - status posodobljen!' });
             } catch {
               toast({ description: 'Napaka pri posodabljanju statusa', variant: 'destructive' });

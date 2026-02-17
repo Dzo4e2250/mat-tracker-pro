@@ -160,6 +160,18 @@ export function useCompleteReminder() {
   });
 }
 
+// Bulk-complete ALL active reminders for a company+user
+async function completeAllCompanyReminders(companyId: string, userId: string) {
+  const { error } = await supabase
+    .from('reminders')
+    .update({ is_completed: true, updated_at: new Date().toISOString() })
+    .eq('company_id', companyId)
+    .eq('user_id', userId)
+    .eq('is_completed', false);
+
+  if (error) throw error;
+}
+
 // Postpone reminder to a new date
 export function usePostponeReminder() {
   const queryClient = useQueryClient();
@@ -288,7 +300,7 @@ export function useMarkContractReceived() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ companyId, reminderId }: { companyId: string; reminderId?: string }) => {
+    mutationFn: async ({ companyId, userId, reminderId }: { companyId: string; userId: string; reminderId?: string }) => {
       // 1. Update company status to contract_signed
       const { error: updateError } = await supabase
         .from('companies')
@@ -301,14 +313,9 @@ export function useMarkContractReceived() {
 
       if (updateError) throw updateError;
 
-      // 2. If there's a reminder, mark it as completed
-      if (reminderId) {
-        const { error: reminderError } = await supabase
-          .from('reminders')
-          .update({ is_completed: true, updated_at: new Date().toISOString() })
-          .eq('id', reminderId);
-
-        if (reminderError) throw reminderError;
+      // 2. Bulk-complete ALL active reminders for this company
+      if (userId) {
+        await completeAllCompanyReminders(companyId, userId);
       }
 
       return { success: true };
@@ -432,7 +439,7 @@ export function useOfferResponseContract() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ companyId, reminderId }: { companyId: string; reminderId?: string }) => {
+    mutationFn: async ({ companyId, userId, reminderId }: { companyId: string; userId: string; reminderId?: string }) => {
       // 1. Update company status to contract_sent
       const { error: updateError } = await supabase
         .from('companies')
@@ -446,12 +453,9 @@ export function useOfferResponseContract() {
 
       if (updateError) throw updateError;
 
-      // 2. Complete the reminder if exists
-      if (reminderId) {
-        await supabase
-          .from('reminders')
-          .update({ is_completed: true, updated_at: new Date().toISOString() })
-          .eq('id', reminderId);
+      // 2. Bulk-complete ALL active offer reminders for this company
+      if (userId) {
+        await completeAllCompanyReminders(companyId, userId);
       }
 
       return { success: true };
@@ -747,13 +751,7 @@ export function useHandleOfferResponse() {
       note: string;
       followupDays?: number;
     }) => {
-      // 1. Always complete the current reminder
-      await supabase
-        .from('reminders')
-        .update({ is_completed: true, updated_at: new Date().toISOString() })
-        .eq('id', reminderId);
-
-      // 2. Always add note to company_notes
+      // 1. Always add note to company_notes
       await supabase
         .from('company_notes')
         .insert({
@@ -763,8 +761,11 @@ export function useHandleOfferResponse() {
           note_date: new Date().toISOString().split('T')[0],
         });
 
-      // 3. Handle specific actions
+      // 2. Handle specific actions
       if (action === 'wants_contract') {
+        // Bulk-complete ALL active reminders for this company before moving to contract
+        await completeAllCompanyReminders(companyId, userId);
+
         // Update company to contract_sent
         await supabase
           .from('companies')
@@ -776,6 +777,9 @@ export function useHandleOfferResponse() {
           })
           .eq('id', companyId);
       } else if (action === 'no_interest_close' || action === 'too_expensive_close') {
+        // Bulk-complete ALL active reminders for this company
+        await completeAllCompanyReminders(companyId, userId);
+
         // Move back to contacted, clear offer fields
         await supabase
           .from('companies')
@@ -786,7 +790,15 @@ export function useHandleOfferResponse() {
             updated_at: new Date().toISOString(),
           })
           .eq('id', companyId);
-      } else if (followupDays && followupDays > 0) {
+      } else {
+        // For non-closing actions, just complete the current reminder
+        await supabase
+          .from('reminders')
+          .update({ is_completed: true, updated_at: new Date().toISOString() })
+          .eq('id', reminderId);
+      }
+
+      if (followupDays && followupDays > 0) {
         // Create followup reminder
         const futureDate = new Date();
         futureDate.setDate(futureDate.getDate() + followupDays);

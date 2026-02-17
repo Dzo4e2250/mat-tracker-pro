@@ -196,6 +196,14 @@ export default function UrgentReminders({
               >
                 Odpri
               </button>
+              {/* Dismiss */}
+              <button
+                onClick={() => onCompleteReminder(reminder.id)}
+                className="p-2 bg-white border border-orange-300 text-orange-500 rounded-lg hover:bg-orange-100 hover:text-orange-700"
+                title="Zaključi opomnik"
+              >
+                <X size={16} />
+              </button>
             </div>
           </div>
         </div>
@@ -263,6 +271,14 @@ export default function UrgentReminders({
                 className="px-3 py-2 bg-white border border-yellow-400 text-yellow-700 rounded-lg text-sm font-medium hover:bg-yellow-100"
               >
                 Odpri
+              </button>
+              {/* Dismiss */}
+              <button
+                onClick={() => onCompleteReminder(reminder.id)}
+                className="p-2 bg-white border border-yellow-400 text-yellow-500 rounded-lg hover:bg-yellow-100 hover:text-yellow-700"
+                title="Zaključi opomnik"
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
@@ -354,6 +370,14 @@ export default function UrgentReminders({
                 className="px-3 py-2 bg-white border border-purple-300 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100"
               >
                 Odpri
+              </button>
+              {/* Dismiss */}
+              <button
+                onClick={() => onCompleteReminder(reminder.id)}
+                className="p-2 bg-white border border-purple-300 text-purple-400 rounded-lg hover:bg-purple-100 hover:text-purple-700"
+                title="Zaključi opomnik"
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
