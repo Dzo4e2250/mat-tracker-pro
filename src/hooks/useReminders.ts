@@ -35,7 +35,7 @@ export function useDueReminders(userId?: string) {
   return useQuery({
     queryKey: ['reminders', 'due', userId],
     staleTime: 1000 * 60, // 1 minuta
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!userId) return [];
 
@@ -56,7 +56,8 @@ export function useDueReminders(userId?: string) {
       return data as ReminderWithCompany[];
     },
     enabled: !!userId,
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    refetchIntervalInBackground: false, // Don't refetch when tab is hidden
   });
 }
 

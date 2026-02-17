@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { X, Download, Filter } from 'lucide-react';
+import { X, Download, Filter, Search } from 'lucide-react';
 import type { CycleWithRelations } from '@/hooks/useCycles';
 import { STATUSES, type StatusKey } from '../utils/constants';
 import { getTimeRemaining, formatCountdown } from '../utils/timeHelpers';
@@ -242,6 +242,7 @@ export default function HomeView({
 }: HomeViewProps) {
   const [matTypeFilter, setMatTypeFilter] = useState<string>('all');
   const [showAllMatsModal, setShowAllMatsModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Izračunaj statistiko
   const stats = {
@@ -412,7 +413,19 @@ export default function HomeView({
     return result;
   };
 
-  const filteredCycles = getFilteredCycles();
+  const filteredCyclesPreSearch = getFilteredCycles();
+
+  // Apply search filter
+  const filteredCycles = useMemo(() => {
+    if (!searchQuery.trim()) return filteredCyclesPreSearch;
+    const q = searchQuery.toLowerCase().trim();
+    return filteredCyclesPreSearch.filter(c => {
+      const companyName = (c.company?.display_name || c.company?.name || '').toLowerCase();
+      const qrCode = (c.qr_code?.code || '').toLowerCase();
+      const matCode = (c.mat_type?.code || c.mat_type?.name || '').toLowerCase();
+      return companyName.includes(q) || qrCode.includes(q) || matCode.includes(q);
+    });
+  }, [filteredCyclesPreSearch, searchQuery]);
 
   // Grupiraj on_test cikle po podjetjih
   const onTestByCompany = new Map<string, CycleWithRelations[]>();
@@ -486,6 +499,26 @@ export default function HomeView({
 
       {/* Filter in seznam */}
       <div className="bg-white rounded-lg shadow p-4">
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Išči podjetje, QR kodo, tip..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-sm border rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 focus:outline-none"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
         {/* Filter tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
           {[

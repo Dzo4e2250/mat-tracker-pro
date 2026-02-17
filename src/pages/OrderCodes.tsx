@@ -413,7 +413,7 @@ export default function OrderCodes() {
             <span className="text-xs mt-1">Domov</span>
           </button>
           <button
-            onClick={() => navigate('/prodajalec')}
+            onClick={() => navigate('/prodajalec?view=scan')}
             className="flex-1 py-3 flex flex-col items-center text-gray-600"
           >
             <Camera size={22} />

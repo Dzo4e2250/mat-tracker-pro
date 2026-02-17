@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import {
   useD365Worklist,
   groupWorklistByCompany,
@@ -116,6 +117,7 @@ function WorklistActivityCard({
 }) {
   const [expanded, setExpanded] = useState(true);
   const { toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   // Get primary contact or first contact
   const contacts = activity.company?.contacts || [];
@@ -151,8 +153,8 @@ function WorklistActivityCard({
 
   const daysWaiting = getDaysWaiting();
 
-  const handleDelete = () => {
-    if (window.confirm('Ali res želiš izbrisati to opombo? Ta akcija je nepovratna.')) {
+  const handleDelete = async () => {
+    if (await confirm({ title: 'Izbriši opombo?', description: 'Ali res želiš izbrisati to opombo? Ta akcija je nepovratna.', destructive: true, confirmLabel: 'Izbriši' })) {
       onDelete(activity.id);
     }
   };
@@ -404,6 +406,7 @@ function WorklistActivityCard({
           </div>
         </div>
       )}
+      {ConfirmDialog}
     </div>
   );
 }

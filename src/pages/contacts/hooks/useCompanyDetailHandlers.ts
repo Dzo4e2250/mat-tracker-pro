@@ -8,6 +8,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { generateICSFile } from '@/pages/contacts/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -137,6 +138,7 @@ export function useCompanyDetailHandlers({
 }: UseCompanyDetailHandlersProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const queryClient = useQueryClient();
 
   const handleClose = useCallback(() => {
@@ -382,9 +384,15 @@ export function useCompanyDetailHandlers({
     navigate('/prodajalec');
   }, [setSelectedCompany, setSelectedCompanyId, navigate]);
 
-  const handleDeleteCompany = useCallback(() => {
+  const handleDeleteCompany = useCallback(async () => {
     if (!selectedCompany) return;
-    if (window.confirm(`Ali ste prepričani, da želite izbrisati stranko "${selectedCompany.display_name || selectedCompany.name}"?\n\nTo bo izbrisalo tudi vse kontakte, opombe in opomnike.`)) {
+    const confirmed = await confirm({
+      title: 'Izbriši stranko?',
+      description: `Ali ste prepričani, da želite izbrisati stranko "${selectedCompany.display_name || selectedCompany.name}"?\n\nTo bo izbrisalo tudi vse kontakte, opombe in opomnike.`,
+      destructive: true,
+      confirmLabel: 'Izbriši',
+    });
+    if (confirmed) {
       deleteCompany.mutate(selectedCompany.id, {
         onSuccess: () => {
           toast({ description: 'Stranka izbrisana' });
@@ -396,7 +404,7 @@ export function useCompanyDetailHandlers({
         }
       });
     }
-  }, [selectedCompany, deleteCompany, toast, setSelectedCompany, setSelectedCompanyId]);
+  }, [selectedCompany, deleteCompany, toast, setSelectedCompany, setSelectedCompanyId, confirm]);
 
   const handleSelectCompany = useCallback((companyId: string) => {
     const newCompany = companies?.find(c => c.id === companyId);
@@ -495,6 +503,7 @@ export function useCompanyDetailHandlers({
     handleMeetingSaveOnly,
     handleMeetingClose,
     handleToggleD365,
+    ConfirmDialog,
   };
 }
 

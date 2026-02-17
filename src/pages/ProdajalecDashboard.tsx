@@ -90,10 +90,12 @@ export default function ProdajalecDashboard() {
 
   // Travel log popup state
   const [showTravelLogPopup, setShowTravelLogPopup] = useState(false);
-  const [travelPopupShownToday, setTravelPopupShownToday] = useState(() => {
+  const [travelPopupShownRecently, setTravelPopupShownRecently] = useState(() => {
     const lastShown = localStorage.getItem('travelPopupLastShown');
     if (!lastShown) return false;
-    return lastShown === new Date().toISOString().split('T')[0];
+    const lastShownTime = new Date(lastShown).getTime();
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    return lastShownTime > twoHoursAgo;
   });
 
   // Company Mats Modal state
@@ -170,11 +172,11 @@ export default function ProdajalecDashboard() {
   // Show travel log popup between 13:00-17:00 if no entry for today
   useEffect(() => {
     const hour = new Date().getHours();
-    const shouldShow = hour >= 13 && hour < 17 && !hasTodayEntry && !travelPopupShownToday;
+    const shouldShow = hour >= 13 && hour < 17 && !hasTodayEntry && !travelPopupShownRecently;
     if (shouldShow && !showTravelLogPopup) {
       setShowTravelLogPopup(true);
     }
-  }, [hasTodayEntry, travelPopupShownToday, showTravelLogPopup]);
+  }, [hasTodayEntry, travelPopupShownRecently, showTravelLogPopup]);
 
   // Helper functions
   const getAvailableQRCodes = () => {
@@ -590,12 +592,12 @@ export default function ProdajalecDashboard() {
         onClose={() => {
           setShowTravelLogPopup(false);
           setTravelPopupShownToday(true);
-          localStorage.setItem('travelPopupLastShown', new Date().toISOString().split('T')[0]);
+          localStorage.setItem('travelPopupLastShown', new Date().toISOString());
         }}
         onSuccess={() => {
           toast({ description: 'Dnevnik poti shranjen' });
           setTravelPopupShownToday(true);
-          localStorage.setItem('travelPopupLastShown', new Date().toISOString().split('T')[0]);
+          localStorage.setItem('travelPopupLastShown', new Date().toISOString());
         }}
       />
 

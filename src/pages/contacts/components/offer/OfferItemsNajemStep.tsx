@@ -6,20 +6,16 @@
  * - Podpora za primerjava/dodatna (najem + nakup artikli)
  */
 
-import { useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { OfferItem, OfferType, ItemType, OfferTotals } from './types';
 import {
   OPTIBRUSH_STANDARD_SIZES,
-  calculateOptibrushPrice,
   getPriceCategoryLabel,
-  OptibrushConfig,
 } from '@/hooks/useOptibrushPrices';
 import {
-  useOptibrushPricesFromDB,
-  usePriceSettings,
-  calculateOptibrushPriceFromDB,
-} from '@/hooks/usePrices';
+  useOptibrushAutoPrice,
+  getOptibrushConfig,
+} from '../../hooks/useOptibrushAutoPrice';
 
 interface WeekOption {
   value: number;
@@ -116,9 +112,7 @@ export default function OfferItemsNajemStep({
   onNext,
   calculateTotals,
 }: OfferItemsNajemStepProps) {
-  // Fetch optibrush prices from DB
-  const { data: optibrushPricesDB } = useOptibrushPricesFromDB();
-  const { data: priceSettings } = usePriceSettings();
+  const { calculateOptibrush } = useOptibrushAutoPrice(items, onOptibrushChange);
 
   // Validation - different for optibrush items
   const isValid = !items.some(i => {
@@ -132,89 +126,6 @@ export default function OfferItemsNajemStep({
   const najemItems = items.filter(i => i.purpose !== 'nakup');
   const nakupItems = items.filter(i => i.purpose === 'nakup');
   const totals = calculateTotals();
-
-  // Optibrush helper functions
-  const getOptibrushConfig = (item: OfferItem): OptibrushConfig => ({
-    hasEdge: item.optibrushHasEdge ?? true,
-    colorCount: item.optibrushColorCount ?? '1',
-    hasDrainage: item.optibrushHasDrainage ?? false,
-    specialShape: item.optibrushSpecialShape ?? false,
-    widthCm: item.optibrushWidthCm || 0,
-    heightCm: item.optibrushHeightCm || 0,
-  });
-
-  // Izračunaj optibrush ceno - uporabi DB cene če so na voljo
-  const calculateOptibrush = (item: OfferItem) => {
-    if (item.itemType !== 'optibrush') return null;
-    if (!item.optibrushWidthCm || !item.optibrushHeightCm) return null;
-
-    const config = getOptibrushConfig(item);
-    const m2 = (config.widthCm * config.heightCm) / 10000;
-    const isStandard = config.hasEdge && OPTIBRUSH_STANDARD_SIZES.some(
-      s => (s.width === config.widthCm && s.height === config.heightCm) ||
-           (s.width === config.heightCm && s.height === config.widthCm)
-    );
-    const isLarge = m2 > 7.5;
-
-    // Try DB calculation first
-    if (optibrushPricesDB && priceSettings) {
-      const dbResult = calculateOptibrushPriceFromDB(
-        optibrushPricesDB,
-        {
-          hasEdge: config.hasEdge,
-          hasDrainage: config.hasDrainage,
-          isStandard,
-          isLarge,
-          colorCount: config.colorCount,
-          m2,
-          specialShape: config.specialShape,
-        },
-        priceSettings
-      );
-      if (dbResult) {
-        return { ...dbResult, m2: Math.round(m2 * 100) / 100 };
-      }
-    }
-
-    // Fallback to local calculation
-    return calculateOptibrushPrice(config);
-  };
-
-  // Ref za sledenje prejšnjim vrednostim da preprečimo nepotrebne update-e
-  const prevItemsRef = useRef<string>('');
-
-  // Avtomatsko izračunaj in nastavi ceno za Optibrush artikle
-  useEffect(() => {
-    // Ustvari hash trenutnih optibrush konfiguracij
-    const currentHash = items
-      .filter(i => i.itemType === 'optibrush')
-      .map(i => `${i.id}-${i.optibrushHasEdge}-${i.optibrushColorCount}-${i.optibrushHasDrainage}-${i.optibrushSpecialShape}-${i.optibrushWidthCm}-${i.optibrushHeightCm}`)
-      .join('|');
-
-    // Če se ni nič spremenilo, ne naredi nič
-    if (currentHash === prevItemsRef.current) return;
-    prevItemsRef.current = currentHash;
-
-    // Za vsak optibrush artikel izračunaj in nastavi ceno
-    items.forEach(item => {
-      if (item.itemType !== 'optibrush') return;
-      if (!item.optibrushWidthCm || !item.optibrushHeightCm) return;
-
-      const calc = calculateOptibrush(item);
-
-      if (calc && calc.totalPrice !== item.pricePerUnit) {
-        const sizeStr = `${item.optibrushWidthCm}x${item.optibrushHeightCm}`;
-        onOptibrushChange(item.id, {
-          pricePerUnit: calc.totalPrice,
-          optibrushPricePerM2: calc.pricePerM2,
-          code: `OPTIBRUSH-${sizeStr}`,
-          name: `Optibrush ${sizeStr} cm`,
-          size: sizeStr,
-          m2: calc.m2,
-        });
-      }
-    });
-  }, [items, onOptibrushChange, optibrushPricesDB, priceSettings]);
 
   const getHeaderText = () => {
     if (offerType === 'primerjava') return 'Artikli (najem + nakup)';

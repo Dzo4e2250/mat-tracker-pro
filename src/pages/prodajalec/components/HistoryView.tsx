@@ -14,6 +14,8 @@ import * as XLSX from 'xlsx';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { generateAndDownloadICS } from '@/utils/icsGenerator';
 
 interface HistoryViewProps {
   cycleHistory: CycleWithRelations[] | undefined;
@@ -68,6 +70,7 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   // Inventory export function - exports mat counts by type with dates
   const exportInventory = () => {
@@ -250,13 +253,13 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
     },
   });
 
-  const handleResetAllToWorklist = () => {
+  const handleResetAllToWorklist = async () => {
     const count = allNotes?.length || 0;
     if (count === 0) {
       toast({ description: 'Ni aktivnosti za reset' });
       return;
     }
-    if (window.confirm(`Ali res želiš prestaviti vseh ${count} aktivnosti nazaj v "Za vnos v CRM"?\n\nTo bo ponastavilo status vseh tvojih aktivnosti.`)) {
+    if (await confirm({ title: 'Ponastavi vse?', description: `Ali res želiš prestaviti vseh ${count} aktivnosti nazaj v "Za vnos v CRM"?\n\nTo bo ponastavilo status vseh tvojih aktivnosti.`, destructive: true, confirmLabel: 'Ponastavi' })) {
       resetAllToWorklist.mutate();
     }
   };
@@ -270,26 +273,25 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
     const newToExport = d365Ready.filter(n => !n.exported_to_d365_at);
 
     if (d365Ready.length === 0) {
-      alert(`Nobena aktivnost nima D365 polj izpolnjenih.\n\nPri vnašanju aktivnosti izpolni D365 polja (Kategorija, Podkategorija) da jih lahko izvozis v D365 format.`);
+      await confirm({ title: 'Ni D365 podatkov', description: 'Nobena aktivnost nima D365 polj izpolnjenih.\n\nPri vnašanju aktivnosti izpolni D365 polja (Kategorija, Podkategorija) da jih lahko izvozis v D365 format.', confirmLabel: 'Razumem' });
       return;
     }
 
     // Ask user what to export
     let exportOnlyNew = false;
     if (alreadyExported.length > 0 && newToExport.length > 0) {
-      const choice = window.confirm(
-        `📊 Stanje aktivnosti:\n` +
-        `• ${newToExport.length} NOVIH (še neizvoženih)\n` +
-        `• ${alreadyExported.length} že izvoženih\n\n` +
-        `Klikni "V redu" za izvoz SAMO novih aktivnosti\n` +
-        `Klikni "Prekliči" za izvoz VSEH aktivnosti (vključno z že izvoženimi)`
-      );
-      exportOnlyNew = choice;
+      exportOnlyNew = await confirm({
+        title: 'Kaj izvoziti?',
+        description: `Stanje aktivnosti:\n\u2022 ${newToExport.length} NOVIH (še neizvoženih)\n\u2022 ${alreadyExported.length} že izvoženih`,
+        confirmLabel: 'Samo nove',
+        cancelLabel: 'Vse',
+      });
     } else if (alreadyExported.length > 0 && newToExport.length === 0) {
-      const reexport = window.confirm(
-        `⚠️ Vse aktivnosti (${alreadyExported.length}) so že bile izvožene.\n\n` +
-        `Ali želiš ponovno izvoziti?`
-      );
+      const reexport = await confirm({
+        title: 'Ponovno izvozi?',
+        description: `Vse aktivnosti (${alreadyExported.length}) so že bile izvožene.\n\nAli želiš ponovno izvoziti?`,
+        confirmLabel: 'Ponovno izvozi',
+      });
       if (!reexport) return;
     }
 
@@ -323,26 +325,25 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
     const newToExport = d365Ready.filter(n => !n.exported_to_d365_at);
 
     if (d365Ready.length === 0) {
-      alert(`Nobena aktivnost nima D365 polj izpolnjenih.\n\nPri vnašanju aktivnosti izpolni D365 polja (Kategorija, Podkategorija) da jih lahko izvozis v D365 format.`);
+      await confirm({ title: 'Ni D365 podatkov', description: 'Nobena aktivnost nima D365 polj izpolnjenih.\n\nPri vnašanju aktivnosti izpolni D365 polja (Kategorija, Podkategorija) da jih lahko izvozis v D365 format.', confirmLabel: 'Razumem' });
       return;
     }
 
     // Ask user what to export
     let exportOnlyNew = false;
     if (alreadyExported.length > 0 && newToExport.length > 0) {
-      const choice = window.confirm(
-        `📊 Stanje aktivnosti:\n` +
-        `• ${newToExport.length} NOVIH (še neizvoženih)\n` +
-        `• ${alreadyExported.length} že izvoženih\n\n` +
-        `Klikni "V redu" za kopiranje SAMO novih aktivnosti\n` +
-        `Klikni "Prekliči" za kopiranje VSEH aktivnosti (vključno z že izvoženimi)`
-      );
-      exportOnlyNew = choice;
+      exportOnlyNew = await confirm({
+        title: 'Kaj kopirati?',
+        description: `Stanje aktivnosti:\n\u2022 ${newToExport.length} NOVIH (še neizvoženih)\n\u2022 ${alreadyExported.length} že izvoženih`,
+        confirmLabel: 'Samo nove',
+        cancelLabel: 'Vse',
+      });
     } else if (alreadyExported.length > 0 && newToExport.length === 0) {
-      const recopy = window.confirm(
-        `⚠️ Vse aktivnosti (${alreadyExported.length}) so že bile izvožene.\n\n` +
-        `Ali želiš znova kopirati?`
-      );
+      const recopy = await confirm({
+        title: 'Ponovno kopiraj?',
+        description: `Vse aktivnosti (${alreadyExported.length}) so že bile izvožene.\n\nAli želiš znova kopirati?`,
+        confirmLabel: 'Ponovno kopiraj',
+      });
       if (!recopy) return;
     }
 
@@ -405,56 +406,17 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
     const startTime = startMatch ? startMatch[1] : '09:00';
     const endTime = endMatch ? endMatch[1] : '10:00';
 
-    const startDate = new Date(`${activity.note_date}T${startTime}:00`);
-    const endDate = new Date(`${activity.note_date}T${endTime}:00`);
-
-    const formatICSDate = (d: Date) => {
-      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    };
-
     const companyName = activity.company?.display_name || activity.company?.name || 'Podjetje';
-    const title = `Sestanek - ${companyName}`;
     const description = activity.content?.replace(/\n/g, '\\n').replace(/,/g, '\\,') || '';
-    const uid = `activity-${activity.id}@matpro.ristov.xyz`;
 
-    const lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Mat Tracker Pro//SL',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'X-MS-OLK-FORCEINSPECTOROPEN:TRUE',
-      'BEGIN:VEVENT',
-      `UID:${uid}`,
-      `DTSTAMP:${formatICSDate(new Date())}`,
-      `DTSTART:${formatICSDate(startDate)}`,
-      `DTEND:${formatICSDate(endDate)}`,
-      `SUMMARY:${title.replace(/,/g, '\\,')}`,
-      `DESCRIPTION:${description}`,
-      'SEQUENCE:0',
-      'STATUS:CONFIRMED',
-      'TRANSP:OPAQUE',
-      'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
-      'X-MICROSOFT-CDO-IMPORTANCE:1',
-      'BEGIN:VALARM',
-      'TRIGGER:-PT30M',
-      'ACTION:DISPLAY',
-      'DESCRIPTION:Reminder',
-      'END:VALARM',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ];
-
-    const icsContent = lines.join('\r\n');
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sestanek-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}-${activity.note_date}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    generateAndDownloadICS({
+      uid: `activity-${activity.id}@matpro.ristov.xyz`,
+      startDate: new Date(`${activity.note_date}T${startTime}:00`),
+      endDate: new Date(`${activity.note_date}T${endTime}:00`),
+      summary: `Sestanek - ${companyName}`,
+      description,
+      filename: `sestanek-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}-${activity.note_date}.ics`,
+    });
 
     toast({ description: '📅 ICS datoteka prenesena' });
   };
@@ -795,6 +757,8 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
       {activeTab === 'worklist' && (
         <D365WorklistTab userId={user?.id} />
       )}
+
+      {ConfirmDialog}
     </div>
   );
 }

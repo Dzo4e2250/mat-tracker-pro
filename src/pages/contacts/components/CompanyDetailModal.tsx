@@ -17,6 +17,7 @@ import {
   Pencil, FileSignature, Check, GitBranch, Building2, ChevronDown, CalendarPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { generateAndDownloadICS } from '@/utils/icsGenerator';
 import {
   D365_ACTIVITY_CATEGORIES,
   D365_SUBCATEGORIES,
@@ -280,13 +281,6 @@ export default function CompanyDetailModal({
     const startTime = extractTime(note.start_time, '09:00');
     const endTime = extractTime(note.end_time, '09:30');
 
-    const startDate = new Date(`${note.note_date}T${startTime}:00`);
-    const endDate = new Date(`${note.note_date}T${endTime}:00`);
-
-    const formatICSDate = (d: Date) => {
-      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    };
-
     const companyName = company.display_name || company.name;
     const fullCompanyName = company.name;
     const taxNumber = company.tax_number || '';
@@ -300,8 +294,6 @@ export default function CompanyDetailModal({
       company.delivery_city || company.address_city,
     ].filter(Boolean).join(', ');
 
-    const title = `Sestanek - ${companyName}`;
-
     // Build detailed description
     const descParts: string[] = [];
     descParts.push(`PODJETJE: ${fullCompanyName}`);
@@ -314,47 +306,15 @@ export default function CompanyDetailModal({
     if (note.content) descParts.push(note.content);
     const description = descParts.join('\\n').replace(/,/g, '\\,');
 
-    const uid = `note-${note.id}@matpro.ristov.xyz`;
-
-    const lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Mat Tracker Pro//SL',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'X-MS-OLK-FORCEINSPECTOROPEN:TRUE',
-      'BEGIN:VEVENT',
-      `UID:${uid}`,
-      `DTSTAMP:${formatICSDate(new Date())}`,
-      `DTSTART:${formatICSDate(startDate)}`,
-      `DTEND:${formatICSDate(endDate)}`,
-      `SUMMARY:${title.replace(/,/g, '\\,')}`,
-      `DESCRIPTION:${description}`,
-      location ? `LOCATION:${location.replace(/,/g, '\\,')}` : '',
-      'SEQUENCE:0',
-      'STATUS:CONFIRMED',
-      'TRANSP:OPAQUE',
-      'X-MICROSOFT-CDO-BUSYSTATUS:BUSY',
-      'X-MICROSOFT-CDO-IMPORTANCE:1',
-      'BEGIN:VALARM',
-      'TRIGGER:-PT30M',
-      'ACTION:DISPLAY',
-      'DESCRIPTION:Reminder',
-      'END:VALARM',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].filter(Boolean);
-
-    const icsContent = lines.join('\r\n');
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sestanek-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}-${note.note_date}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    generateAndDownloadICS({
+      uid: `note-${note.id}@matpro.ristov.xyz`,
+      startDate: new Date(`${note.note_date}T${startTime}:00`),
+      endDate: new Date(`${note.note_date}T${endTime}:00`),
+      summary: `Sestanek - ${companyName}`,
+      description,
+      location,
+      filename: `sestanek-${companyName.replace(/[^a-zA-Z0-9]/g, '_')}-${note.note_date}.ics`,
+    });
 
     toast({ description: '📅 ICS datoteka prenesena za Outlook' });
   };

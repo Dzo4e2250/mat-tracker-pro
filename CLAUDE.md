@@ -2,16 +2,20 @@
 
 ## Deploy na strežnik
 
+### Avtomatski deploy (priporočeno)
+Push na `main` branch sproži CI → Deploy workflow, ki:
+1. Zgradi Docker image v GitHub Actions (z brotli modulom + pre-kompresijo)
+2. Pushne image v GHCR (`ghcr.io/dzo4e2250/mat-tracker-pro`)
+3. Na serverju pullne nov image, zažene z zero-downtime swapom
+
+### Ročni deploy
 ```bash
 # 1. Kopiraj CELOTEN projekt (brez node_modules) na strežnik
 rsync -avz --exclude 'node_modules' --exclude '.git' -e "ssh -i /home/ristov/.ssh/id_ed25519" /home/ristov/Applications/07-Web-Apps/mat-tracker-pro/ root@148.230.109.77:/root/mat-tracker-pro/
 
 # 2. Build in zaženi container - POMEMBNO: uporabi --network npm_npm_network
-ssh -i /home/ristov/.ssh/id_ed25519 root@148.230.109.77 "cd /root/mat-tracker-pro && docker build -t mat-tracker-pro . && docker stop mat-tracker-pro && docker rm mat-tracker-pro && docker run -d --name mat-tracker-pro --restart unless-stopped --network npm_npm_network -p 3000:80 mat-tracker-pro"
+ssh -i /home/ristov/.ssh/id_ed25519 root@148.230.109.77 "cd /root/mat-tracker-pro && docker build -t mat-tracker-pro . && docker stop mat-tracker-pro && docker rm mat-tracker-pro && docker run -d --name mat-tracker-pro --restart unless-stopped --network npm_npm_network --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 -p 3000:80 mat-tracker-pro"
 ```
-
-### Zakaj kopiramo celoten projekt?
-Dockerfile izvaja `npm run build` na strežniku iz source kode. Če kopiramo samo dist/, se uporabi stara source koda na strežniku.
 
 ## Strežnik info
 - IP: 148.230.109.77

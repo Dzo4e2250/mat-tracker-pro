@@ -598,6 +598,9 @@ Lep pozdrav,
       />
 
       <BottomNavigation activeTab="contacts" />
+
+      {actions.ConfirmDialog}
+      {detailHandlers.ConfirmDialog}
     </div>
   );
 }

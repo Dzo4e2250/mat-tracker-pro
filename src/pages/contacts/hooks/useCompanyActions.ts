@@ -4,6 +4,7 @@
  */
 
 import { useToast } from '@/hooks/use-toast';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useCreateReminder, useCompleteReminder, useUpdatePipelineStatus } from '@/hooks/useReminders';
 import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
@@ -74,6 +75,7 @@ export function useCompanyActions({
   addNoteMutation,
 }: UseCompanyActionsProps) {
   const { toast } = useToast();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   // Mutations
   const createCompany = useCreateCompany();
@@ -307,11 +309,11 @@ export function useCompanyActions({
 
       if (duplicate) {
         const duplicateName = duplicate.display_name || duplicate.name;
-        const confirmed = window.confirm(
-          `⚠️ Podobno podjetje "${duplicateName}" že obstaja!\n\n` +
-          `Ali si prepričan, da želiš ustvariti novo podjetje z imenom "${nameToCheck}"?\n\n` +
-          `Klikni "Prekliči" za preklic ali "V redu" za nadaljevanje.`
-        );
+        const confirmed = await confirm({
+          title: 'Podvojeno podjetje?',
+          description: `Podobno podjetje "${duplicateName}" že obstaja!\n\nAli si prepričan, da želiš ustvariti novo podjetje z imenom "${nameToCheck}"?`,
+          confirmLabel: 'Ustvari vseeno',
+        });
         if (!confirmed) {
           return;
         }
@@ -566,7 +568,7 @@ export function useCompanyActions({
 
   // Delete contact
   const handleDeleteContact = async (contactId: string) => {
-    if (!window.confirm('Ali res želiš zbrisati ta kontakt?')) return;
+    if (!await confirm({ title: 'Izbriši kontakt?', description: 'Ali res želiš zbrisati ta kontakt?', destructive: true, confirmLabel: 'Izbriši' })) return;
 
     try {
       await deleteContact.mutateAsync(contactId);
@@ -664,6 +666,7 @@ export function useCompanyActions({
     handleAddContact,
     handleDeleteContact,
     handleSaveAddress,
+    ConfirmDialog,
   };
 }
 
