@@ -75,78 +75,63 @@ Deno.serve(async (req) => {
       );
     }
 
-    // First, delete all related data to avoid foreign key constraints
-    console.log('Deleting related data for user:', user_id);
-    
-    // Delete contacts
-    const { error: contactsError } = await supabaseClient
-      .from('contacts')
-      .delete()
-      .eq('seller_id', user_id);
-    
-    if (contactsError) {
-      console.error('Error deleting contacts:', contactsError);
-    }
-
-    // Update test placements (set status to deleted and remove seller reference)
-    const { error: testPlacementsError } = await supabaseClient
-      .from('test_placements')
-      .update({ status: 'deleted', seller_id: null })
-      .eq('seller_id', user_id);
-    
-    if (testPlacementsError) {
-      console.error('Error updating test placements:', testPlacementsError);
-    }
-
-    // Delete tester requests
-    const { error: testerRequestsError } = await supabaseClient
-      .from('tester_requests')
-      .delete()
-      .eq('seller_id', user_id);
-    
-    if (testerRequestsError) {
-      console.error('Error deleting tester requests:', testerRequestsError);
-    }
-
-    // Update doormats to remove seller_id reference
-    const { error: doormatsError } = await supabaseClient
-      .from('doormats')
-      .update({ seller_id: null })
-      .eq('seller_id', user_id);
-    
-    if (doormatsError) {
-      console.error('Error updating doormats:', doormatsError);
-    }
-
-    // Delete from user_roles table
-    const { error: userRolesError } = await supabaseClient
-      .from('user_roles')
-      .delete()
-      .eq('user_id', user_id);
-    
-    if (userRolesError) {
-      console.error('Error deleting user roles:', userRolesError);
-    }
-
-    // Delete from profiles table
-    const { error: profilesError } = await supabaseClient
-      .from('profiles')
-      .delete()
-      .eq('id', user_id);
-    
-    if (profilesError) {
-      console.error('Error deleting profile:', profilesError);
-    }
-
-    // Now delete the user from auth
+    // Step 1: Delete auth user FIRST to prevent login during cleanup
     const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(user_id);
 
     if (deleteError) {
-      console.error('Error deleting user:', deleteError);
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
+        JSON.stringify({ error: 'Failed to delete user' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Step 2: Clean up related data (user can no longer login at this point)
+    const cleanupErrors: string[] = [];
+
+    const { error: contactsError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('contacts')
+      .delete()
+      .eq('seller_id', user_id);
+    if (contactsError) cleanupErrors.push('contacts');
+
+    const { error: testPlacementsError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('test_placements')
+      .update({ status: 'deleted', seller_id: null })
+      .eq('seller_id', user_id);
+    if (testPlacementsError) cleanupErrors.push('test_placements');
+
+    const { error: testerRequestsError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('tester_requests')
+      .delete()
+      .eq('seller_id', user_id);
+    if (testerRequestsError) cleanupErrors.push('tester_requests');
+
+    const { error: doormatsError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('doormats')
+      .update({ seller_id: null })
+      .eq('seller_id', user_id);
+    if (doormatsError) cleanupErrors.push('doormats');
+
+    const { error: userRolesError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('user_roles')
+      .delete()
+      .eq('user_id', user_id);
+    if (userRolesError) cleanupErrors.push('user_roles');
+
+    const { error: profilesError } = await supabaseClient
+      .schema('mat_tracker')
+      .from('profiles')
+      .delete()
+      .eq('id', user_id);
+    if (profilesError) cleanupErrors.push('profiles');
+
+    if (cleanupErrors.length > 0) {
+      console.error('Cleanup errors for deleted user:', user_id, cleanupErrors);
     }
 
     return new Response(

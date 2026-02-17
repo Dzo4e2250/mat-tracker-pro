@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('User authenticated:', user.email);
+    // User authenticated
 
     // Check if user has inventar role (from profiles table) - either as primary or secondary role
     const { data: profileData, error: profileError } = await supabaseClient
@@ -58,10 +58,10 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    const hasInventarRole = profileData?.role === 'inventar' || profileData?.secondary_role === 'inventar';
+    const callerRole = profileData?.role;
+    const hasInventarRole = callerRole === 'admin' || callerRole === 'inventar' || profileData?.secondary_role === 'inventar';
 
     if (profileError || !profileData || !hasInventarRole) {
-      console.error('User does not have inventar role:', profileError, 'role:', profileData?.role, 'secondary_role:', profileData?.secondary_role);
       return new Response(JSON.stringify({ error: 'Only inventory managers can create users' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -71,7 +71,6 @@ Deno.serve(async (req) => {
     const { email, password, full_name, qr_prefix, role } = await req.json();
 
     if (!email || !password || !full_name || !role) {
-      console.log('Missing required fields');
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -79,49 +78,37 @@ Deno.serve(async (req) => {
     }
 
     if (role !== 'INVENTAR' && role !== 'PRODAJALEC') {
-      console.log('Invalid role:', role);
       return new Response(JSON.stringify({ error: 'Invalid role' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Only admin can create inventar users
+    if (role === 'INVENTAR' && callerRole !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Samo admin lahko ustvari inventar uporabnike' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // For PRODAJALEC, qr_prefix is required
     if (role === 'PRODAJALEC' && !qr_prefix) {
-      console.log('QR prefix required for PRODAJALEC');
-      return new Response(JSON.stringify({ error: 'QR prefix is required for sellers' }), {
+        return new Response(JSON.stringify({ error: 'QR prefix is required for sellers' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Creating user with role:', role);
-
     // Convert role to lowercase for database (profiles.role uses lowercase)
     const dbRole = role.toLowerCase();
-
-    // Check if user with this email already exists
-    const { data: existingUsers } = await supabaseClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find((u) => u.email === email);
-
-    if (existingUser) {
-      console.log('User already exists:', existingUser.id);
-      return new Response(
-        JSON.stringify({ error: 'Uporabnik s tem emailom že obstaja' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
 
     // Parse full_name into first_name and last_name
     const nameParts = full_name.trim().split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    // Create new user
-    console.log('Creating new user');
+    // Create new user (Supabase will return error if email already exists)
     const { data: newUser, error: createError } = await supabaseClient.auth.admin.createUser({
       email,
       password,
@@ -130,14 +117,14 @@ Deno.serve(async (req) => {
     });
 
     if (createError || !newUser.user) {
-      console.error('Error creating user:', createError);
-      return new Response(JSON.stringify({ error: createError?.message || 'Failed to create user' }), {
-        status: 500,
+      const msg = createError?.message?.includes('already')
+        ? 'Uporabnik s tem emailom že obstaja'
+        : 'Failed to create user';
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log('User created:', newUser.user.id);
 
     // Create profile for the new user (role is stored in profiles.role column)
     const profileInsertData: any = {
@@ -168,7 +155,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('User and profile created successfully with role:', role);
+    // User and profile created successfully
     return new Response(
       JSON.stringify({ message: `${role === 'INVENTAR' ? 'Inventar' : 'Prodajalec'} account created successfully` }),
       {
