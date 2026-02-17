@@ -103,7 +103,7 @@ export function generateICSFile(
   }
   const description = descParts.join('\\n').replace(/,/g, '\\,');
 
-  const uid = `${type}-${Date.now()}@matpro.ristov.xyz`;
+  const uid = `${type}-${Date.now()}@matpro.reitti.cloud`;
 
   // Build ICS with CRLF line endings for Outlook compatibility
   const lines = [

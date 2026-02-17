@@ -22,7 +22,7 @@ const generateICS = (
     return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   };
 
-  const uid = `reminder-${Date.now()}@matpro.ristov.xyz`;
+  const uid = `reminder-${Date.now()}@matpro.reitti.cloud`;
   const summary = `Opomnik: ${companyName}`;
   const description = note ? note.replace(/\n/g, '\\n').replace(/,/g, '\\,') : '';
 

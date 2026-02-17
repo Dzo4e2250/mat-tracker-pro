@@ -307,7 +307,7 @@ export default function CompanyDetailModal({
     const description = descParts.join('\\n').replace(/,/g, '\\,');
 
     generateAndDownloadICS({
-      uid: `note-${note.id}@matpro.ristov.xyz`,
+      uid: `note-${note.id}@matpro.reitti.cloud`,
       startDate: new Date(`${note.note_date}T${startTime}:00`),
       endDate: new Date(`${note.note_date}T${endTime}:00`),
       summary: `Sestanek - ${companyName}`,

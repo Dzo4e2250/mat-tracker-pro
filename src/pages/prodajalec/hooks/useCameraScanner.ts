@@ -102,7 +102,7 @@ export function useCameraScanner({ onScan, elementId = 'qr-reader' }: UseCameraS
 
     // Check if we're on HTTPS or localhost
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-      setCameraError('Kamera deluje samo na HTTPS. Prosim uporabi https://matpro.ristov.xyz');
+      setCameraError('Kamera deluje samo na HTTPS. Prosim uporabi https://matpro.reitti.cloud');
       setCameraLoading(false);
       setCameraActive(false);
       return;

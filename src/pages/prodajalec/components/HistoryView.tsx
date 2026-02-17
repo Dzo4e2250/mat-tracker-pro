@@ -410,7 +410,7 @@ export default function HistoryView({ cycleHistory, cycles }: HistoryViewProps) 
     const description = activity.content?.replace(/\n/g, '\\n').replace(/,/g, '\\,') || '';
 
     generateAndDownloadICS({
-      uid: `activity-${activity.id}@matpro.ristov.xyz`,
+      uid: `activity-${activity.id}@matpro.reitti.cloud`,
       startDate: new Date(`${activity.note_date}T${startTime}:00`),
       endDate: new Date(`${activity.note_date}T${endTime}:00`),
       summary: `Sestanek - ${companyName}`,

@@ -194,7 +194,7 @@ function WorklistActivityCard({
     if (activity.content) descParts.push(activity.content);
     const description = descParts.join('\\n').replace(/,/g, '\\,');
 
-    const uid = `activity-${activity.id}@matpro.ristov.xyz`;
+    const uid = `activity-${activity.id}@matpro.reitti.cloud`;
 
     const lines = [
       'BEGIN:VCALENDAR',
