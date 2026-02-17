@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles: ('admin' | 'inventar' | 'prodajalec')[];
+  allowedRoles: ('admin' | 'inventar' | 'prodajalec' | 'prodajalec_oblek')[];
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
@@ -31,7 +31,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     // Redirect based on user's active role
     if (activeRole === 'admin' || activeRole === 'inventar') {
       return <Navigate to="/inventar" replace />;
-    } else if (activeRole === 'prodajalec') {
+    } else if (activeRole === 'prodajalec' || activeRole === 'prodajalec_oblek') {
       return <Navigate to="/prodajalec" replace />;
     }
     return <Navigate to="/auth" replace />;

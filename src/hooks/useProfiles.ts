@@ -8,7 +8,7 @@ export type CreateUserInput = {
   password: string;
   firstName: string;
   lastName: string;
-  role: 'inventar' | 'prodajalec';
+  role: 'inventar' | 'prodajalec' | 'prodajalec_oblek';
   codePrefix?: string;
 };
 
@@ -35,7 +35,7 @@ export function useProfiles() {
 }
 
 // Fetch profiles by role
-export function useProfilesByRole(role: 'prodajalec' | 'inventar' | 'admin') {
+export function useProfilesByRole(role: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek') {
   return useQuery({
     queryKey: ['profiles', role],
     queryFn: async () => {

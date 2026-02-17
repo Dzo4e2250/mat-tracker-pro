@@ -17,6 +17,7 @@ interface SideMenuProps {
   onChangePassword: () => void;
   onSettings: () => void;
   onSignOut: () => void;
+  activeRole?: string | null;
 }
 
 interface MenuItemProps {
@@ -61,6 +62,7 @@ export function SideMenu({
   onChangePassword,
   onSettings,
   onSignOut,
+  activeRole,
 }: SideMenuProps) {
   if (!isOpen) return null;
 
@@ -74,6 +76,7 @@ export function SideMenu({
     onClose();
   };
 
+  const isProdajalecOblek = activeRole === 'prodajalec_oblek';
   const canSwitchToInventar = availableRoles.length > 1 &&
     (availableRoles.includes('inventar') || availableRoles.includes('admin'));
 
@@ -92,48 +95,56 @@ export function SideMenu({
         </div>
 
         <div className="p-4">
-          {/* Glavne akcije */}
-          <MenuSection title="Glavno">
-            <MenuItem
-              icon={<Home size={20} />}
-              label="Domov"
-              isActive={currentView === 'home'}
-              onClick={() => handleViewChange('home')}
-            />
-            <MenuItem
-              icon={<Camera size={20} />}
-              label="Skeniraj QR"
-              isActive={currentView === 'scan'}
-              onClick={() => handleViewChange('scan')}
-            />
-          </MenuSection>
+          {/* Glavne akcije - samo za prodajalec predpraznikov */}
+          {!isProdajalecOblek && (
+            <MenuSection title="Glavno">
+              <MenuItem
+                icon={<Home size={20} />}
+                label="Domov"
+                isActive={currentView === 'home'}
+                onClick={() => handleViewChange('home')}
+              />
+              <MenuItem
+                icon={<Camera size={20} />}
+                label="Skeniraj QR"
+                isActive={currentView === 'scan'}
+                onClick={() => handleViewChange('scan')}
+              />
+            </MenuSection>
+          )}
 
           {/* Pregledi */}
           <MenuSection title="Pregled">
-            <MenuItem
-              icon={<MapPin size={20} />}
-              label="Zemljevid"
-              isActive={currentView === 'map'}
-              onClick={() => handleViewChange('map')}
-            />
+            {!isProdajalecOblek && (
+              <MenuItem
+                icon={<MapPin size={20} />}
+                label="Zemljevid"
+                isActive={currentView === 'map'}
+                onClick={() => handleViewChange('map')}
+              />
+            )}
             <MenuItem
               icon={<Car size={20} />}
               label="Potni nalog"
               isActive={currentView === 'travel'}
               onClick={() => handleViewChange('travel')}
             />
-            <MenuItem
-              icon={<History size={20} />}
-              label="Zgodovina"
-              isActive={currentView === 'history'}
-              onClick={() => handleViewChange('history')}
-            />
-            <MenuItem
-              icon={<TrendingUp size={20} />}
-              label="Statistika"
-              isActive={currentView === 'statistics'}
-              onClick={() => handleViewChange('statistics')}
-            />
+            {!isProdajalecOblek && (
+              <>
+                <MenuItem
+                  icon={<History size={20} />}
+                  label="Zgodovina"
+                  isActive={currentView === 'history'}
+                  onClick={() => handleViewChange('history')}
+                />
+                <MenuItem
+                  icon={<TrendingUp size={20} />}
+                  label="Statistika"
+                  isActive={currentView === 'statistics'}
+                  onClick={() => handleViewChange('statistics')}
+                />
+              </>
+            )}
             <MenuItem
               icon={<CheckSquare size={20} />}
               label="Naloge"
@@ -149,11 +160,13 @@ export function SideMenu({
               label="Stranke"
               onClick={() => handleNavigate('/contacts')}
             />
-            <MenuItem
-              icon={<Package size={20} />}
-              label="Naroči predpražnike"
-              onClick={() => handleNavigate('/order-codes')}
-            />
+            {!isProdajalecOblek && (
+              <MenuItem
+                icon={<Package size={20} />}
+                label="Naroči predpražnike"
+                onClick={() => handleNavigate('/order-codes')}
+              />
+            )}
           </MenuSection>
 
           <hr className="my-4" />

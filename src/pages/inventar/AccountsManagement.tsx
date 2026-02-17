@@ -22,6 +22,7 @@ import { UserCard, CreateUserForm, DeactivateUserDialog } from "./accounts";
 export default function AccountsManagement() {
   const { data: inventarUsers = [], isLoading: loadingInventar } = useProfilesByRole('inventar');
   const { data: prodajalecUsers = [], isLoading: loadingProdajalec } = useProfilesByRole('prodajalec');
+  const { data: prodajalecOblekUsers = [], isLoading: loadingProdajalecOblek } = useProfilesByRole('prodajalec_oblek');
 
   const updateProfile = useUpdateProfile();
   const deactivateProfile = useDeactivateProfile();
@@ -41,7 +42,7 @@ export default function AccountsManagement() {
 
   // Create user state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newRole, setNewRole] = useState<'inventar' | 'prodajalec'>('prodajalec');
+  const [newRole, setNewRole] = useState<'inventar' | 'prodajalec' | 'prodajalec_oblek'>('prodajalec');
   const [createState, setCreateState] = useState({
     email: "",
     password: "",
@@ -50,7 +51,7 @@ export default function AccountsManagement() {
     prefix: "",
   });
 
-  const loading = loadingInventar || loadingProdajalec;
+  const loading = loadingInventar || loadingProdajalec || loadingProdajalecOblek;
 
   const resetCreateForm = () => {
     setCreateState({ email: "", password: "", firstName: "", lastName: "", prefix: "" });
@@ -64,7 +65,7 @@ export default function AccountsManagement() {
       return;
     }
     if (newRole === 'prodajalec' && !prefix) {
-      toast({ title: "Manjka QR predpona", description: "Za prodajalca je QR predpona obvezna.", variant: "destructive" });
+      toast({ title: "Manjka QR predpona", description: "Za prodajalca predpražnikov je QR predpona obvezna.", variant: "destructive" });
       return;
     }
 
@@ -153,9 +154,10 @@ export default function AccountsManagement() {
             <h1 className="text-3xl font-bold">Upravljanje računov</h1>
 
             <Tabs defaultValue="inventar" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="inventar">Inventar računi</TabsTrigger>
-                <TabsTrigger value="prodajalec">Prodajalec računi</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="inventar">Inventar</TabsTrigger>
+                <TabsTrigger value="prodajalec">Prodajalec</TabsTrigger>
+                <TabsTrigger value="prodajalec_oblek">Prodajalec oblek</TabsTrigger>
               </TabsList>
 
               <TabsContent value="inventar" className="space-y-6">
@@ -245,6 +247,56 @@ export default function AccountsManagement() {
                             key={user.id}
                             user={user}
                             showPrefix
+                            isEditing={editingUser === user.id}
+                            editState={editState}
+                            onEditStateChange={(changes) => setEditState(s => ({ ...s, ...changes }))}
+                            onStartEdit={() => startEditUser(user)}
+                            onSave={() => handleUpdateUser(user.id)}
+                            onCancel={cancelEdit}
+                            onDelete={() => setDeletingUser(user)}
+                            isSaving={updateProfile.isPending}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="prodajalec_oblek" className="space-y-6">
+                <CreateUserForm
+                  isOpen={isCreateOpen && newRole === 'prodajalec_oblek'}
+                  onOpenChange={(open) => { setIsCreateOpen(open); if (open) setNewRole('prodajalec_oblek'); }}
+                  title="Ustvari novega prodajalca oblek"
+                  firstName={createState.firstName}
+                  onFirstNameChange={(v) => setCreateState(s => ({ ...s, firstName: v }))}
+                  lastName={createState.lastName}
+                  onLastNameChange={(v) => setCreateState(s => ({ ...s, lastName: v }))}
+                  email={createState.email}
+                  onEmailChange={(v) => setCreateState(s => ({ ...s, email: v }))}
+                  password={createState.password}
+                  onPasswordChange={(v) => setCreateState(s => ({ ...s, password: v }))}
+                  onSubmit={handleCreateUser}
+                  onCancel={resetCreateForm}
+                  isPending={createUser.isPending}
+                  submitLabel="Ustvari prodajalca oblek"
+                />
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Obstoječi PRODAJALEC OBLEK uporabniki</CardTitle>
+                    <CardDescription>Seznam vseh prodajalcev oblačil</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {prodajalecOblekUsers.length === 0 ? (
+                      <p className="text-muted-foreground">Ni prodajalec oblek uporabnikov</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {prodajalecOblekUsers.map((user) => (
+                          <UserCard
+                            key={user.id}
+                            user={user}
+                            showPrefix={false}
                             isEditing={editingUser === user.id}
                             editState={editState}
                             onEditStateChange={(changes) => setEditState(s => ({ ...s, ...changes }))}

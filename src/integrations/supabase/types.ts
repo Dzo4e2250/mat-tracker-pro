@@ -27,8 +27,8 @@ export type Database = {
           last_name: string
           full_name: string
           phone: string | null
-          role: 'prodajalec' | 'inventar' | 'admin'
-          secondary_role: 'prodajalec' | 'inventar' | 'admin' | null
+          role: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek'
+          secondary_role: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek' | null
           code_prefix: string | null
           is_active: boolean
           avatar_url: string | null
@@ -42,8 +42,8 @@ export type Database = {
           first_name: string
           last_name: string
           phone?: string | null
-          role: 'prodajalec' | 'inventar' | 'admin'
-          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
+          role: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek'
+          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek' | null
           code_prefix?: string | null
           is_active?: boolean
           avatar_url?: string | null
@@ -57,8 +57,8 @@ export type Database = {
           first_name?: string
           last_name?: string
           phone?: string | null
-          role?: 'prodajalec' | 'inventar' | 'admin'
-          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | null
+          role?: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek'
+          secondary_role?: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek' | null
           code_prefix?: string | null
           is_active?: boolean
           avatar_url?: string | null
@@ -1251,7 +1251,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      user_role: 'prodajalec' | 'inventar' | 'admin'
+      user_role: 'prodajalec' | 'inventar' | 'admin' | 'prodajalec_oblek'
       qr_status: 'pending' | 'available' | 'active'
       cycle_status: 'clean' | 'on_test' | 'dirty' | 'waiting_driver' | 'completed'
       mat_category: 'standard' | 'ergo' | 'design'
@@ -1323,5 +1323,5 @@ export type OrderInsert = MatTrackerTables['orders']['Insert']
 // Status enums for convenience
 export const CYCLE_STATUSES = ['clean', 'on_test', 'dirty', 'waiting_driver', 'completed'] as const
 export const QR_STATUSES = ['pending', 'available', 'active'] as const
-export const USER_ROLES = ['prodajalec', 'inventar', 'admin'] as const
+export const USER_ROLES = ['prodajalec', 'inventar', 'admin', 'prodajalec_oblek'] as const
 export const MAT_CATEGORIES = ['standard', 'ergo', 'design'] as const

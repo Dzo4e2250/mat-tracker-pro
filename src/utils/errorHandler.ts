@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import * as Sentry from '@sentry/react';
 
 export interface AppError {
   code: string;
@@ -146,7 +147,7 @@ export function parseSupabaseError(error: unknown): AppError {
   };
 }
 
-// Main error handler - logs and shows toast
+// Main error handler - logs, reports to Sentry, and shows toast
 export function handleError(error: unknown, context?: string): AppError {
   const appError = parseSupabaseError(error);
 
@@ -156,6 +157,11 @@ export function handleError(error: unknown, context?: string): AppError {
     message: appError.message,
     details: appError.details,
     originalError: error,
+  });
+
+  // Report to Sentry
+  Sentry.captureException(error, {
+    tags: { errorCode: appError.code, context: context || 'unknown' },
   });
 
   // Show toast notification
@@ -190,7 +196,7 @@ export async function asyncAction<T>(
   }
 }
 
-// Silent error handler (logs but doesn't show toast)
+// Silent error handler (logs and reports to Sentry, but doesn't show toast)
 export function handleErrorSilent(error: unknown, context?: string): AppError {
   const appError = parseSupabaseError(error);
 
@@ -198,6 +204,11 @@ export function handleErrorSilent(error: unknown, context?: string): AppError {
     code: appError.code,
     message: appError.message,
     details: appError.details,
+  });
+
+  // Report to Sentry even for silent errors
+  Sentry.captureException(error, {
+    tags: { errorCode: appError.code, context: context || 'unknown', silent: 'true' },
   });
 
   return appError;

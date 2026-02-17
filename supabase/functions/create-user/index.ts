@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (role !== 'INVENTAR' && role !== 'PRODAJALEC') {
+    if (role !== 'INVENTAR' && role !== 'PRODAJALEC' && role !== 'PRODAJALEC_OBLEK') {
       return new Response(JSON.stringify({ error: 'Invalid role' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // For PRODAJALEC, qr_prefix is required
+    // For PRODAJALEC, qr_prefix is required (not for PRODAJALEC_OBLEK)
     if (role === 'PRODAJALEC' && !qr_prefix) {
         return new Response(JSON.stringify({ error: 'QR prefix is required for sellers' }), {
         status: 400,
@@ -149,15 +149,16 @@ Deno.serve(async (req) => {
       console.error('Error creating profile:', profileInsertError);
       // If profile creation fails, we should delete the auth user
       await supabaseClient.auth.admin.deleteUser(newUser.user.id);
-      return new Response(JSON.stringify({ error: profileInsertError.message }), {
+      return new Response(JSON.stringify({ error: 'Napaka pri ustvarjanju profila' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // User and profile created successfully
+    const roleLabels: Record<string, string> = { 'INVENTAR': 'Inventar', 'PRODAJALEC': 'Prodajalec', 'PRODAJALEC_OBLEK': 'Prodajalec oblek' };
     return new Response(
-      JSON.stringify({ message: `${role === 'INVENTAR' ? 'Inventar' : 'Prodajalec'} account created successfully` }),
+      JSON.stringify({ message: `${roleLabels[role] || role} account created successfully` }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -165,8 +166,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error('Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

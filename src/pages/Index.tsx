@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, ClipboardList } from 'lucide-react';
+import { Package, ClipboardList, Shirt } from 'lucide-react';
 
 const Index = () => {
   const { user, activeRole, loading, needsRoleSelection, availableRoles, selectInitialRole } = useAuth();
@@ -18,7 +18,7 @@ const Index = () => {
         return;
       } else if (activeRole === 'admin' || activeRole === 'inventar') {
         navigate('/inventar');
-      } else if (activeRole === 'prodajalec') {
+      } else if (activeRole === 'prodajalec' || activeRole === 'prodajalec_oblek') {
         navigate('/prodajalec');
       }
     }
@@ -51,6 +51,21 @@ const Index = () => {
                 <div>
                   <div className="font-semibold">Prodajalec</div>
                   <div className="text-sm text-muted-foreground">Upravljanje predpražnikov in strank</div>
+                </div>
+              </Button>
+            )}
+            {availableRoles.includes('prodajalec_oblek') && (
+              <Button
+                variant="outline"
+                className="w-full h-16 justify-start gap-4 text-left"
+                onClick={() => selectInitialRole('prodajalec_oblek')}
+              >
+                <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Shirt className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-semibold">Prodajalec oblek</div>
+                  <div className="text-sm text-muted-foreground">Upravljanje strank in nalog</div>
                 </div>
               </Button>
             )}

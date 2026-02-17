@@ -117,7 +117,7 @@ export function UserCard({
             {getFullName(user)}
             {user.secondary_role && (
               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                +{user.secondary_role === 'prodajalec' ? 'Prodajalec' : 'Inventar'}
+                +{user.secondary_role === 'prodajalec' ? 'Prodajalec' : user.secondary_role === 'prodajalec_oblek' ? 'Prodajalec oblek' : 'Inventar'}
               </span>
             )}
           </p>

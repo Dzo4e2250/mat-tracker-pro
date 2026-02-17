@@ -33,7 +33,7 @@ import TravelLogView from './prodajalec/components/TravelLogView';
 import { useTravelLog, useTravelLogEntries } from '@/hooks/useTravelLog';
 
 export default function ProdajalecDashboard() {
-  const { user, profile, signOut, availableRoles, switchRole, refreshProfile } = useAuth();
+  const { user, profile, signOut, availableRoles, switchRole, refreshProfile, activeRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -63,7 +63,8 @@ export default function ProdajalecDashboard() {
   // UI State
   const [view, setView] = useState<ViewType | 'scan' | 'home'>(() => {
     const urlView = searchParams.get('view');
-    return urlView === 'scan' ? 'scan' : 'home';
+    if (urlView === 'scan') return 'scan';
+    return activeRole === 'prodajalec_oblek' ? 'tasks' : 'home';
   });
   const [scanInput, setScanInput] = useState('');
   const [selectedCycle, setSelectedCycle] = useState<CycleWithRelations | null>(null);
@@ -332,6 +333,7 @@ export default function ProdajalecDashboard() {
         onChangePassword={() => setShowPasswordModal(true)}
         onSettings={() => setShowSettingsModal(true)}
         onSignOut={signOut}
+        activeRole={activeRole}
       />
 
       <div className={`mx-auto p-4 ${view === 'tasks' ? 'max-w-7xl' : 'max-w-4xl'}`}>
@@ -574,7 +576,7 @@ export default function ProdajalecDashboard() {
         />
       )}
 
-      <ProdajalecBottomNav view={view} onViewChange={setView} />
+      <ProdajalecBottomNav view={view} onViewChange={setView} activeRole={activeRole} />
 
       {/* Additional Modals */}
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />

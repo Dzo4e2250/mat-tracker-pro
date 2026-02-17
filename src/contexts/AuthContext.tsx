@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Profile } from '@/integrations/supabase/types';
 import { setUser as setSentryUser } from '@/lib/sentry';
 
-type AppRole = 'admin' | 'inventar' | 'prodajalec';
+type AppRole = 'admin' | 'inventar' | 'prodajalec' | 'prodajalec_oblek';
 
 const ACTIVE_ROLE_KEY = 'mat_tracker_active_role';
 
@@ -152,6 +152,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem(ACTIVE_ROLE_KEY);
+    localStorage.removeItem('mat_tracker_user_id');
+    localStorage.removeItem('dismissedAlerts');
+    localStorage.removeItem('travelPopupLastShown');
+    localStorage.removeItem('recentCompanies');
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
@@ -171,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Navigate to the appropriate dashboard
       if (newRole === 'inventar' || newRole === 'admin') {
         navigate('/inventar');
-      } else if (newRole === 'prodajalec') {
+      } else if (newRole === 'prodajalec' || newRole === 'prodajalec_oblek') {
         navigate('/prodajalec');
       }
     }
@@ -184,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Navigate to the appropriate dashboard
     if (selectedRole === 'inventar' || selectedRole === 'admin') {
       navigate('/inventar');
-    } else if (selectedRole === 'prodajalec') {
+    } else if (selectedRole === 'prodajalec' || selectedRole === 'prodajalec_oblek') {
       navigate('/prodajalec');
     }
   };

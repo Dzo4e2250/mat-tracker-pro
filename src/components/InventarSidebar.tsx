@@ -38,10 +38,12 @@ const menuItems = [
 
 export function InventarSidebar() {
   const { state } = useSidebar();
-  const { profile, signOut, availableRoles, switchRole } = useAuth();
+  const { profile, signOut, availableRoles, switchRole, activeRole } = useAuth();
   const { data: sellers = [] } = useProdajalecProfiles();
   const location = useLocation();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  const isAdmin = activeRole === 'admin';
 
   // Check if current path is a seller page
   const isSellerPageActive = location.pathname.startsWith('/inventar/prodajalec/');
@@ -82,39 +84,43 @@ export function InventarSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                {/* Analitika - takoj pod Dashboard */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/inventar/analitika"
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "hover:bg-accent/50"
-                      }
-                    >
-                      <BarChart2 className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>Analitika</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {/* Analitika - samo za admin */}
+                {isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/inventar/analitika"
+                        className={({ isActive }) =>
+                          isActive
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "hover:bg-accent/50"
+                        }
+                      >
+                        <BarChart2 className="mr-2 h-4 w-4" />
+                        {state !== "collapsed" && <span>Analitika</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
-                {/* Aktivnost prodajalcev */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/inventar/aktivnost"
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "hover:bg-accent/50"
-                      }
-                    >
-                      <Activity className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>Aktivnost</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {/* Aktivnost prodajalcev - samo za admin */}
+                {isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/inventar/aktivnost"
+                        className={({ isActive }) =>
+                          isActive
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "hover:bg-accent/50"
+                        }
+                      >
+                        <Activity className="mr-2 h-4 w-4" />
+                        {state !== "collapsed" && <span>Aktivnost</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
                 {/* Prodajalci - Collapsible */}
                 <Collapsible defaultOpen={isSellerPageActive} className="group/collapsible">
@@ -166,7 +172,7 @@ export function InventarSidebar() {
                 </Collapsible>
 
                 {/* Other menu items */}
-                {menuItems.map((item) => (
+                {menuItems.filter(item => isAdmin || item.title !== 'Računi').map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink

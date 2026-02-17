@@ -10,7 +10,7 @@
  * - Hitre akcije
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   X, StickyNote, Plus, Trash2, User, Phone, Mail, Calendar,
   Package, Clock, CheckCircle, FileText, Euro, MapPin, Camera,
@@ -319,9 +319,14 @@ export default function CompanyDetailModal({
     toast({ description: '📅 ICS datoteka prenesena za Outlook' });
   };
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0);
+  }, [company.id]);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+      <div ref={scrollRef} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
           <h3 className="text-lg font-bold">{company.display_name || company.name}</h3>
           <button onClick={onClose} className="p-1">

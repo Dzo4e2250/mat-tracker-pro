@@ -122,12 +122,12 @@ const AppContent = () => {
               </ProtectedRoute>
             } />
             <Route path="/prodajalec" element={
-              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
+              <ProtectedRoute allowedRoles={['prodajalec', 'prodajalec_oblek', 'admin']}>
                 <ProdajalecDashboard />
               </ProtectedRoute>
             } />
             <Route path="/contacts" element={
-              <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
+              <ProtectedRoute allowedRoles={['prodajalec', 'prodajalec_oblek', 'admin']}>
                 <Contacts />
               </ProtectedRoute>
             } />

@@ -33,15 +33,15 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// Simple SMTP send using raw TCP
+// SMTP send with STARTTLS upgrade when available
 async function sendEmail(to: string, subject: string, htmlBody: string): Promise<void> {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
-  const conn = await Deno.connect({ hostname: SMTP_HOST, port: SMTP_PORT });
+  let conn: Deno.Conn = await Deno.connect({ hostname: SMTP_HOST, port: SMTP_PORT });
 
   const read = async (): Promise<string> => {
-    const buf = new Uint8Array(1024);
+    const buf = new Uint8Array(4096);
     const n = await conn.read(buf);
     return decoder.decode(buf.subarray(0, n || 0));
   };
@@ -54,9 +54,21 @@ async function sendEmail(to: string, subject: string, htmlBody: string): Promise
     // Read greeting
     await read();
 
-    // EHLO
-    await write(`EHLO localhost`);
-    await read();
+    // EHLO - check server capabilities
+    await write('EHLO localhost');
+    const ehloResponse = await read();
+
+    // Upgrade to TLS if server advertises STARTTLS
+    if (ehloResponse.includes('STARTTLS')) {
+      await write('STARTTLS');
+      const starttlsResponse = await read();
+      if (starttlsResponse.startsWith('220')) {
+        conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: SMTP_HOST });
+        // Re-EHLO after TLS upgrade
+        await write('EHLO localhost');
+        await read();
+      }
+    }
 
     // MAIL FROM
     await write(`MAIL FROM:<${SMTP_FROM}>`);
@@ -271,8 +283,7 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error('Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

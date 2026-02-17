@@ -517,6 +517,7 @@ export default function ContractModal({
                   type="date"
                   value={formData.serviceStartDate}
                   onChange={(e) => updateField('serviceStartDate', e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
                   className={getInputClass(formData.serviceStartDate)}
                 />
               </div>
