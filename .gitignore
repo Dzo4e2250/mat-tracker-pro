@@ -34,6 +34,9 @@ dist-ssr
 *.xls
 *.csv
 *.pdf
+!public/pogodba-template.pdf
+!public/pogodba-template-javna.pdf
+!public/dostavno-mesto-template.pdf
 *.docx
 *.doc
 

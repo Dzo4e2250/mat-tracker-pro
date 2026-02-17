@@ -22,7 +22,8 @@ const createDefaultItem = (type: 'nakup' | 'najem'): OfferItem => ({
   code: '',
   name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
   size: '',
-  customized: true,
+  // Standard (MBW/ERM) ni prilagojen, design/custom je
+  customized: type === 'nakup',
   quantity: 1,
   pricePerUnit: 0,
   ...(type === 'najem' && { replacementCost: 0, seasonal: false }),
@@ -193,7 +194,8 @@ export function useOfferState(): UseOfferStateReturn {
       code: '',
       name: type === 'nakup' ? 'Predpražnik po meri' : 'Predpražnik',
       size: '',
-      customized: true,
+      // Standard (MBW/ERM) ni prilagojen, design/custom je
+      customized: type === 'nakup',
       quantity: 1,
       pricePerUnit: 0,
       ...(type === 'najem' && { replacementCost: 0, seasonal: false }),
@@ -226,7 +228,11 @@ export function useOfferState(): UseOfferStateReturn {
   }, []);
 
   const handleItemTypeChange = useCallback((itemId: string, newItemType: ItemType, type: 'nakup' | 'najem') => {
-    const updates: Partial<OfferItem> = { itemType: newItemType, code: '', size: '', m2: 0, pricePerUnit: 0, replacementCost: 0 };
+    const updates: Partial<OfferItem> = {
+      itemType: newItemType, code: '', size: '', m2: 0, pricePerUnit: 0, replacementCost: 0,
+      // Standard (MBW/ERM) ni prilagojen, design/custom je
+      customized: newItemType !== 'standard',
+    };
     updateOfferItem(itemId, updates, type);
   }, [updateOfferItem]);
 

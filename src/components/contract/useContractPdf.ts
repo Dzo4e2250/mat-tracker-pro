@@ -302,7 +302,7 @@ export async function generateContractPdf(
   drawWrappedText(page1, formData.deliveryInstructions || '', 225, 541, 505, 10, helpers);
   drawText(page1, formData.workingHours || '', 268, 586, helpers);
   drawText(page1, formData.doorCode || '', 250, 602, helpers);
-  drawCheckbox(page1, 400, 601, formData.hasKey === 'yes', helpers);
+  drawCheckbox(page1, 399, 601, formData.hasKey === 'yes', helpers);
   drawCheckbox(page1, 420, 602, formData.hasKey === 'no', helpers);
   drawWrappedText(page1, formData.additionalInfo || '', 225, 621, 505, 10, helpers);
 

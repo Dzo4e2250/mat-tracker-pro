@@ -123,6 +123,8 @@ export function useContractForm({
       const noteParts = (item.notes || '').split(' - ');
       const codePart = noteParts[0] || '';
       const sizePart = noteParts[1] || `${item.width_cm}x${item.height_cm}`;
+      // Standard artikli (MBW/ERM) niso prilagojeni kupcu
+      const isCustomized = !/^(MBW|ERM)/i.test(codePart);
 
       if (item.seasonal && item.seasonalFromWeek && item.seasonalToWeek && item.seasonalPrice) {
         const normalFrom = item.normalFromWeek || 13;
@@ -132,7 +134,7 @@ export function useContractForm({
           code: codePart,
           name: 'Predpražnik',
           size: sizePart || `${item.width_cm}x${item.height_cm}`,
-          customized: true,
+          customized: isCustomized,
           quantity: item.quantity || 1,
           frequency: item.normalFrequency || offer.frequency || '2',
           seasonal: `T${normalFrom}-${normalTo}`,
@@ -144,7 +146,7 @@ export function useContractForm({
           code: codePart,
           name: 'Predpražnik',
           size: sizePart || `${item.width_cm}x${item.height_cm}`,
-          customized: true,
+          customized: isCustomized,
           quantity: item.quantity || 1,
           frequency: item.seasonalFrequency || '1',
           seasonal: `T${item.seasonalFromWeek}-${item.seasonalToWeek}`,
@@ -156,7 +158,7 @@ export function useContractForm({
           code: codePart,
           name: 'Predpražnik',
           size: sizePart || `${item.width_cm}x${item.height_cm}`,
-          customized: true,
+          customized: isCustomized,
           quantity: item.quantity || 1,
           frequency: item.frequency || offer.frequency || '2',
           seasonal: '',
