@@ -12,6 +12,7 @@ import type { UseCompanyDetailHandlersReturn } from '@/pages/contacts/hooks/useC
 import type { UseSentOffersReturn } from '@/pages/contacts/hooks/useSentOffers';
 import type { UseOfferEmailReturn } from '@/pages/contacts/hooks/useOfferEmail';
 import type { UseQRScannerReturn } from '@/pages/contacts/hooks/useQRScanner';
+import type { UseBusinessCardScannerReturn } from '@/pages/contacts/hooks/useBusinessCardScanner';
 import { getGoogleMapsUrl } from '@/pages/contacts/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPPLIERS, getSupplier } from '@/data/supplierColors';
@@ -32,6 +33,8 @@ import {
   ContractModalContainer,
   IzrisModal,
   type IzrisData,
+  BusinessCardScannerModal,
+  BusinessCardReviewModal,
 } from './index';
 import DeliveryInfoModal from '@/components/DeliveryInfoModal';
 
@@ -95,6 +98,8 @@ interface ContactsModalsProps {
     // Delivery info modal
     showDeliveryInfoModal: boolean;
     setShowDeliveryInfoModal: (show: boolean) => void;
+    // Existing company modal opener
+    openExistingCompanyModal?: (company: CompanyWithContacts, contactData: any) => void;
   };
 
   // Data
@@ -113,6 +118,7 @@ interface ContactsModalsProps {
   sentOffers: UseSentOffersReturn;
   emailHook: UseOfferEmailReturn;
   qrScanner: UseQRScannerReturn;
+  businessCardScanner: UseBusinessCardScannerReturn;
 
   // Route helpers
   openRouteWithCompanies: (companies: CompanyWithContacts[]) => void;
@@ -133,6 +139,7 @@ export function ContactsModals({
   sentOffers,
   emailHook,
   qrScanner,
+  businessCardScanner,
   openRouteWithCompanies,
 }: ContactsModalsProps) {
   const { toast } = useToast();
@@ -185,15 +192,115 @@ export function ContactsModals({
         />
       )}
 
+      {businessCardScanner.showScanner && (
+        <BusinessCardScannerModal
+          isProcessing={businessCardScanner.isProcessing}
+          processingStep={businessCardScanner.processingStep}
+          onCaptureFile={businessCardScanner.processImage}
+          onCaptureBase64={businessCardScanner.processBase64}
+          onClose={businessCardScanner.closeScanner}
+        />
+      )}
+
+      {businessCardScanner.showReview && businessCardScanner.result && (
+        <BusinessCardReviewModal
+          result={businessCardScanner.result}
+          onUseMatch={(company, extractedData) => {
+            businessCardScanner.closeReview();
+
+            // Check if company already exists in user's contacts (by tax number or name)
+            const existingByTax = company.tax_number && companies?.find(c =>
+              c.tax_number && c.tax_number.replace(/\s/g, '') === company.tax_number!.replace(/\s/g, '')
+            );
+            const existingByName = !existingByTax && company.name && companies?.find(c =>
+              c.name.toLowerCase() === company.name!.toLowerCase()
+            );
+            const existingInContacts = existingByTax || existingByName;
+
+            if (existingInContacts && modals.openExistingCompanyModal) {
+              // Company already exists - open existing company modal with contact from card
+              const contactData = {
+                first_name: extractedData.person_name?.split(' ')[0] || '',
+                last_name: extractedData.person_name?.split(' ').slice(1).join(' ') || '',
+                phone: extractedData.phone || '',
+                email: extractedData.email || '',
+                role: extractedData.person_role || '',
+              };
+              modals.openExistingCompanyModal(existingInContacts, contactData);
+              toast({
+                description: `Podjetje "${existingInContacts.display_name || existingInContacts.name}" ze obstaja - dodaj kontakt`,
+              });
+              return;
+            }
+
+            // Company doesn't exist yet - pre-fill add company form
+            const hasBranch = !!(extractedData.branch_name || extractedData.branch_address_street);
+            const branchStreet = extractedData.branch_address_street || extractedData.address_street || '';
+            const branchPostal = extractedData.branch_address_postal || extractedData.address_postal || '';
+            const branchCity = extractedData.branch_address_city || extractedData.address_city || '';
+            const branchDiffers = hasBranch || (branchCity && branchCity !== company.address_city);
+            modals.setFormData((prev: any) => ({
+              ...prev,
+              companyName: company.name || '',
+              displayName: extractedData.branch_name || '',
+              taxNumber: company.tax_number || '',
+              addressStreet: company.address_street || '',
+              addressPostal: company.address_postal || '',
+              addressCity: company.address_city || '',
+              ...(branchDiffers ? {
+                hasDifferentDeliveryAddress: true,
+                deliveryAddress: branchStreet,
+                deliveryPostal: branchPostal,
+                deliveryCity: branchCity,
+              } : {}),
+              contactName: extractedData.person_name || '',
+              contactRole: extractedData.person_role || '',
+              contactPhone: extractedData.phone || '',
+              contactEmail: extractedData.email || '',
+            }));
+            modals.setShowAddModal(true);
+          }}
+          onUseExtracted={(extractedData) => {
+            // Pre-fill samo z izvlečenimi podatki
+            const hasBranch = !!(extractedData.branch_name || extractedData.branch_address_street);
+            modals.setFormData((prev: any) => ({
+              ...prev,
+              companyName: extractedData.company_name || '',
+              displayName: extractedData.branch_name || '',
+              taxNumber: extractedData.tax_number || '',
+              addressStreet: extractedData.address_street || '',
+              addressPostal: extractedData.address_postal || '',
+              addressCity: extractedData.address_city || '',
+              ...(hasBranch ? {
+                hasDifferentDeliveryAddress: true,
+                deliveryAddress: extractedData.branch_address_street || '',
+                deliveryPostal: extractedData.branch_address_postal || '',
+                deliveryCity: extractedData.branch_address_city || '',
+              } : {}),
+              contactName: extractedData.person_name || '',
+              contactRole: extractedData.person_role || '',
+              contactPhone: extractedData.phone || '',
+              contactEmail: extractedData.email || '',
+            }));
+            businessCardScanner.closeReview();
+            modals.setShowAddModal(true);
+          }}
+          onClose={businessCardScanner.closeReview}
+        />
+      )}
+
       {modals.showAddModal && (
         <AddCompanyModal
           formData={modals.formData}
           onFormDataChange={modals.setFormData}
           taxLookupLoading={modals.taxLookupLoading}
           onTaxLookup={actions.handleTaxLookup}
+          onNameLookup={actions.handleNameLookup}
+          onSelectNameResult={actions.handleSelectNameResult}
           isLoading={actions.createCompany.isPending}
           onSubmit={actions.handleAddCompany}
           onOpenQRScanner={qrScanner.openScanner}
+          onOpenBusinessCardScanner={businessCardScanner.openScanner}
           onClose={() => modals.setShowAddModal(false)}
           availableParentCompanies={companies?.map(c => ({ id: c.id, name: c.name, display_name: c.display_name || undefined })) || []}
         />

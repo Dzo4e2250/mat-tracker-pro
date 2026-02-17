@@ -30,10 +30,25 @@ export interface InternalCompanyData {
   }>;
 }
 
+// Interface for slovenian_companies register lookup
+export interface RegisterCompanyData {
+  id: number;
+  tax_number: string;
+  registration_number: string;
+  name: string;
+  address_street: string;
+  address_postal: string;
+  address_city: string;
+  activity_code: string;
+  is_vat_payer: boolean;
+  legal_form: string;
+}
+
 export interface LookupResult {
-  source: 'internal' | 'external';
+  source: 'internal' | 'external' | 'register';
   internalCompany?: InternalCompanyData;
   externalData?: CompanyData;
+  registerCompany?: RegisterCompanyData;
 }
 
 /**
@@ -89,7 +104,16 @@ export async function lookupCompanyInternalFirst(taxNumber: string): Promise<Loo
       };
     }
 
-    // 2. Če ni v bazi, preveri zunanji API
+    // 2. Preveri lokalni register slovenian_companies (278k zapisov, sveži podatki)
+    const registerResult = await lookupCompanyInRegister(cleanTaxNumber);
+    if (registerResult) {
+      return {
+        source: 'register',
+        registerCompany: registerResult,
+      };
+    }
+
+    // 3. Če ni v registru, preveri zunanji VIES API
     const externalData = await lookupCompanyByTaxNumber(cleanTaxNumber);
     if (externalData) {
       return {
@@ -108,6 +132,27 @@ export async function lookupCompanyInternalFirst(taxNumber: string): Promise<Loo
         externalData,
       };
     }
+    return null;
+  }
+}
+
+/**
+ * Poišče podjetje v lokalnem registru slovenian_companies (278k zapisov)
+ * @param taxNumber - Davčna številka (8 števk, brez SI predpone)
+ */
+export async function lookupCompanyInRegister(taxNumber: string): Promise<RegisterCompanyData | null> {
+  try {
+    const { data, error } = await supabase
+      .schema('mat_tracker')
+      .from('slovenian_companies')
+      .select('id, tax_number, registration_number, name, address_street, address_postal, address_city, activity_code, is_vat_payer, legal_form')
+      .eq('tax_number', taxNumber)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data as RegisterCompanyData;
+  } catch {
     return null;
   }
 }
@@ -223,6 +268,43 @@ function parseAddress(address: string): { street?: string; city?: string; postal
   }
 
   return { street: address };
+}
+
+/**
+ * Poišče podjetja v registru po imenu (fuzzy search)
+ * @param companyName - Ime podjetja (ali del imena)
+ * @param limit - Max število rezultatov
+ */
+export async function searchCompaniesByName(companyName: string, limit = 10): Promise<RegisterCompanyData[]> {
+  if (!companyName || companyName.trim().length < 2) return [];
+
+  try {
+    // First check internal companies
+    const { data: internalResults } = await supabase
+      .schema('mat_tracker')
+      .from('companies')
+      .select('id, name, display_name, tax_number, address_street, address_city, address_postal')
+      .ilike('name', `%${companyName.trim()}%`)
+      .limit(3);
+
+    // Then search register with fuzzy function
+    const { data: registerResults, error } = await supabase
+      .schema('mat_tracker')
+      .rpc('search_companies_fuzzy', {
+        p_name: companyName.trim(),
+        p_city: null,
+        p_limit: limit,
+      });
+
+    if (error) {
+      console.error('Fuzzy search error:', error);
+      return [];
+    }
+
+    return (registerResults || []) as RegisterCompanyData[];
+  } catch {
+    return [];
+  }
 }
 
 /**

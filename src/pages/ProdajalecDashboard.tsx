@@ -63,7 +63,8 @@ export default function ProdajalecDashboard() {
   // UI State
   const [view, setView] = useState<ViewType | 'scan' | 'home'>(() => {
     const urlView = searchParams.get('view');
-    if (urlView === 'scan') return 'scan';
+    const validViews = ['scan', 'travel', 'tasks', 'history', 'statistics', 'tracking', 'map', 'home'];
+    if (urlView && validViews.includes(urlView)) return urlView as ViewType | 'scan' | 'home';
     return activeRole === 'prodajalec_oblek' ? 'tasks' : 'home';
   });
   const [scanInput, setScanInput] = useState('');
@@ -593,12 +594,12 @@ export default function ProdajalecDashboard() {
         isOpen={showTravelLogPopup}
         onClose={() => {
           setShowTravelLogPopup(false);
-          setTravelPopupShownToday(true);
+          setTravelPopupShownRecently(true);
           localStorage.setItem('travelPopupLastShown', new Date().toISOString());
         }}
         onSuccess={() => {
           toast({ description: 'Dnevnik poti shranjen' });
-          setTravelPopupShownToday(true);
+          setTravelPopupShownRecently(true);
           localStorage.setItem('travelPopupLastShown', new Date().toISOString());
         }}
       />

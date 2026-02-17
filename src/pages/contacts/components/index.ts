@@ -26,3 +26,5 @@ export { CompanyList } from './CompanyList';
 export { ContactsModals } from './ContactsModals';
 export { IzrisModal, type IzrisData } from './IzrisModal';
 export { OfferResponseModal, type OfferResponseType } from './OfferResponseModal';
+export { default as BusinessCardScannerModal } from './BusinessCardScannerModal';
+export { default as BusinessCardReviewModal } from './BusinessCardReviewModal';

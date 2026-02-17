@@ -7,7 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useCreateReminder, useCompleteReminder, useUpdatePipelineStatus } from '@/hooks/useReminders';
-import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, isValidTaxNumberFormat } from '@/utils/companyLookup';
+import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, isValidTaxNumberFormat, searchCompaniesByName } from '@/utils/companyLookup';
+import type { RegisterCompanyData } from '@/utils/companyLookup';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -292,19 +293,23 @@ export function useCompanyActions({
       }
     }
 
-    // Check for duplicate company by name
+    // Check for duplicate company by name (exact or close substring, min 4 chars to avoid false positives)
     const nameToCheck = formData.companyName?.trim() || formData.displayName?.trim();
     if (nameToCheck && companies) {
       const normalizedName = nameToCheck.toLowerCase().replace(/\s+/g, ' ');
       const duplicate = companies.find(c => {
         const existingName = (c.name || '').toLowerCase().replace(/\s+/g, ' ');
         const existingDisplayName = (c.display_name || '').toLowerCase().replace(/\s+/g, ' ');
-        return existingName === normalizedName ||
-               existingDisplayName === normalizedName ||
-               existingName.includes(normalizedName) ||
-               existingDisplayName.includes(normalizedName) ||
-               normalizedName.includes(existingName) ||
-               normalizedName.includes(existingDisplayName);
+        // Exact match
+        if (existingName === normalizedName || existingDisplayName === normalizedName) return true;
+        // Substring match - only if both strings are meaningful (>= 4 chars)
+        if (existingName.length >= 4 && normalizedName.length >= 4) {
+          if (existingName.includes(normalizedName) || normalizedName.includes(existingName)) return true;
+        }
+        if (existingDisplayName.length >= 4 && normalizedName.length >= 4) {
+          if (existingDisplayName.includes(normalizedName) || normalizedName.includes(existingDisplayName)) return true;
+        }
+        return false;
       });
 
       if (duplicate) {
@@ -471,6 +476,18 @@ export function useCompanyActions({
         toast({
           description: `📋 Podjetje najdeno v bazi (${contactCount} kontakt${contactCount !== 1 ? 'ov' : ''})${parentInfo}`,
         });
+      } else if (result.source === 'register' && result.registerCompany) {
+        // Podjetje najdeno v registru slovenian_companies
+        const regData = result.registerCompany;
+        setFormData((prev: any) => ({
+          ...prev,
+          companyName: regData.name || prev.companyName,
+          addressStreet: regData.address_street || prev.addressStreet,
+          addressCity: regData.address_city || prev.addressCity,
+          addressPostal: regData.address_postal || prev.addressPostal,
+        }));
+
+        toast({ description: `Podjetje najdeno v registru: ${regData.name}` });
       } else if (result.source === 'external' && result.externalData) {
         // Podjetje ni v bazi - izpolni iz VIES API
         const companyData = result.externalData;
@@ -494,6 +511,39 @@ export function useCompanyActions({
     } finally {
       setTaxLookupLoading(false);
     }
+  };
+
+  // Name lookup - search register by company name
+  const handleNameLookup = async (): Promise<RegisterCompanyData[]> => {
+    const name = formData.companyName;
+    if (!name || name.trim().length < 2) return [];
+
+    setTaxLookupLoading(true);
+    try {
+      const results = await searchCompaniesByName(name.trim(), 10);
+      if (results.length === 0) {
+        toast({ description: 'Ni zadetkov v registru' });
+      }
+      return results;
+    } catch {
+      toast({ description: 'Napaka pri iskanju', variant: 'destructive' });
+      return [];
+    } finally {
+      setTaxLookupLoading(false);
+    }
+  };
+
+  // Select company from name search results
+  const handleSelectNameResult = (company: RegisterCompanyData) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      companyName: company.name || prev.companyName,
+      taxNumber: company.tax_number || prev.taxNumber,
+      addressStreet: company.address_street || prev.addressStreet,
+      addressCity: company.address_city || prev.addressCity,
+      addressPostal: company.address_postal || prev.addressPostal,
+    }));
+    toast({ description: `Izpolnjeno: ${company.name}` });
   };
 
   // Tax lookup for edit address modal
@@ -662,6 +712,8 @@ export function useCompanyActions({
     handleCompleteReminder,
     handleAddCompany,
     handleTaxLookup,
+    handleNameLookup,
+    handleSelectNameResult,
     handleEditAddressTaxLookup,
     handleAddContact,
     handleDeleteContact,

@@ -13,6 +13,7 @@ export { useCompanyDetailHandlers } from './useCompanyDetailHandlers';
 export { useContactsModals } from './useContactsModals';
 export { useRouteHelpers } from './useRouteHelpers';
 export { useCompanyHierarchy } from './useCompanyHierarchy';
+export { useBusinessCardScanner } from './useBusinessCardScanner';
 
 // Export types
 export type { UseCompanyNotesReturn } from './useCompanyNotes';
@@ -22,3 +23,4 @@ export type { UseCompanyDetailHandlersReturn } from './useCompanyDetailHandlers'
 export type { UseSentOffersReturn } from './useSentOffers';
 export type { UseOfferEmailReturn } from './useOfferEmail';
 export type { UseQRScannerReturn } from './useQRScanner';
+export type { UseBusinessCardScannerReturn } from './useBusinessCardScanner';

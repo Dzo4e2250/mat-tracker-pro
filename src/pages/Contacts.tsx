@@ -41,6 +41,7 @@ import {
   useOfferState,
   useCompanyNotes,
   useQRScanner,
+  useBusinessCardScanner,
   useCompanyActions,
   useOfferEmail,
   useContactSelection,
@@ -54,7 +55,7 @@ import {
 import { getCompanyAddress } from '@/pages/contacts/utils';
 
 export default function Contacts() {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: companies, isLoading } = useCompanyContacts(user?.id);
@@ -135,6 +136,9 @@ export default function Contacts() {
 
   // Notes
   const notesHook = useCompanyNotes({ selectedCompanyId: modals.selectedCompanyId, userId: user?.id });
+
+  // Business Card Scanner
+  const businessCardScanner = useBusinessCardScanner();
 
   // QR Scanner
   const qrScanner = useQRScanner({
@@ -594,10 +598,11 @@ Lep pozdrav,
         sentOffers={sentOffers}
         emailHook={emailHook}
         qrScanner={qrScanner}
+        businessCardScanner={businessCardScanner}
         openRouteWithCompanies={openRouteWithCompanies}
       />
 
-      <BottomNavigation activeTab="contacts" />
+      <BottomNavigation activeTab="contacts" activeRole={activeRole} />
 
       {actions.ConfirmDialog}
       {detailHandlers.ConfirmDialog}

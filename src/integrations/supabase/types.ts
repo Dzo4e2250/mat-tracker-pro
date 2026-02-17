@@ -1243,6 +1243,42 @@ export type Database = {
           }
         ]
       }
+      user_ai_settings: {
+        Row: {
+          id: string
+          user_id: string
+          provider: 'openai' | 'anthropic' | 'google'
+          encrypted_api_key: string
+          fast_model: string
+          smart_model: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider: 'openai' | 'anthropic' | 'google'
+          encrypted_api_key: string
+          fast_model: string
+          smart_model: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: 'openai' | 'anthropic' | 'google'
+          encrypted_api_key?: string
+          fast_model?: string
+          smart_model?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

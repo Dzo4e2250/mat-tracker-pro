@@ -3,8 +3,10 @@
  * @description Modal za dodajanje nove stranke (podjetja) s kontaktno osebo
  */
 
-import { X, QrCode, GitBranch } from 'lucide-react';
+import { useState } from 'react';
+import { X, QrCode, GitBranch, ScanLine, Search, Loader2 } from 'lucide-react';
 import { getCityByPostalCode } from '@/utils/postalCodes';
+import type { RegisterCompanyData } from '@/utils/companyLookup';
 
 // Form data za novo stranko
 export interface AddCompanyFormData {
@@ -37,9 +39,12 @@ interface AddCompanyModalProps {
   onFormDataChange: (data: AddCompanyFormData) => void;
   taxLookupLoading: boolean;
   onTaxLookup: () => void;
+  onNameLookup: () => Promise<RegisterCompanyData[]>;
+  onSelectNameResult: (company: RegisterCompanyData) => void;
   isLoading: boolean;
   onSubmit: () => void;
   onOpenQRScanner: () => void;
+  onOpenBusinessCardScanner: () => void;
   onClose: () => void;
   availableParentCompanies?: ParentCompanyOption[];
 }
@@ -56,15 +61,35 @@ export default function AddCompanyModal({
   onFormDataChange,
   taxLookupLoading,
   onTaxLookup,
+  onNameLookup,
+  onSelectNameResult,
   isLoading,
   onSubmit,
   onOpenQRScanner,
+  onOpenBusinessCardScanner,
   onClose,
   availableParentCompanies = [],
 }: AddCompanyModalProps) {
+  const [nameResults, setNameResults] = useState<RegisterCompanyData[]>([]);
+  const [showNameResults, setShowNameResults] = useState(false);
+  const [nameSearching, setNameSearching] = useState(false);
 
   const updateField = (field: keyof AddCompanyFormData, value: string | boolean) => {
     onFormDataChange({ ...formData, [field]: value });
+  };
+
+  const handleNameSearch = async () => {
+    setNameSearching(true);
+    const results = await onNameLookup();
+    setNameResults(results);
+    setShowNameResults(results.length > 0);
+    setNameSearching(false);
+  };
+
+  const handleSelectResult = (company: RegisterCompanyData) => {
+    onSelectNameResult(company);
+    setShowNameResults(false);
+    setNameResults([]);
   };
 
   const handlePostalChange = (postal: string, isDelivery: boolean = false) => {
@@ -91,6 +116,13 @@ export default function AddCompanyModal({
           <h3 className="text-lg font-bold">Dodaj stranko</h3>
           <div className="flex items-center gap-2">
             <button
+              onClick={onOpenBusinessCardScanner}
+              className="p-2 bg-indigo-100 text-indigo-600 rounded-lg flex items-center gap-1"
+              title="AI skeniranje vizitke"
+            >
+              <ScanLine size={20} />
+            </button>
+            <button
               onClick={onOpenQRScanner}
               className="p-2 bg-purple-100 text-purple-600 rounded-lg flex items-center gap-1"
               title="Skeniraj QR kodo vizitke"
@@ -109,16 +141,70 @@ export default function AddCompanyModal({
             <strong>Hiter vnos:</strong> Vnesi samo kar veš - ime lokacije in/ali kontakt s telefonom. Dopolniš lahko kasneje.
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium mb-1">Ime podjetja</label>
-            <input
-              type="text"
-              value={formData.companyName || ''}
-              onChange={(e) => updateField('companyName', e.target.value)}
-              className="w-full p-3 border rounded-lg"
-              placeholder="ABC d.o.o. (če veš)"
-            />
-            <p className="text-xs text-gray-500 mt-1">Če ne veš, pusti prazno - shrani se kot osnutek</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.companyName || ''}
+                onChange={(e) => {
+                  updateField('companyName', e.target.value);
+                  setShowNameResults(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && formData.companyName && formData.companyName.length >= 2) {
+                    e.preventDefault();
+                    handleNameSearch();
+                  }
+                }}
+                className="flex-1 p-3 border rounded-lg"
+                placeholder="CAST, Euronova, Petrol..."
+              />
+              <button
+                type="button"
+                onClick={handleNameSearch}
+                disabled={nameSearching || !formData.companyName || formData.companyName.length < 2}
+                className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm disabled:bg-gray-300 flex items-center gap-1"
+              >
+                {nameSearching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                Isci
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Vnesi ime in klikni "Isci" za avtomatsko izpolnitev iz registra</p>
+
+            {/* Search results dropdown */}
+            {showNameResults && nameResults.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="p-2 text-xs text-gray-500 border-b bg-gray-50">
+                  {nameResults.length} zadetkov - izberite podjetje:
+                </div>
+                {nameResults.map((company, i) => (
+                  <button
+                    key={company.id || i}
+                    onClick={() => handleSelectResult(company)}
+                    className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                  >
+                    <p className="font-medium text-sm truncate">{company.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {company.address_street && `${company.address_street}, `}
+                      {company.address_postal} {company.address_city}
+                      {company.tax_number && ` | Dav: ${company.tax_number}`}
+                    </p>
+                    {(company as any).similarity_score !== undefined && (
+                      <span className="text-xs text-gray-400">
+                        Ujemanje: {((company as any).similarity_score * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setShowNameResults(false)}
+                  className="w-full text-center py-2 text-xs text-gray-400 hover:bg-gray-50"
+                >
+                  Zapri
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

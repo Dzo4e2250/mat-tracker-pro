@@ -4,11 +4,12 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Settings, Camera, Loader2, Eye, EyeOff, User, Save, PenTool } from 'lucide-react';
+import { X, Settings, Camera, Loader2, Eye, EyeOff, User, Save, PenTool, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Profile } from '@/integrations/supabase/types';
 import AvatarEditor from './AvatarEditor';
+import AISettingsSection from './AISettingsSection';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -42,6 +43,9 @@ export default function ProfileSettingsModal({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // AI settings
+  const [showAISettings, setShowAISettings] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -497,6 +501,24 @@ export default function ProfileSettingsModal({
                       placeholder="Ponovite geslo"
                     />
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* AI Settings Section */}
+            <div className="border-t pt-4">
+              <button
+                type="button"
+                onClick={() => setShowAISettings(!showAISettings)}
+                className="text-indigo-600 text-sm font-medium flex items-center gap-2"
+              >
+                <Bot size={16} />
+                {showAISettings ? 'Skrij AI nastavitve' : 'AI nastavitve (skeniranje vizitk)'}
+              </button>
+
+              {showAISettings && (
+                <div className="mt-4">
+                  <AISettingsSection userId={profile.id} />
                 </div>
               )}
             </div>
