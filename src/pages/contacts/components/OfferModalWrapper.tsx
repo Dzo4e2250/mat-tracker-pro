@@ -367,6 +367,8 @@ export function OfferModalWrapper({
                 standardTypes={STANDARD_TYPES}
                 designSizes={DESIGN_SIZES}
                 weeks={WEEKS}
+                specialShapeMultiplier={specialShapeMultiplier}
+                designPurchasePricePerM2={designPurchasePricePerM2}
                 onItemTypeChange={(itemId, type) => handleItemTypeChange(itemId, type, 'najem')}
                 onStandardSelect={handleStandardSelect}
                 onDesignSelect={handleDesignSelect}

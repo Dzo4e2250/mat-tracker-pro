@@ -40,6 +40,8 @@ interface OfferItemsNajemStepProps {
   standardTypes: StandardType[];
   designSizes: DesignSize[];
   weeks: WeekOption[];
+  specialShapeMultiplier: number;
+  designPurchasePricePerM2: number;
   // Callbacks for item management
   onItemTypeChange: (itemId: string, type: ItemType) => void;
   onStandardSelect: (itemId: string, code: string) => void;
@@ -82,6 +84,8 @@ export default function OfferItemsNajemStep({
   standardTypes,
   designSizes,
   weeks,
+  specialShapeMultiplier,
+  designPurchasePricePerM2,
   onItemTypeChange,
   onStandardSelect,
   onDesignSelect,
@@ -225,7 +229,7 @@ export default function OfferItemsNajemStep({
                   />
                   {item.m2 && item.m2 > 0 && (
                     <div className={`text-xs mt-1 ${item.specialShape ? 'text-purple-600' : 'text-gray-500'}`}>
-                      📐 {item.m2.toFixed(2)} m² {item.specialShape && `× ${priceSettings?.special_shape_multiplier || 1.5}`} {item.purpose === 'nakup' ? `× ${priceSettings?.design_purchase_price_per_m2 || 165}€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
+                      📐 {item.m2.toFixed(2)} m² {item.specialShape && `× ${specialShapeMultiplier}`} {item.purpose === 'nakup' ? `× ${designPurchasePricePerM2}€ = ${item.pricePerUnit.toFixed(2)}€` : `→ ${item.m2 <= 2 ? '≤2m² tarifa' : '>2m² tarifa'}`}
                     </div>
                   )}
                 </div>
