@@ -40,6 +40,9 @@ config.js
 *.docx
 *.doc
 
+# Database backups (vsebujejo podatke strank!)
+database/backups/
+
 # Playwright
 /test-results/
 /playwright-report/

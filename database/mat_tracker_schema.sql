@@ -1,4 +1,9 @@
--- MAT TRACKER DATABASE SCHEMA
+-- =====================================================
+-- ZASTARELO! Uporabi database/full_setup.sql namesto tega.
+-- Ta datoteka vsebuje le 14 od 28 tabel.
+-- =====================================================
+--
+-- MAT TRACKER DATABASE SCHEMA (LEGACY)
 -- Runs in mat_tracker schema (separate from other projects)
 -- Version: 1.0
 -- Date: 2026-01-15
