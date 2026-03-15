@@ -6,6 +6,8 @@
 import { X, Home, Camera, MapPin, History, TrendingUp, Users, Package, ArrowRightLeft, Key, LogOut, CheckSquare, Car, Settings } from 'lucide-react';
 import type { ViewType } from './types';
 
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0';
+
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
@@ -203,6 +205,11 @@ export function SideMenu({
             }}
             className="text-red-600"
           />
+
+          {/* Verzija */}
+          <div className="mt-6 text-center">
+            <span className="text-[10px] text-gray-300">Mat Tracker Pro v{APP_VERSION}</span>
+          </div>
         </div>
       </div>
     </div>
