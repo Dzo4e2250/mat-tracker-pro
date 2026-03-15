@@ -194,3 +194,22 @@ export function calculateCustomPurchasePrice(m2: number): number {
   if (m2 <= 0) return 0;
   return Math.round(m2 * DESIGN_PURCHASE_PRICE_PER_M2 * 100) / 100;
 }
+
+// Recalculate item prices for a different frequency (pure function)
+export function recalculateItemsForFrequency<T extends { code?: string; itemType?: string; m2?: number; pricePerUnit: number; frequencyOverride?: string }>(
+  items: T[], frequency: FrequencyKey
+): T[] {
+  return items.map(item => {
+    if (item.frequencyOverride) return item;
+    const priceInfo = item.code ? getPriceByCode(item.code) : undefined;
+    let newPrice: number;
+    if (priceInfo) {
+      newPrice = priceInfo.prices[frequency] || item.pricePerUnit;
+    } else if (item.itemType === 'custom' && item.m2) {
+      newPrice = calculateCustomPrice(item.m2, frequency);
+    } else {
+      newPrice = item.pricePerUnit;
+    }
+    return { ...item, pricePerUnit: newPrice, originalPrice: newPrice, discount: 0 };
+  });
+}

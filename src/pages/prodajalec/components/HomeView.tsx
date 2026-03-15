@@ -10,6 +10,7 @@ import { STATUSES, type StatusKey } from '../utils/constants';
 import { getTimeRemaining, formatCountdown } from '../utils/timeHelpers';
 import * as XLSX from 'xlsx';
 import AllMatsModal from './modals/AllMatsModal';
+import WaitingDriverModal from './modals/WaitingDriverModal';
 
 interface CompanyMatsData {
   companyId: string;
@@ -29,6 +30,8 @@ interface HomeViewProps {
   onCycleClick: (cycle: CycleWithRelations) => void;
   onDismissAlert: (cycleId: string) => void;
   onShowCompanyMats: (data: CompanyMatsData) => void;
+  onConfirmPickup?: (cycleId: string) => void;
+  isConfirmingPickup?: boolean;
 }
 
 // Alert kartica za teste ki se iztečejo
@@ -194,6 +197,57 @@ function CompanyGroup({
   );
 }
 
+// Waiting driver skupina po podjetju
+function WaitingDriverGroup({
+  companyCycles,
+  onCycleClick,
+  onConfirmPickup,
+  isConfirming,
+}: {
+  companyCycles: CycleWithRelations[];
+  onCycleClick: (cycle: CycleWithRelations) => void;
+  onConfirmPickup: (cycleId: string) => void;
+  isConfirming: boolean;
+}) {
+  const companyName = companyCycles[0]?.company?.display_name || companyCycles[0]?.company?.name || 'Brez podjetja';
+  const companyAddress = companyCycles[0]?.company?.address_city || '';
+
+  return (
+    <div className="border rounded-lg overflow-hidden border-purple-200">
+      <div className="p-3 bg-purple-50 flex items-center gap-2">
+        <span className="text-lg">🏢</span>
+        <div className="flex-1">
+          <div className="font-medium">{companyName}</div>
+          {companyAddress && <div className="text-xs text-gray-500">{companyAddress}</div>}
+        </div>
+        <span className="text-xs text-purple-600 font-medium">
+          {companyCycles.length} kos{companyCycles.length > 1 ? 'ov' : ''}
+        </span>
+      </div>
+      <div className="divide-y">
+        {companyCycles.map(cycle => (
+          <div key={cycle.id} className="p-3 flex items-center justify-between gap-2">
+            <div
+              className="flex-1 min-w-0 cursor-pointer"
+              onClick={() => onCycleClick(cycle)}
+            >
+              <div className="font-medium">{cycle.mat_type?.code || cycle.mat_type?.name}</div>
+              <div className="text-xs text-gray-500 font-mono">{cycle.qr_code?.code}</div>
+            </div>
+            <button
+              onClick={() => onConfirmPickup(cycle.id)}
+              disabled={isConfirming}
+              className="px-3 py-1.5 bg-green-500 text-white text-sm rounded-lg font-medium disabled:opacity-50 active:scale-[0.97] transition-transform whitespace-nowrap"
+            >
+              {isConfirming ? '...' : '✅ Pobrano'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Posamezen cikel kartica
 function CycleCard({
   cycle,
@@ -239,9 +293,12 @@ export default function HomeView({
   onCycleClick,
   onDismissAlert,
   onShowCompanyMats,
+  onConfirmPickup,
+  isConfirmingPickup,
 }: HomeViewProps) {
   const [matTypeFilter, setMatTypeFilter] = useState<string>('all');
   const [showAllMatsModal, setShowAllMatsModal] = useState(false);
+  const [showWaitingDriverModal, setShowWaitingDriverModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Izračunaj statistiko
@@ -429,6 +486,7 @@ export default function HomeView({
 
   // Grupiraj on_test cikle po podjetjih
   const onTestByCompany = new Map<string, CycleWithRelations[]>();
+  const waitingByCompany = new Map<string, CycleWithRelations[]>();
   const otherCycles: CycleWithRelations[] = [];
 
   filteredCycles.forEach(cycle => {
@@ -438,9 +496,22 @@ export default function HomeView({
         onTestByCompany.set(key, []);
       }
       onTestByCompany.get(key)!.push(cycle);
+    } else if (cycle.status === 'waiting_driver' && statusFilter === 'waiting_driver') {
+      const key = cycle.company_id || 'no-company';
+      if (!waitingByCompany.has(key)) {
+        waitingByCompany.set(key, []);
+      }
+      waitingByCompany.get(key)!.push(cycle);
     } else {
       otherCycles.push(cycle);
     }
+  });
+
+  // Sortiraj waiting_driver podjetja po imenu
+  const sortedWaitingCompanies = Array.from(waitingByCompany.entries()).sort((a, b) => {
+    const nameA = a[1][0]?.company?.display_name || a[1][0]?.company?.name || 'zzz';
+    const nameB = b[1][0]?.company?.display_name || b[1][0]?.company?.name || 'zzz';
+    return nameA.localeCompare(nameB);
   });
 
   // Sortiraj podjetja po nujnosti
@@ -493,7 +564,7 @@ export default function HomeView({
           <StatCard count={stats.clean} label="💚 Čisti" bgColor="bg-green-50" />
           <StatCard count={stats.onTest} label="🔵 Na testu" bgColor="bg-blue-50" />
           <StatCard count={stats.dirty} label="🟠 Umazani" bgColor="bg-orange-50" />
-          <StatCard count={stats.waitingDriver} label="📋 Čaka šoferja" bgColor="bg-purple-50" colSpan={2} />
+          <StatCard count={stats.waitingDriver} label="📋 Čaka šoferja" bgColor="bg-purple-50" colSpan={2} onClick={() => setShowWaitingDriverModal(true)} />
         </div>
       </div>
 
@@ -577,6 +648,17 @@ export default function HomeView({
           <p className="text-gray-500 text-center py-4">Ni predpražnikov s tem statusom</p>
         ) : (
           <div className="space-y-2">
+            {/* Grupirani waiting_driver cikli po podjetjih */}
+            {onConfirmPickup && sortedWaitingCompanies.map(([companyId, companyCycles]) => (
+              <WaitingDriverGroup
+                key={companyId}
+                companyCycles={companyCycles}
+                onCycleClick={onCycleClick}
+                onConfirmPickup={onConfirmPickup}
+                isConfirming={isConfirmingPickup || false}
+              />
+            ))}
+
             {/* Grupirani on_test cikli po podjetjih */}
             {sortedCompanies.map(([companyId, companyCycles]) => (
               <CompanyGroup
@@ -613,6 +695,16 @@ export default function HomeView({
         onClose={() => setShowAllMatsModal(false)}
         cycles={cycles}
       />
+
+      {onConfirmPickup && (
+        <WaitingDriverModal
+          isOpen={showWaitingDriverModal}
+          onClose={() => setShowWaitingDriverModal(false)}
+          cycles={cycles}
+          onConfirmPickup={onConfirmPickup}
+          isConfirming={isConfirmingPickup || false}
+        />
+      )}
     </div>
   );
 }

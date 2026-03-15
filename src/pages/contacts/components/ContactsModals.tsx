@@ -10,7 +10,8 @@ import type { UseOfferStateReturn } from '@/pages/contacts/hooks/useOfferState';
 import type { UseCompanyActionsReturn } from '@/pages/contacts/hooks/useCompanyActions';
 import type { UseCompanyDetailHandlersReturn } from '@/pages/contacts/hooks/useCompanyDetailHandlers';
 import type { UseSentOffersReturn } from '@/pages/contacts/hooks/useSentOffers';
-import type { UseOfferEmailReturn } from '@/pages/contacts/hooks/useOfferEmail';
+import type { UseOfferEmailReturn, TextOverrides } from '@/pages/contacts/hooks/useOfferEmail';
+import type { UserEmailTemplate } from '@/integrations/supabase/types';
 import type { UseQRScannerReturn } from '@/pages/contacts/hooks/useQRScanner';
 import type { UseBusinessCardScannerReturn } from '@/pages/contacts/hooks/useBusinessCardScanner';
 import { getGoogleMapsUrl } from '@/pages/contacts/utils';
@@ -122,6 +123,14 @@ interface ContactsModalsProps {
 
   // Route helpers
   openRouteWithCompanies: (companies: CompanyWithContacts[]) => void;
+
+  // Template & color for offer preview
+  templatesForType: UserEmailTemplate[];
+  selectedTemplateId: string | null;
+  onTemplateChange: (templateId: string) => void;
+  tableColor: string;
+  onTableColorChange: (color: string) => void;
+  onGenerateAI?: (templateType: string) => Promise<{ intro_text: string; service_text: string; closing_text: string; seasonal_text: string } | null>;
 }
 
 export function ContactsModals({
@@ -141,6 +150,12 @@ export function ContactsModals({
   qrScanner,
   businessCardScanner,
   openRouteWithCompanies,
+  templatesForType,
+  selectedTemplateId,
+  onTemplateChange,
+  tableColor,
+  onTableColorChange,
+  onGenerateAI,
 }: ContactsModalsProps) {
   const { toast } = useToast();
 
@@ -553,6 +568,12 @@ export function ContactsModals({
           generateEmailHTML={emailHook.generateEmailHTML}
           copyHTMLToClipboard={emailHook.copyHTMLToClipboard}
           saveOfferToDatabase={sentOffers.saveOfferToDatabase}
+          templates={templatesForType}
+          selectedTemplateId={selectedTemplateId}
+          onTemplateChange={onTemplateChange}
+          tableColor={tableColor}
+          onTableColorChange={onTableColorChange}
+          onGenerateAI={onGenerateAI}
         />
       )}
 

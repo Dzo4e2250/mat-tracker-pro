@@ -31,6 +31,7 @@ const ProdajalecDashboard = lazy(() => import("./pages/ProdajalecDashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const OrderCodes = lazy(() => import("./pages/OrderCodes"));
 const WorklistPopup = lazy(() => import("./pages/WorklistPopup"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 // Loading spinner for lazy loaded pages
 const PageLoader = () => (
@@ -139,6 +140,11 @@ const AppContent = () => {
             <Route path="/worklist-popup" element={
               <ProtectedRoute allowedRoles={['prodajalec', 'admin']}>
                 <WorklistPopup />
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute allowedRoles={['prodajalec', 'prodajalec_oblek', 'inventar', 'admin']}>
+                <Settings />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

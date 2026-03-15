@@ -313,6 +313,13 @@ export default function MatDetailsModal({
               Daj na test
             </button>
             <button
+              onClick={onRequestDriverPickup}
+              disabled={isUpdatingStatus}
+              className="w-full bg-purple-500 text-white py-2 rounded disabled:opacity-50"
+            >
+              {isUpdatingStatus ? 'Shranjevanje...' : '🚛 Pobere šofer'}
+            </button>
+            <button
               onClick={onMarkAsDirty}
               disabled={isUpdatingStatus}
               className="w-full bg-orange-500 text-white py-2 rounded disabled:opacity-50"

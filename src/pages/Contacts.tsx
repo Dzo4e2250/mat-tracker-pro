@@ -4,7 +4,7 @@
  * @version 4.0 - Fully modular
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -51,6 +51,8 @@ import {
   useRouteHelpers,
   useCompanyHierarchy,
 } from '@/pages/contacts/hooks';
+import { useEmailTemplates } from '@/hooks/useEmailTemplates';
+import { useEmailSignature } from '@/hooks/useEmailSignature';
 
 import { getCompanyAddress } from '@/pages/contacts/utils';
 
@@ -130,6 +132,14 @@ export default function Contacts() {
     filteredCompanies: filters.filteredCompanies,
     setShowRoutePlannerModal: modals.setShowRoutePlannerModal,
   });
+
+  // Email templates & signature
+  const emailTemplates = useEmailTemplates(user?.id);
+  const { signature: emailSignature } = useEmailSignature(user?.id);
+
+  // Template selection and table color state for offer preview
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [tableColor, setTableColor] = useState('#1e3a5f');
 
   // Offer state
   const offerState = useOfferState();
@@ -236,7 +246,23 @@ export default function Contacts() {
     resetD365Fields: modals.resetD365Fields,
   });
 
-  // Email
+  // Reset template selection when offer type changes
+  useEffect(() => {
+    setSelectedTemplateId(null);
+  }, [offerState.offerType]);
+
+  // Email - use selected template (or default) for current offer type + signature
+  const templatesForType = emailTemplates.getTemplatesForType(offerState.offerType);
+  const activeTemplate = selectedTemplateId
+    ? templatesForType.find(t => t.id === selectedTemplateId) || templatesForType[0]
+    : emailTemplates.getActiveTemplate(offerState.offerType);
+
+  const effectiveTemplateId = activeTemplate?.id || templatesForType[0]?.id || null;
+
+  const handleTemplateChange = useCallback((templateId: string) => {
+    setSelectedTemplateId(templateId);
+  }, []);
+
   const emailHook = useOfferEmail({
     offerType: offerState.offerType,
     offerFrequency: offerState.offerFrequency,
@@ -245,7 +271,39 @@ export default function Contacts() {
     calculateOfferTotals: offerState.calculateOfferTotals,
     selectedCompany: modals.selectedCompany,
     saveOfferToDatabase: sentOffers.saveOfferToDatabase,
+    template: activeTemplate || null,
+    signature: emailSignature || null,
+    tableColor,
   });
+
+  // AI email text generation
+  const handleGenerateAI = useCallback(async (templateType: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({ description: 'Ni prijave', variant: 'destructive' });
+        return null;
+      }
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://jtkwgkmccxdzmitlefgj.supabase.co'}/functions/v1/generate-email-text`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ template_type: templateType }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'AI generiranje ni uspelo');
+      }
+      const result = await res.json();
+      toast({ description: 'Besedilo generirano z AI' });
+      return result as { intro_text: string; service_text: string; closing_text: string; seasonal_text: string };
+    } catch (error: any) {
+      toast({ description: error.message || 'Napaka pri AI generiranju', variant: 'destructive' });
+      return null;
+    }
+  }, [toast]);
 
   // URL parameter handling
   useEffect(() => {
@@ -600,6 +658,12 @@ Lep pozdrav,
         qrScanner={qrScanner}
         businessCardScanner={businessCardScanner}
         openRouteWithCompanies={openRouteWithCompanies}
+        templatesForType={templatesForType}
+        selectedTemplateId={effectiveTemplateId}
+        onTemplateChange={handleTemplateChange}
+        tableColor={tableColor}
+        onTableColorChange={setTableColor}
+        onGenerateAI={handleGenerateAI}
       />
 
       <BottomNavigation activeTab="contacts" activeRole={activeRole} />

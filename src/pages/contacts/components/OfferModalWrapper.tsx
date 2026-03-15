@@ -4,10 +4,13 @@
  * Enkapsulira celoten offer UI (type → items → preview) in inline callback funkcije
  */
 
-import { lazy, Suspense, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
+import type { UserEmailTemplate } from '@/integrations/supabase/types';
+import type { TextOverrides } from '@/pages/contacts/hooks/useOfferEmail';
+import { DEFAULT_TABLE_COLOR } from '@/pages/contacts/hooks/useOfferEmail';
 import {
   getRentalPrice, getPurchasePrice, getReplacementCost, getPriceByCode,
   STANDARD_TYPES, DESIGN_SIZES, calculateM2FromDimensions, calculateCustomPrice, calculateCustomPurchasePrice,
@@ -67,8 +70,16 @@ export interface OfferModalWrapperProps {
   calculateOfferTotals: (category: 'nakup' | 'najem') => { subtotal: number; discount: number; total: number };
 
   // Email generation from useOfferEmail hook
-  generateEmailHTML: () => string;
-  copyHTMLToClipboard: () => void;
+  generateEmailHTML: (overrides?: TextOverrides) => string;
+  copyHTMLToClipboard: (overrides?: TextOverrides) => void;
+
+  // Template & color support
+  templates: UserEmailTemplate[];
+  selectedTemplateId: string | null;
+  onTemplateChange: (templateId: string) => void;
+  tableColor: string;
+  onTableColorChange: (color: string) => void;
+  onGenerateAI?: (templateType: string) => Promise<{ intro_text: string; service_text: string; closing_text: string; seasonal_text: string } | null>;
 
   // Save offer from useSentOffers hook
   saveOfferToDatabase: (subject: string, email: string) => Promise<boolean>;
@@ -110,6 +121,12 @@ export function OfferModalWrapper({
   generateEmailHTML,
   copyHTMLToClipboard,
   saveOfferToDatabase,
+  templates,
+  selectedTemplateId,
+  onTemplateChange,
+  tableColor,
+  onTableColorChange,
+  onGenerateAI,
 }: OfferModalWrapperProps) {
   const { toast } = useToast();
   const { data: matPrices } = useMatPrices();
@@ -406,11 +423,11 @@ export function OfferModalWrapper({
               <OfferPreviewStep
                 company={selectedCompany}
                 offerType={offerType}
+                offerFrequency={offerFrequency}
                 hasNajem={hasNajem}
                 hasNakup={hasNakup}
                 hasNajemItems={offerItemsNajem.some(i => i.purpose !== 'nakup')}
                 hasNakupItems={offerItemsNajem.some(i => i.purpose === 'nakup')}
-                emailHtml={generateEmailHTML()}
                 primaryEmail={getPrimaryContact(selectedCompany)?.email || ''}
                 onCopyEmail={(email) => {
                   navigator.clipboard.writeText(email);
@@ -427,6 +444,13 @@ export function OfferModalWrapper({
                   else if (hasNakup) setOfferStep('items-nakup');
                 }}
                 onClose={onClose}
+                templates={templates}
+                selectedTemplateId={selectedTemplateId}
+                onTemplateChange={onTemplateChange}
+                tableColor={tableColor}
+                onTableColorChange={onTableColorChange}
+                generateEmailHTML={generateEmailHTML}
+                onGenerateAI={onGenerateAI}
               />
             )}
           </div>

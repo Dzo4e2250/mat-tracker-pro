@@ -1279,6 +1279,165 @@ export type Database = {
         }
         Relationships: []
       }
+      user_email_templates: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          template_type: 'najem' | 'nakup' | 'primerjava' | 'dodatna' | 'custom'
+          intro_text: string
+          service_text: string
+          closing_text: string
+          seasonal_text: string | null
+          block_order: string[] | null
+          is_default: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          template_type: 'najem' | 'nakup' | 'primerjava' | 'dodatna' | 'custom'
+          intro_text?: string
+          service_text?: string
+          closing_text?: string
+          seasonal_text?: string | null
+          block_order?: string[] | null
+          is_default?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          template_type?: 'najem' | 'nakup' | 'primerjava' | 'dodatna' | 'custom'
+          intro_text?: string
+          service_text?: string
+          closing_text?: string
+          seasonal_text?: string | null
+          block_order?: string[] | null
+          is_default?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_notification_settings: {
+        Row: {
+          id: string
+          user_id: string
+          offer_followup_enabled: boolean
+          offer_followup_max_rounds: number
+          offer_followup_interval_days: number
+          offer_auto_escalate_call: boolean
+          contract_followup_enabled: boolean
+          contract_followup_interval_days: number
+          contract_detection_days: number
+          general_reminders_enabled: boolean
+          channel_in_app: boolean
+          channel_browser_push: boolean
+          channel_email_digest: boolean
+          email_digest_frequency: string | null
+          quiet_hours_enabled: boolean
+          quiet_hours_start: string | null
+          quiet_hours_end: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          offer_followup_enabled?: boolean
+          offer_followup_max_rounds?: number
+          offer_followup_interval_days?: number
+          offer_auto_escalate_call?: boolean
+          contract_followup_enabled?: boolean
+          contract_followup_interval_days?: number
+          contract_detection_days?: number
+          general_reminders_enabled?: boolean
+          channel_in_app?: boolean
+          channel_browser_push?: boolean
+          channel_email_digest?: boolean
+          email_digest_frequency?: string | null
+          quiet_hours_enabled?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_end?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          offer_followup_enabled?: boolean
+          offer_followup_max_rounds?: number
+          offer_followup_interval_days?: number
+          offer_auto_escalate_call?: boolean
+          contract_followup_enabled?: boolean
+          contract_followup_interval_days?: number
+          contract_detection_days?: number
+          general_reminders_enabled?: boolean
+          channel_in_app?: boolean
+          channel_browser_push?: boolean
+          channel_email_digest?: boolean
+          email_digest_frequency?: string | null
+          quiet_hours_enabled?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_end?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_email_signatures: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string
+          title: string
+          phone: string
+          company_name: string
+          company_address: string
+          website: string
+          logo_url: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name?: string
+          title?: string
+          phone?: string
+          company_name?: string
+          company_address?: string
+          website?: string
+          logo_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string
+          title?: string
+          phone?: string
+          company_name?: string
+          company_address?: string
+          website?: string
+          logo_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1348,6 +1507,21 @@ export const TASK_STATUSES = ['todo', 'in_progress', 'done', 'needs_help'] as co
 // Purpose types for travel log entries
 export const TRAVEL_PURPOSES = ['teren', 'bolniska', 'dopust', 'praznik', 'od_doma', 'prosto'] as const
 export type TravelPurpose = typeof TRAVEL_PURPOSES[number]
+
+// User email template types
+export type UserEmailTemplate = MatTrackerTables['user_email_templates']['Row']
+export type UserEmailTemplateInsert = MatTrackerTables['user_email_templates']['Insert']
+export type UserEmailTemplateUpdate = MatTrackerTables['user_email_templates']['Update']
+
+// User email signature types
+export type UserEmailSignature = MatTrackerTables['user_email_signatures']['Row']
+export type UserEmailSignatureInsert = MatTrackerTables['user_email_signatures']['Insert']
+export type UserEmailSignatureUpdate = MatTrackerTables['user_email_signatures']['Update']
+
+// User notification settings types
+export type UserNotificationSettings = MatTrackerTables['user_notification_settings']['Row']
+export type UserNotificationSettingsInsert = MatTrackerTables['user_notification_settings']['Insert']
+export type UserNotificationSettingsUpdate = MatTrackerTables['user_notification_settings']['Update']
 
 // Insert types
 export type ProfileInsert = MatTrackerTables['profiles']['Insert']

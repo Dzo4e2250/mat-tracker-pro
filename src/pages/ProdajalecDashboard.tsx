@@ -8,13 +8,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, X } from 'lucide-react';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
-import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import { useMapLocations } from '@/hooks/useMapLocations';
 import { useCameraScanner, useCycleActions, useProdajalecState } from './prodajalec/hooks';
 
 import { useMatTypes } from '@/hooks/useMatTypes';
 import { useQRCodes } from '@/hooks/useQRCodes';
 import { useCycles, useCycleHistory, useUpdateCycleStatus, useUpdateTestStartDate, useUpdateCycleLocation, useMarkContractSigned, useBatchSignContracts, useBatchPickupSelf, useBatchExtendTest, useBatchRemove, CycleWithRelations } from '@/hooks/useCycles';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useCompanyHistory } from '@/hooks/useCompanies';
 import { useCompanyContacts, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useToast } from '@/hooks/use-toast';
@@ -51,6 +52,7 @@ export default function ProdajalecDashboard() {
   const [selectedCompanyForTest, setSelectedCompanyForTest] = useState<CompanyWithContacts | null>(null);
 
   // Mutations
+  const queryClient = useQueryClient();
   const updateStatus = useUpdateCycleStatus();
   const updateTestStartDate = useUpdateTestStartDate();
   const updateCycleLocation = useUpdateCycleLocation();
@@ -59,6 +61,50 @@ export default function ProdajalecDashboard() {
   const batchPickupSelf = useBatchPickupSelf();
   const batchExtendTest = useBatchExtendTest();
   const batchRemove = useBatchRemove();
+
+  // Confirm driver pickup mutation (same logic as admin panel)
+  const confirmPickupMutation = useMutation({
+    mutationFn: async (cycleId: string) => {
+      const { data: cycle, error: fetchError } = await supabase
+        .from('cycles')
+        .select('id, qr_code_id')
+        .eq('id', cycleId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const { error: cycleError } = await supabase
+        .from('cycles')
+        .update({
+          status: 'completed',
+          driver_pickup_at: new Date().toISOString(),
+        })
+        .eq('id', cycleId);
+
+      if (cycleError) throw cycleError;
+
+      if (cycle?.qr_code_id) {
+        const { error: qrError } = await supabase
+          .from('qr_codes')
+          .update({
+            status: 'available',
+            last_reset_at: new Date().toISOString(),
+          })
+          .eq('id', cycle.qr_code_id);
+
+        if (qrError) throw qrError;
+      }
+    },
+    onSuccess: () => {
+      toast({ description: '✅ Prevzem potrjen. QR koda je spet prosta.' });
+      queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['qr_codes'] });
+      queryClient.invalidateQueries({ queryKey: ['map'] });
+    },
+    onError: () => {
+      toast({ description: 'Napaka pri potrjevanju prevzema', variant: 'destructive' });
+    },
+  });
 
   // UI State
   const [view, setView] = useState<ViewType | 'scan' | 'home'>(() => {
@@ -77,7 +123,6 @@ export default function ProdajalecDashboard() {
   const [taxLookupLoading, setTaxLookupLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
@@ -332,7 +377,7 @@ export default function ProdajalecDashboard() {
         availableRoles={availableRoles}
         onSwitchRole={switchRole}
         onChangePassword={() => setShowPasswordModal(true)}
-        onSettings={() => setShowSettingsModal(true)}
+        onSettings={() => navigate('/settings')}
         onSignOut={signOut}
         activeRole={activeRole}
       />
@@ -363,6 +408,8 @@ export default function ProdajalecDashboard() {
               setSelectedCompanyForMats(data);
               setShowCompanyMatsModal(true);
             }}
+            onConfirmPickup={(cycleId) => confirmPickupMutation.mutate(cycleId)}
+            isConfirmingPickup={confirmPickupMutation.isPending}
           />
         )}
 
@@ -581,13 +628,6 @@ export default function ProdajalecDashboard() {
 
       {/* Additional Modals */}
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
-      <ProfileSettingsModal
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        profile={profile}
-        onProfileUpdate={refreshProfile}
-      />
-
       {/* Travel Log Popup - shown between 13:00-17:00 if no entry for today */}
       <TravelLogPopup
         userId={user?.id || ''}
