@@ -8,6 +8,7 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { OfferItem, OfferType, ItemType, OfferTotals } from './types';
+import QuantityInput from './QuantityInput';
 import {
   OPTIBRUSH_STANDARD_SIZES,
   getPriceCategoryLabel,
@@ -280,24 +281,9 @@ export default function OfferItemsNajemStep({
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="block text-xs text-gray-500">Količina</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '') {
-                          onQuantityChange(item.id, 0);
-                        } else {
-                          const num = parseInt(val);
-                          if (!isNaN(num)) onQuantityChange(item.id, num);
-                        }
-                      }}
-                      onBlur={() => {
-                        if (!item.quantity || item.quantity < 1) {
-                          onQuantityChange(item.id, 1);
-                        }
-                      }}
+                    <QuantityInput
+                      value={item.quantity}
+                      onChange={(n) => onQuantityChange(item.id, n)}
                       className="w-full p-2 border rounded text-sm"
                     />
                   </div>
@@ -692,24 +678,9 @@ export default function OfferItemsNajemStep({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs text-gray-500">Količina</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '') {
-                          onQuantityChange(item.id, 0);
-                        } else {
-                          const num = parseInt(val);
-                          if (!isNaN(num)) onQuantityChange(item.id, num);
-                        }
-                      }}
-                      onBlur={() => {
-                        if (!item.quantity || item.quantity < 1) {
-                          onQuantityChange(item.id, 1);
-                        }
-                      }}
+                    <QuantityInput
+                      value={item.quantity}
+                      onChange={(n) => onQuantityChange(item.id, n)}
                       className="w-full p-2 border rounded text-sm"
                     />
                   </div>
