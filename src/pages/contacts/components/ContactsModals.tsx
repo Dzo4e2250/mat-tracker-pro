@@ -133,6 +133,7 @@ interface ContactsModalsProps {
   onGenerateAI?: (templateType: string) => Promise<{ intro_text: string; service_text: string; closing_text: string; seasonal_text: string } | null>;
   // Desktop inline detail mode
   inlineDetail?: boolean;
+  skipDetailModal?: boolean;
 }
 
 export function ContactsModals({
@@ -159,6 +160,7 @@ export function ContactsModals({
   onTableColorChange,
   onGenerateAI,
   inlineDetail = false,
+  skipDetailModal = false,
 }: ContactsModalsProps) {
   const { toast } = useToast();
 
@@ -324,7 +326,7 @@ export function ContactsModals({
         />
       )}
 
-      {modals.selectedCompany && (
+      {modals.selectedCompany && !skipDetailModal && (
         <CompanyDetailModal
           company={modals.selectedCompany}
           inline={inlineDetail}

@@ -690,7 +690,7 @@ Lep pozdrav,
         <AlphabetSidebar availableLetters={filters.availableLetters} onLetterSelect={filters.scrollToLetter} />
       )}
 
-      {/* Mobile: modali */}
+      {/* Modali (dodajanje, reminder, ponudba itd.) */}
       {!isDesktop && (
         <ContactsModals
         modals={modals}
@@ -716,6 +716,35 @@ Lep pozdrav,
         onTableColorChange={setTableColor}
         onGenerateAI={handleGenerateAI}
       />
+      )}
+
+      {/* Desktop: ostali modali (add, reminder, offer, QR itd.) brez detail modala */}
+      {isDesktop && (
+        <ContactsModals
+          modals={modals}
+          companies={companies}
+          companyDetails={companyDetails}
+          isLoadingDetails={isLoadingDetails}
+          companyHierarchy={companyHierarchy}
+          filteredCompanies={filters.filteredCompanies}
+          createReminderPending={createReminder.isPending}
+          notesHook={notesHook}
+          offerState={offerState}
+          actions={actions}
+          detailHandlers={detailHandlers}
+          sentOffers={sentOffers}
+          emailHook={emailHook}
+          qrScanner={qrScanner}
+          businessCardScanner={businessCardScanner}
+          openRouteWithCompanies={openRouteWithCompanies}
+          templatesForType={templatesForType}
+          selectedTemplateId={effectiveTemplateId}
+          onTemplateChange={handleTemplateChange}
+          tableColor={tableColor}
+          onTableColorChange={setTableColor}
+          onGenerateAI={handleGenerateAI}
+          skipDetailModal
+        />
       )}
 
       <BottomNavigation activeTab="contacts" activeRole={activeRole} />
