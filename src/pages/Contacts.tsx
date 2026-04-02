@@ -596,7 +596,6 @@ Lep pozdrav,
               const company = companies?.find(c => c.id === companyId);
               if (company) {
                 modals.selectCompany(company);
-                filters.addToRecent(company.id);
               }
             }}
             onMarkDone={(noteId, content) => notesHook.markDeadlineDone.mutate({ noteId, content })}
@@ -636,7 +635,6 @@ Lep pozdrav,
               firstCompanyForLetter={filters.firstCompanyForLetter}
               onCompanyClick={(company) => {
                 modals.selectCompany(company);
-                filters.addToRecent(company.id);
               }}
               onContactToggle={selection.toggleContactSelection}
               onAddReminder={modals.openReminderModal}
