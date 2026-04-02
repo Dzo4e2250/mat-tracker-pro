@@ -53,7 +53,7 @@ export function useContactsFilters({
   useEffect(() => {
     debounceRef.current = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-    }, 300);
+    }, 400);
     return () => clearTimeout(debounceRef.current);
   }, [searchQuery]);
 

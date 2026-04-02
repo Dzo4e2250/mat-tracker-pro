@@ -3,6 +3,7 @@
  * @description Kompaktna vrstica za desktop seznam strank (master-detail levi panel)
  */
 
+import { memo } from 'react';
 import { Phone, Bell, BellRing, User } from 'lucide-react';
 import { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 
@@ -21,7 +22,7 @@ function isTestOverdue(cycle: { status: string; test_start_date: string | null; 
   return daysDiff > 14;
 }
 
-export default function CompanyListRow({
+export default memo(function CompanyListRow({
   company,
   isSelected,
   hasReminder = false,
@@ -112,4 +113,4 @@ export default function CompanyListRow({
       )}
     </div>
   );
-}
+});
