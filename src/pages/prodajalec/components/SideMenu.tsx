@@ -6,7 +6,7 @@
 import { X, Home, Camera, MapPin, History, TrendingUp, Users, Package, ArrowRightLeft, Key, LogOut, CheckSquare, Car, Settings } from 'lucide-react';
 import type { ViewType } from './types';
 
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0';
 
 interface SideMenuProps {
   isOpen: boolean;

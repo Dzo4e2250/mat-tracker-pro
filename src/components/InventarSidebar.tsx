@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Home, Users, LogOut, ShoppingCart, ChevronRight, UserCircle, Truck, ArrowRightLeft, Key, Map, Package, BarChart2, Euro, Activity } from "lucide-react";
 
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0';
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProdajalecProfiles } from "@/hooks/useProfiles";
