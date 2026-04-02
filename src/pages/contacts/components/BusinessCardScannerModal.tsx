@@ -46,6 +46,18 @@ export default function BusinessCardScannerModal({
 
     const startCamera = async () => {
       try {
+        // Preveri HTTPS
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+          if (mounted) setCameraError('Kamera deluje samo na HTTPS povezavi.');
+          return;
+        }
+
+        // Preveri ali brskalnik podpira kamero
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (mounted) setCameraError('Brskalnik ne podpira kamere. Posodobite brskalnik.');
+          return;
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
         });
@@ -61,8 +73,16 @@ export default function BusinessCardScannerModal({
           await videoRef.current.play();
           setCameraActive(true);
         }
-      } catch {
-        if (mounted) {
+      } catch (err: any) {
+        if (!mounted) return;
+        const name = err?.name || '';
+        if (name === 'NotAllowedError') {
+          setCameraError('Dovoljenje za kamero zavrnjeno. Omogočite v nastavitvah brskalnika in osvežite stran.');
+        } else if (name === 'NotFoundError') {
+          setCameraError('Kamera ni bila najdena. Uporabite gumb za nalaganje slike.');
+        } else if (name === 'NotReadableError') {
+          setCameraError('Kamera je zasedena (morda jo uporablja druga aplikacija). Zaprite druge aplikacije in poskusite znova.');
+        } else {
           setCameraError('Kamera ni na voljo. Uporabite gumb za nalaganje slike.');
         }
       }

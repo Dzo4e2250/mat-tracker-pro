@@ -221,6 +221,10 @@ export function useQRScanner({
     await closeScanner();
   }, [companies, onContactParsed, onExistingCompanyFound, closeScanner, toast]);
 
+  // Ref za handleQRScan - prepreči re-mount efekta ob vsakem renderju
+  const handleQRScanRef = useRef(handleQRScan);
+  handleQRScanRef.current = handleQRScan;
+
   // Initialize QR scanner when modal opens
   useEffect(() => {
     if (!showQRScanner) return;
@@ -229,8 +233,18 @@ export function useQRScanner({
     setZoomLevel(1);
     setZoomSupported(false);
 
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
+      if (cancelled) return;
+
       try {
+        // Preveri HTTPS
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+          setScannerError('Kamera deluje samo na HTTPS povezavi.');
+          return;
+        }
+
         const html5QrCode = new Html5Qrcode('qr-reader');
         scannerRef.current = html5QrCode;
 
@@ -246,15 +260,20 @@ export function useQRScanner({
 
             try {
               await html5QrCode.stop();
-            } catch (err) {
+            } catch {
               // Ignore stop errors
             }
-            handleQRScan(decodedText);
+            handleQRScanRef.current(decodedText);
           },
           () => {
             // Ignore continuous scan errors
           }
         );
+
+        if (cancelled) {
+          html5QrCode.stop().catch(() => {});
+          return;
+        }
 
         isRunningRef.current = true;
 
@@ -274,20 +293,29 @@ export function useQRScanner({
             }
           }
         }, 500);
-      } catch {
-        setScannerError('Napaka pri dostopu do kamere. Preverite dovoljenja.');
+      } catch (err: any) {
+        if (cancelled) return;
+        const name = err?.name || '';
+        if (name === 'NotAllowedError') {
+          setScannerError('Dovoljenje za kamero zavrnjeno. Omogočite v nastavitvah brskalnika.');
+        } else if (name === 'NotFoundError') {
+          setScannerError('Kamera ni bila najdena na tej napravi.');
+        } else {
+          setScannerError('Napaka pri dostopu do kamere. Preverite dovoljenja.');
+        }
       }
-    }, 100);
+    }, 200);
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
-      // Cleanup on unmount
       if (scannerRef.current && isRunningRef.current) {
         scannerRef.current.stop().catch(() => {});
         isRunningRef.current = false;
       }
     };
-  }, [showQRScanner, handleQRScan, applyZoom]);
+  // POMEMBNO: samo showQRScanner - NE handleQRScan (prepreči utripanje)
+  }, [showQRScanner, applyZoom]);
 
   return {
     showQRScanner,
