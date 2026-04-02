@@ -55,10 +55,12 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useEmailSignature } from '@/hooks/useEmailSignature';
 
 import { getCompanyAddress } from '@/pages/contacts/utils';
+import { useIsDesktop } from '@/hooks/use-mobile';
 
 export default function Contacts() {
   const { user, activeRole } = useAuth();
   const { toast } = useToast();
+  const isDesktop = useIsDesktop();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: companies, isLoading } = useCompanyContacts(user?.id);
 
@@ -617,31 +619,82 @@ Lep pozdrav,
           />
         )}
 
-        <CompanyList
-          companies={filters.filteredCompanies}
-          isLoading={isLoading}
-          searchQuery={filters.searchQuery}
-          recentCompanyIds={filters.recentCompanyIds}
-          selectionMode={selection.selectionMode}
-          selectedContacts={selection.selectedContacts}
-          companiesWithReminders={companiesWithReminders}
-          companyHierarchy={companyHierarchy}
-          getCompanyFirstLetter={filters.getCompanyFirstLetter}
-          firstCompanyForLetter={filters.firstCompanyForLetter}
-          onCompanyClick={(company) => {
-            modals.selectCompany(company);
-            filters.addToRecent(company.id);
-          }}
-          onContactToggle={selection.toggleContactSelection}
-          onAddReminder={modals.openReminderModal}
-        />
+        {/* Master-detail layout na desktopu, kartice na mobilnem */}
+        <div className={isDesktop ? 'flex gap-4' : ''}>
+          {/* Levi panel: seznam strank */}
+          <div className={isDesktop ? 'w-[38%] flex-shrink-0 h-[calc(100vh-200px)] overflow-y-auto pr-1' : ''}>
+            <CompanyList
+              companies={filters.filteredCompanies}
+              isLoading={isLoading}
+              searchQuery={filters.searchQuery}
+              recentCompanyIds={filters.recentCompanyIds}
+              selectionMode={selection.selectionMode}
+              selectedContacts={selection.selectedContacts}
+              companiesWithReminders={companiesWithReminders}
+              companyHierarchy={companyHierarchy}
+              getCompanyFirstLetter={filters.getCompanyFirstLetter}
+              firstCompanyForLetter={filters.firstCompanyForLetter}
+              onCompanyClick={(company) => {
+                modals.selectCompany(company);
+                filters.addToRecent(company.id);
+              }}
+              onContactToggle={selection.toggleContactSelection}
+              onAddReminder={modals.openReminderModal}
+              variant={isDesktop ? 'rows' : 'cards'}
+              selectedCompanyId={isDesktop ? modals.selectedCompany?.id : undefined}
+            />
+          </div>
+
+          {/* Desni panel: profil stranke (samo desktop) */}
+          {isDesktop && (
+            <div className="flex-1 min-w-0">
+              {modals.selectedCompany ? (
+                <ContactsModals
+                  modals={modals}
+                  companies={companies}
+                  companyDetails={companyDetails}
+                  isLoadingDetails={isLoadingDetails}
+                  companyHierarchy={companyHierarchy}
+                  filteredCompanies={filters.filteredCompanies}
+                  createReminderPending={createReminder.isPending}
+                  notesHook={notesHook}
+                  offerState={offerState}
+                  actions={actions}
+                  detailHandlers={detailHandlers}
+                  sentOffers={sentOffers}
+                  emailHook={emailHook}
+                  qrScanner={qrScanner}
+                  businessCardScanner={businessCardScanner}
+                  openRouteWithCompanies={openRouteWithCompanies}
+                  templatesForType={templatesForType}
+                  selectedTemplateId={effectiveTemplateId}
+                  onTemplateChange={handleTemplateChange}
+                  tableColor={tableColor}
+                  onTableColorChange={setTableColor}
+                  onGenerateAI={handleGenerateAI}
+                  inlineDetail
+                />
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm h-[calc(100vh-200px)] flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <div className="text-4xl mb-3">👈</div>
+                    <div className="text-lg font-medium">Izberi stranko</div>
+                    <div className="text-sm">Klikni na stranko iz seznama</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {!isLoading && filters.filteredCompanies.length > 10 && filters.sortBy === 'name' && (
+      {!isDesktop && !isLoading && filters.filteredCompanies.length > 10 && filters.sortBy === 'name' && (
         <AlphabetSidebar availableLetters={filters.availableLetters} onLetterSelect={filters.scrollToLetter} />
       )}
 
-      <ContactsModals
+      {/* Mobile: modali */}
+      {!isDesktop && (
+        <ContactsModals
         modals={modals}
         companies={companies}
         companyDetails={companyDetails}
@@ -665,6 +718,7 @@ Lep pozdrav,
         onTableColorChange={setTableColor}
         onGenerateAI={handleGenerateAI}
       />
+      )}
 
       <BottomNavigation activeTab="contacts" activeRole={activeRole} />
 

@@ -131,6 +131,8 @@ interface ContactsModalsProps {
   tableColor: string;
   onTableColorChange: (color: string) => void;
   onGenerateAI?: (templateType: string) => Promise<{ intro_text: string; service_text: string; closing_text: string; seasonal_text: string } | null>;
+  // Desktop inline detail mode
+  inlineDetail?: boolean;
 }
 
 export function ContactsModals({
@@ -156,6 +158,7 @@ export function ContactsModals({
   tableColor,
   onTableColorChange,
   onGenerateAI,
+  inlineDetail = false,
 }: ContactsModalsProps) {
   const { toast } = useToast();
 
@@ -324,6 +327,7 @@ export function ContactsModals({
       {modals.selectedCompany && (
         <CompanyDetailModal
           company={modals.selectedCompany}
+          inline={inlineDetail}
           companyNotes={notesHook.companyNotes}
           isLoadingNotes={notesHook.isLoadingNotes}
           companyDetails={companyDetails}

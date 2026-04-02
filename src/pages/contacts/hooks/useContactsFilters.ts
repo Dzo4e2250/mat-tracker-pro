@@ -57,7 +57,7 @@ export function useContactsFilters({
     return () => clearTimeout(debounceRef.current);
   }, [searchQuery]);
 
-  const [sortBy, setSortBy] = useState<SortByType>('name');
+  const [sortBy, setSortBy] = useState<SortByType>('date');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilterType>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [filter, setFilter] = useState<FilterType>('all');

@@ -17,6 +17,7 @@ import {
   Pencil, FileSignature, Check, GitBranch, Building2, ChevronDown, CalendarPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import StickyNotesInput from './StickyNotesInput';
 import { generateAndDownloadICS } from '@/utils/icsGenerator';
 import {
   D365_ACTIVITY_CATEGORIES,
@@ -143,6 +144,8 @@ interface CompanyDetailModalProps {
   onToggleD365?: (isInD365: boolean) => void;
   onOpenIzris?: () => void;
   onOpenDeliveryInfo?: () => void;
+  // Desktop inline panel mode (no modal overlay)
+  inline?: boolean;
   // D365 fields for adding notes
   d365Category?: string;
   d365Subcategory?: string;
@@ -193,6 +196,7 @@ export default function CompanyDetailModal({
   onToggleD365,
   onOpenIzris,
   onOpenDeliveryInfo,
+  inline = false,
   d365Category,
   d365Subcategory,
   d365AppointmentType,
@@ -325,16 +329,24 @@ export default function CompanyDetailModal({
   }, [company.id]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div ref={scrollRef} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
+    <div className={inline
+      ? 'bg-white rounded-xl shadow-sm flex flex-col h-[calc(100vh-140px)] sticky top-20'
+      : 'fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4'
+    }>
+      <div ref={scrollRef} className={inline
+        ? 'flex flex-col h-full'
+        : 'bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col'
+      }>
+        <div className={`flex-shrink-0 bg-white p-4 border-b flex items-center justify-between ${inline ? 'rounded-t-xl' : 'rounded-t-2xl sm:rounded-t-2xl'}`}>
           <h3 className="text-lg font-bold">{company.display_name || company.name}</h3>
-          <button onClick={onClose} className="p-1">
-            <X size={24} />
-          </button>
+          {!inline && (
+            <button onClick={onClose} className="p-1">
+              <X size={24} />
+            </button>
+          )}
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Company Info */}
           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
             <div className="flex items-start justify-between">
@@ -495,62 +507,13 @@ export default function CompanyDetailModal({
               )}
             </div>
 
-            {/* Add new note */}
-            <div className="bg-yellow-50 rounded-lg p-3 mb-3">
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="date"
-                  value={newNoteDate}
-                  onChange={(e) => onNewNoteDateChange(e.target.value)}
-                  className="px-2 py-1 border rounded text-sm"
-                />
-                <button
-                  onClick={onAddNote}
-                  disabled={!newNoteContent.trim() || isAddingNote}
-                  className="px-3 py-1 bg-yellow-500 text-white rounded text-sm disabled:bg-gray-300 flex items-center gap-1"
-                >
-                  <Plus size={14} />
-                  Dodaj
-                </button>
-              </div>
-              <textarea
-                value={newNoteContent}
-                onChange={(e) => onNewNoteContentChange(e.target.value)}
-                placeholder="Prosta opomba..."
-                className="w-full p-2 border rounded text-sm"
-                rows={2}
-              />
-
-              {/* Time range - always visible */}
-              {onD365StartTimeChange && (
-                <div className="mt-2 flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-600 block mb-1">Od</label>
-                    <input
-                      type="time"
-                      value={d365StartTime || '09:00'}
-                      onChange={(e) => onD365StartTimeChange?.(e.target.value)}
-                      className="w-full px-2 py-1.5 border rounded text-sm"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-600 block mb-1">Do</label>
-                    <input
-                      type="time"
-                      value={d365EndTime || '09:30'}
-                      onChange={(e) => onD365EndTimeChange?.(e.target.value)}
-                      className="w-full px-2 py-1.5 border rounded text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Notes input je zdaj sticky na dnu modala */}
 
             {/* Notes list */}
             {isLoadingNotes ? (
               <div className="text-center py-2 text-gray-500 text-sm">Nalagam opombe...</div>
             ) : companyNotes && companyNotes.length > 0 ? (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {companyNotes.map((note) => (
                   <div key={note.id} className="bg-gray-50 rounded-lg p-3 relative group">
                     {editingNoteId === note.id ? (
@@ -961,6 +924,22 @@ export default function CompanyDetailModal({
               </button>
             </div>
           )}
+        </div>
+
+        {/* Sticky notes input - vedno viden na dnu modala */}
+        <div className="flex-shrink-0 border-t p-3 bg-white rounded-b-2xl">
+          <StickyNotesInput
+            newNoteDate={newNoteDate}
+            newNoteContent={newNoteContent}
+            isAddingNote={isAddingNote}
+            onNewNoteDateChange={onNewNoteDateChange}
+            onNewNoteContentChange={onNewNoteContentChange}
+            onAddNote={onAddNote}
+            d365StartTime={d365StartTime}
+            d365EndTime={d365EndTime}
+            onD365StartTimeChange={onD365StartTimeChange}
+            onD365EndTimeChange={onD365EndTimeChange}
+          />
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@
  */
 
 import CompanyCard from './CompanyCard';
+import CompanyListRow from './CompanyListRow';
 import type { CompanyWithContacts } from '@/hooks/useCompanyContacts';
 
 interface HierarchyInfo {
@@ -25,6 +26,9 @@ interface CompanyListProps {
   onCompanyClick: (company: CompanyWithContacts) => void;
   onContactToggle: (contactId: string) => void;
   onAddReminder: (companyId: string) => void;
+  // Desktop mode
+  variant?: 'cards' | 'rows';
+  selectedCompanyId?: string | null;
 }
 
 export function CompanyList({
@@ -41,6 +45,8 @@ export function CompanyList({
   onCompanyClick,
   onContactToggle,
   onAddReminder,
+  variant = 'cards',
+  selectedCompanyId,
 }: CompanyListProps) {
   if (isLoading) {
     return <div className="text-center py-8 text-gray-500">Nalagam...</div>;
@@ -54,6 +60,29 @@ export function CompanyList({
     );
   }
 
+  // Desktop kompaktne vrstice
+  if (variant === 'rows') {
+    return (
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        {companies.map(company => {
+          const letter = getCompanyFirstLetter(company);
+          const isFirstForLetter = firstCompanyForLetter.get(letter) === company.id;
+          return (
+            <div key={company.id} data-first-letter={isFirstForLetter ? letter : undefined}>
+              <CompanyListRow
+                company={company}
+                isSelected={selectedCompanyId === company.id}
+                hasReminder={companiesWithReminders.has(company.id)}
+                onClick={() => onCompanyClick(company)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Mobile kartice
   return (
     <div className="space-y-3 pr-6">
       {companies.map(company => {
