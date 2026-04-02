@@ -314,3 +314,72 @@ export function isValidTaxNumberFormat(taxNumber: string): boolean {
   const clean = taxNumber.replace(/^SI/i, '').replace(/\s/g, '');
   return /^\d{8}$/.test(clean);
 }
+
+/**
+ * Poišče odpiralni čas podjetja iz OpenStreetMap (brezplačno)
+ * Uporablja Overpass API za iskanje po imenu v Sloveniji
+ * @param companyName - Ime podjetja ali lokacije
+ * @param city - Opcijsko mesto za bolj natančno iskanje
+ * @returns Odpiralni čas v formatu "Po-Pe 07:00-17:00" ali null
+ */
+export async function lookupOpeningHours(companyName: string, city?: string): Promise<string | null> {
+  if (!companyName || companyName.trim().length < 3) return null;
+
+  try {
+    // Očisti ime - odstrani d.o.o., s.p. itd. za boljše iskanje
+    const cleanName = companyName
+      .replace(/\s*(d\.?o\.?o\.?|s\.?p\.?|d\.?d\.?|d\.?n\.?o\.?)\s*/gi, '')
+      .replace(/,\s*$/, '')
+      .trim();
+
+    if (cleanName.length < 3) return null;
+
+    // Overpass query: poišči objekte z imenom in opening_hours v Sloveniji
+    const areaFilter = city
+      ? `area["name"="${city}"]["admin_level"~"[6-8]"]->.city;`
+      : `area["ISO3166-1"="SI"]->.city;`;
+
+    const query = `[out:json][timeout:8];${areaFilter}(node["name"~"${cleanName}","i"]["opening_hours"](area.city);way["name"~"${cleanName}","i"]["opening_hours"](area.city););out body 1;`;
+
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    if (data.elements && data.elements.length > 0) {
+      const hours = data.elements[0].tags?.opening_hours;
+      if (hours) {
+        // Pretvori OSM format v berljiv format
+        return formatOpeningHours(hours);
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pretvori OSM opening_hours format v berljiv slovenski format
+ * "Mo-Fr 07:00-19:00; Sa 07:00-15:00" → "Pon-Pet 07:00-19:00, Sob 07:00-15:00"
+ */
+function formatOpeningHours(osmHours: string): string {
+  return osmHours
+    .replace(/Mo/g, 'Pon')
+    .replace(/Tu/g, 'Tor')
+    .replace(/We/g, 'Sre')
+    .replace(/Th/g, 'Čet')
+    .replace(/Fr/g, 'Pet')
+    .replace(/Sa/g, 'Sob')
+    .replace(/Su/g, 'Ned')
+    .replace(/PH/g, 'Prazniki')
+    .replace(/; /g, ', ')
+    .replace(/;/g, ', ');
+}

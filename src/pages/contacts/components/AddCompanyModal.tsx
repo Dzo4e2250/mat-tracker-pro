@@ -25,6 +25,7 @@ export interface AddCompanyFormData {
   contactPhone?: string;
   contactEmail?: string;
   parentCompanyId?: string | null;
+  workingHours?: string;
 }
 
 // Tip za izbiro matičnega podjetja
@@ -410,6 +411,19 @@ export default function AddCompanyModal({
               </div>
             </div>
           </div>
+
+          {/* Odpiralni čas */}
+          {formData.workingHours && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <label className="block text-sm font-medium text-green-800 mb-1">Odpiralni čas (najden avtomatsko)</label>
+              <input
+                type="text"
+                value={formData.workingHours || ''}
+                onChange={(e) => updateField('workingHours', e.target.value)}
+                className="w-full p-2 border border-green-300 rounded-lg text-sm"
+              />
+            </div>
+          )}
 
           <button
             onClick={onSubmit}

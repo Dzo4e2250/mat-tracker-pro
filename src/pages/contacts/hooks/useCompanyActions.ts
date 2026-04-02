@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useCreateReminder, useCompleteReminder, useUpdatePipelineStatus } from '@/hooks/useReminders';
-import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, lookupCompanyInRegister, isValidTaxNumberFormat, searchCompaniesByName } from '@/utils/companyLookup';
+import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, lookupCompanyInRegister, isValidTaxNumberFormat, searchCompaniesByName, lookupOpeningHours } from '@/utils/companyLookup';
 import type { RegisterCompanyData } from '@/utils/companyLookup';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -491,6 +491,14 @@ export function useCompanyActions({
 
         const vatLabel = regData.is_vat_payer ? ' (DDV zavezanec)' : ' (ni DDV zavezanec)';
         toast({ description: `Podjetje najdeno v registru: ${regData.name}${vatLabel}` });
+
+        // Poskusi najti odpiralni čas iz OpenStreetMap (v ozadju)
+        lookupOpeningHours(regData.name, regData.address_city).then(hours => {
+          if (hours) {
+            setFormData((prev: any) => ({ ...prev, workingHours: hours }));
+            toast({ description: `Odpiralni čas najden: ${hours}` });
+          }
+        });
       } else if (result.source === 'external' && result.externalData) {
         // Podjetje ni v bazi - izpolni iz VIES API
         const companyData = result.externalData;
@@ -514,6 +522,14 @@ export function useCompanyActions({
         }));
 
         toast({ description: `Podjetje najdeno: ${fullName} (DDV zavezanec)` });
+
+        // Poskusi najti odpiralni čas iz OpenStreetMap (v ozadju)
+        lookupOpeningHours(fullName, companyData.city).then(hours => {
+          if (hours) {
+            setFormData((prev: any) => ({ ...prev, workingHours: hours }));
+            toast({ description: `Odpiralni čas najden: ${hours}` });
+          }
+        });
       }
     } catch (error) {
       toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });
