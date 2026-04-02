@@ -283,6 +283,23 @@ export default function AddCompanyModal({
             </div>
           </div>
 
+          {/* Odpiralni čas */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Odpiralni čas dostavnega mesta *</label>
+            <input
+              type="text"
+              value={formData.workingHours || ''}
+              onChange={(e) => updateField('workingHours', e.target.value)}
+              className={`w-full p-3 border rounded-lg ${formData.workingHours ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`}
+              placeholder="Pon-Pet 07:00-17:00, Sob 08:00-13:00"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.workingHours
+                ? '✅ Avtomatsko ali ročno vnešeno'
+                : 'Vnesi odpiralni čas - uporabi se pri generiranju pogodbe'}
+            </p>
+          </div>
+
           {/* Naslov poslovalnice */}
           <div className="bg-amber-50 rounded-lg p-3">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -411,19 +428,6 @@ export default function AddCompanyModal({
               </div>
             </div>
           </div>
-
-          {/* Odpiralni čas */}
-          {formData.workingHours && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <label className="block text-sm font-medium text-green-800 mb-1">Odpiralni čas (najden avtomatsko)</label>
-              <input
-                type="text"
-                value={formData.workingHours || ''}
-                onChange={(e) => updateField('workingHours', e.target.value)}
-                className="w-full p-2 border border-green-300 rounded-lg text-sm"
-              />
-            </div>
-          )}
 
           <button
             onClick={onSubmit}
