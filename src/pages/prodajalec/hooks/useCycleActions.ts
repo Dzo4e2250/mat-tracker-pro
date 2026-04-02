@@ -250,6 +250,46 @@ export function useCycleActions({
     }
   }, [selectedCycle, userId, extendTest, showToast, setShowModal, setSelectedCycle]);
 
+  // Šofer je že pobral predpražnik (preskoči waiting_driver, gre direkt na dirty)
+  const handleDriverPickedUp = useCallback(async () => {
+    if (!selectedCycle || !userId) return;
+
+    try {
+      await updateStatus.mutateAsync({
+        cycleId: selectedCycle.id,
+        newStatus: 'dirty',
+        userId,
+      });
+      showToast('✅ Pobral šofer - predpražnik označen kot umazan');
+      setShowModal(false);
+      setSelectedCycle(null);
+    } catch (error) {
+      showToast('Napaka pri posodabljanju', 'destructive');
+    }
+  }, [selectedCycle, userId, updateStatus, showToast, setShowModal, setSelectedCycle]);
+
+  // Spremeni podjetje na obstoječem ciklu
+  const handleChangeCompany = useCallback(async (newCompanyId: string, newContactId?: string) => {
+    if (!selectedCycle || !userId) return;
+
+    try {
+      const { error } = await (await import('@/integrations/supabase/client')).supabase
+        .from('cycles')
+        .update({
+          company_id: newCompanyId,
+          contact_id: newContactId || null,
+        })
+        .eq('id', selectedCycle.id);
+
+      if (error) throw error;
+      showToast('✅ Podjetje spremenjeno');
+      setShowModal(false);
+      setSelectedCycle(null);
+    } catch (error) {
+      showToast('Napaka pri zamenjavi podjetja', 'destructive');
+    }
+  }, [selectedCycle, userId, showToast, setShowModal, setSelectedCycle]);
+
   return {
     // Mutations for external use
     createCycle,
@@ -267,6 +307,8 @@ export function useCycleActions({
     handleRequestDriverPickup,
     handleSignContract,
     handleExtendTest,
+    handleDriverPickedUp,
+    handleChangeCompany,
     showToast,
   };
 }

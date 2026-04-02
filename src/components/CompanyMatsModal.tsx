@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { X, Check, Building2, MapPin, Clock, AlertTriangle, FileSignature, Package, CalendarPlus, Trash2 } from 'lucide-react';
+import { X, Check, Building2, MapPin, Clock, AlertTriangle, FileSignature, Package, CalendarPlus, Trash2, Truck, Phone, ExternalLink, Pencil } from 'lucide-react';
 import type { CycleWithRelations } from '@/hooks/useCycles';
 
 type ActionType = 'select' | 'sign_contract' | 'confirm_remaining' | 'confirm_remove';
@@ -13,7 +13,10 @@ interface CompanyMatsModalProps {
   isOpen: boolean;
   onClose: () => void;
   companyName: string;
+  companyId?: string;
   companyAddress?: string;
+  contactPhone?: string;
+  contactName?: string;
   cycles: CycleWithRelations[];
   onSignContracts: (
     signedCycleIds: string[],
@@ -23,6 +26,10 @@ interface CompanyMatsModalProps {
   onPickupAll: (cycleIds: string[]) => Promise<void>;
   onExtendAll: (cycleIds: string[]) => Promise<void>;
   onRemoveAll: (cycleIds: string[]) => Promise<void>;
+  onDriverPickupAll?: (cycleIds: string[]) => Promise<void>;
+  onDriverPickedUpAll?: (cycleIds: string[]) => Promise<void>;
+  onViewCompany?: (companyId: string) => void;
+  onChangeCompany?: (cycleIds: string[]) => void;
   isLoading?: boolean;
 }
 
@@ -47,12 +54,19 @@ export default function CompanyMatsModal({
   isOpen,
   onClose,
   companyName,
+  companyId,
   companyAddress,
+  contactPhone,
+  contactName,
   cycles,
   onSignContracts,
   onPickupAll,
   onExtendAll,
   onRemoveAll,
+  onDriverPickupAll,
+  onDriverPickedUpAll,
+  onViewCompany,
+  onChangeCompany,
   isLoading = false,
 }: CompanyMatsModalProps) {
   const [selectedCycles, setSelectedCycles] = useState<Set<string>>(new Set());
@@ -126,6 +140,20 @@ export default function CompanyMatsModal({
     resetAndClose();
   };
 
+  const handleDriverPickupAll = async () => {
+    if (onDriverPickupAll) {
+      await onDriverPickupAll(onTestCycles.map(c => c.id));
+      resetAndClose();
+    }
+  };
+
+  const handleDriverPickedUpAll = async () => {
+    if (onDriverPickedUpAll) {
+      await onDriverPickedUpAll(onTestCycles.map(c => c.id));
+      resetAndClose();
+    }
+  };
+
   const resetAndClose = () => {
     setSelectedCycles(new Set());
     setStep('select');
@@ -152,6 +180,15 @@ export default function CompanyMatsModal({
             <div className="flex items-center gap-2">
               <Building2 size={20} className="text-blue-600" />
               <h2 className="font-bold text-lg">{companyName}</h2>
+              {onChangeCompany && (
+                <button
+                  onClick={() => onChangeCompany(onTestCycles.map(c => c.id))}
+                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded"
+                  title="Spremeni podjetje"
+                >
+                  <Pencil size={16} />
+                </button>
+              )}
             </div>
             {companyAddress && (
               <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
@@ -225,6 +262,72 @@ export default function CompanyMatsModal({
                   </div>
                 </div>
               </button>
+
+              <button
+                onClick={handleDriverPickupAll}
+                disabled={isLoading || !onDriverPickupAll}
+                className="w-full p-4 rounded-xl border-2 border-purple-200 bg-purple-50 hover:border-purple-400 hover:bg-purple-100 transition-all text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center text-white">
+                    <Truck size={24} />
+                  </div>
+                  <div>
+                    <div className="font-bold text-purple-800">Pobere šofer</div>
+                    <div className="text-sm text-purple-600">Naroči šoferja za prevzem</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={handleDriverPickedUpAll}
+                disabled={isLoading || !onDriverPickedUpAll}
+                className="w-full p-4 rounded-xl border-2 border-purple-200 bg-purple-50 hover:border-purple-400 hover:bg-purple-100 transition-all text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-700 flex items-center justify-center text-white">
+                    <Truck size={24} />
+                  </div>
+                  <div>
+                    <div className="font-bold text-purple-900">Pobral šofer</div>
+                    <div className="text-sm text-purple-600">Šofer je že pobral vse</div>
+                  </div>
+                </div>
+              </button>
+
+              {contactPhone && (
+                <a
+                  href={`tel:${contactPhone}`}
+                  className="block w-full p-4 rounded-xl border-2 border-sky-200 bg-sky-50 hover:border-sky-400 hover:bg-sky-100 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-sky-500 flex items-center justify-center text-white">
+                      <Phone size={24} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-sky-800">Pokliči {contactName || 'kontakt'}</div>
+                      <div className="text-sm text-sky-600">{contactPhone}</div>
+                    </div>
+                  </div>
+                </a>
+              )}
+
+              {companyId && onViewCompany && (
+                <button
+                  onClick={() => onViewCompany(companyId)}
+                  className="w-full p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white">
+                      <ExternalLink size={24} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-emerald-800">Poglej stranko / Ponudba</div>
+                      <div className="text-sm text-emerald-600">Odpri kartico stranke</div>
+                    </div>
+                  </div>
+                </button>
+              )}
 
               <button
                 onClick={() => setStep('confirm_remove')}

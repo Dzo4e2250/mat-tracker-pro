@@ -170,10 +170,17 @@ export function useContractForm({
 
     const billingCompany = parentCompany || company;
 
+    // DDV zavezanci dobijo SI prefix pred davčno številko
+    const rawTaxNumber = billingCompany.tax_number || '';
+    const isVatPayer = billingCompany.is_vat_payer === true;
+    const taxNumberForContract = rawTaxNumber && isVatPayer && !rawTaxNumber.startsWith('SI')
+      ? `SI${rawTaxNumber}`
+      : rawTaxNumber;
+
     setFormData({
       companyName: billingCompany.name || '',
       customerNumber: company.customer_number || '',
-      taxNumber: billingCompany.tax_number || '',
+      taxNumber: taxNumberForContract,
       deliveryAddress: company.delivery_address || company.address_street || '',
       deliveryPostal: company.delivery_postal || company.address_postal || '',
       deliveryCity: company.delivery_city || company.address_city || '',

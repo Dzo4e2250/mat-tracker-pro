@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useCreateCompany, useAddContact, useUpdateCompany, useUpdateContact, useDeleteContact, useDeleteCompany, CompanyWithContacts } from '@/hooks/useCompanyContacts';
 import { useCreateReminder, useCompleteReminder, useUpdatePipelineStatus } from '@/hooks/useReminders';
-import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, isValidTaxNumberFormat, searchCompaniesByName } from '@/utils/companyLookup';
+import { lookupCompanyInternalFirst, lookupCompanyByTaxNumber, lookupCompanyInRegister, isValidTaxNumberFormat, searchCompaniesByName } from '@/utils/companyLookup';
 import type { RegisterCompanyData } from '@/utils/companyLookup';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -359,6 +359,7 @@ export function useCompanyActions({
           notes: formData.notes,
           pipeline_status: isOsnutek ? 'osnutek' : undefined,
           parent_company_id: formData.parentCompanyId || undefined,
+          is_vat_payer: formData.isVatPayer ?? undefined,
         },
         contact: formData.contactName ? {
           first_name: formData.contactName.split(' ')[0],
@@ -485,9 +486,11 @@ export function useCompanyActions({
           addressStreet: regData.address_street || prev.addressStreet,
           addressCity: regData.address_city || prev.addressCity,
           addressPostal: regData.address_postal || prev.addressPostal,
+          isVatPayer: regData.is_vat_payer,
         }));
 
-        toast({ description: `Podjetje najdeno v registru: ${regData.name}` });
+        const vatLabel = regData.is_vat_payer ? ' (DDV zavezanec)' : ' (ni DDV zavezanec)';
+        toast({ description: `Podjetje najdeno v registru: ${regData.name}${vatLabel}` });
       } else if (result.source === 'external' && result.externalData) {
         // Podjetje ni v bazi - izpolni iz VIES API
         const companyData = result.externalData;
@@ -496,15 +499,21 @@ export function useCompanyActions({
           return;
         }
 
+        // VIES vrne veljavno DDV → je DDV zavezanec
+        // Poskusi dobiti polno ime iz registra (VIES včasih izpusti s.p., d.o.o. itd.)
+        const registerData = await lookupCompanyInRegister(formData.taxNumber?.replace(/^SI/i, '').replace(/\s/g, ''));
+        const fullName = registerData?.name || companyData.name;
+
         setFormData((prev: any) => ({
           ...prev,
-          companyName: companyData.name || prev.companyName,
+          companyName: fullName || prev.companyName,
           addressStreet: companyData.street || prev.addressStreet,
           addressCity: companyData.city || prev.addressCity,
           addressPostal: companyData.postalCode || prev.addressPostal,
+          isVatPayer: true, // VIES potrjen = DDV zavezanec
         }));
 
-        toast({ description: `Podjetje najdeno: ${companyData.name}` });
+        toast({ description: `Podjetje najdeno: ${fullName} (DDV zavezanec)` });
       }
     } catch (error) {
       toast({ description: 'Napaka pri iskanju podjetja', variant: 'destructive' });

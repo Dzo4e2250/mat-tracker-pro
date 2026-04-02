@@ -32,6 +32,7 @@ export interface Company {
   working_hours?: string | null;
   delivery_instructions?: string | null;
   customer_number?: string | null;
+  is_vat_payer?: boolean | null;
   contacts: Contact[];
 }
 

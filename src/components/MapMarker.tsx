@@ -317,11 +317,12 @@ interface ClusterMarkerProps {
 }
 
 function getPrimaryStatus(locations: MapLocation[]): MapMarkerStatus {
-  // Priority: waiting_driver > dirty > on_test > contract_signed
-  if (locations.some((l) => l.status === 'waiting_driver')) return 'waiting_driver';
-  if (locations.some((l) => l.status === 'dirty')) return 'dirty';
+  // Priority: on_test > waiting_driver > completed > contract_signed
   if (locations.some((l) => l.status === 'on_test')) return 'on_test';
-  return 'contract_signed';
+  if (locations.some((l) => l.status === 'waiting_driver')) return 'waiting_driver';
+  if (locations.some((l) => l.status === 'completed')) return 'completed';
+  if (locations.some((l) => l.status === 'contract_signed')) return 'contract_signed';
+  return 'completed';
 }
 
 function createClusterIcon(count: number, color: string): L.DivIcon {

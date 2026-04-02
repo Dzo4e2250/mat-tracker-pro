@@ -151,6 +151,7 @@ export type Database = {
           offer_called_at: string | null
           parent_company_id: string | null
           is_in_d365: boolean
+          is_vat_payer: boolean | null
         }
         Insert: {
           id?: string
@@ -183,6 +184,7 @@ export type Database = {
           offer_called_at?: string | null
           parent_company_id?: string | null
           is_in_d365?: boolean
+          is_vat_payer?: boolean | null
         }
         Update: {
           id?: string
@@ -215,6 +217,7 @@ export type Database = {
           offer_called_at?: string | null
           parent_company_id?: string | null
           is_in_d365?: boolean
+          is_vat_payer?: boolean | null
         }
         Relationships: [
           {

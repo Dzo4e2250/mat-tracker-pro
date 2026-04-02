@@ -15,8 +15,10 @@ interface MatDetailsModalProps {
   onUpdateStartDate: (cycleId: string, date: string) => Promise<void>;
   onExtendTest: () => Promise<void>;
   onRequestDriverPickup: () => Promise<void>;
+  onDriverPickedUp: () => Promise<void>;
   onMarkAsDirty: () => Promise<void>;
   onMarkContractSigned: () => Promise<void>;
+  onChangeCompany: () => void;
   // Pending states
   isUpdatingLocation: boolean;
   isUpdatingStartDate: boolean;
@@ -41,8 +43,10 @@ export default function MatDetailsModal({
   onUpdateStartDate,
   onExtendTest,
   onRequestDriverPickup,
+  onDriverPickedUp,
   onMarkAsDirty,
   onMarkContractSigned,
+  onChangeCompany,
   isUpdatingLocation,
   isUpdatingStartDate,
   isExtending,
@@ -164,6 +168,15 @@ export default function MatDetailsModal({
                 </a>
               </div>
             </div>
+          )}
+
+          {cycle.contact?.phone && (
+            <a
+              href={'tel:' + cycle.contact.phone}
+              className="block w-full bg-blue-500 text-white py-2 rounded text-center text-sm font-medium"
+            >
+              📞 Pokliči {cycle.contact.first_name}
+            </a>
           )}
 
           {cycle.contact?.email && (
@@ -351,6 +364,13 @@ export default function MatDetailsModal({
               {isUpdatingStatus ? 'Shranjevanje...' : '🚛 Pobere šofer'}
             </button>
             <button
+              onClick={onDriverPickedUp}
+              disabled={isUpdatingStatus}
+              className="w-full bg-purple-700 text-white py-2 rounded disabled:opacity-50"
+            >
+              {isUpdatingStatus ? 'Shranjevanje...' : '🚛 Pobral šofer'}
+            </button>
+            <button
               onClick={onViewCompany}
               className="w-full bg-green-600 text-white py-2 rounded"
             >
@@ -362,6 +382,12 @@ export default function MatDetailsModal({
               className="w-full bg-orange-500 text-white py-2 rounded disabled:opacity-50"
             >
               {isUpdatingStatus ? 'Shranjevanje...' : '📥 Pobrano (test končan)'}
+            </button>
+            <button
+              onClick={onChangeCompany}
+              className="w-full bg-gray-500 text-white py-2 rounded"
+            >
+              🔄 Spremeni podjetje
             </button>
             {!cycle.contract_signed ? (
               <button

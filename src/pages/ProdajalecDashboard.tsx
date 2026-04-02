@@ -45,7 +45,7 @@ export default function ProdajalecDashboard() {
   const { data: cycles, isLoading: loadingCycles } = useCycles(user?.id);
   const { data: cycleHistory } = useCycleHistory(user?.id);
   const { data: companies } = useCompanyContacts(user?.id);
-  const { data: mapLocations, isLoading: loadingMap } = useMapLocations({ salespersonId: user?.id });
+  const { data: mapLocations, isLoading: loadingMap } = useMapLocations({ salespersonId: user?.id, includeDirty: true });
 
   // Company select modal state
   const [showCompanySelectModal, setShowCompanySelectModal] = useState(false);
@@ -151,6 +151,8 @@ export default function ProdajalecDashboard() {
     companyId: string;
     companyName: string;
     companyAddress?: string;
+    contactPhone?: string;
+    contactName?: string;
     cycles: CycleWithRelations[];
   } | null>(null);
 
@@ -181,7 +183,7 @@ export default function ProdajalecDashboard() {
   const {
     createCycle, putOnTest, signContract, extendTest,
     handleAddMat, handlePutOnTest, handleMarkAsDirty, handleRequestDriverPickup,
-    handleSignContract, handleExtendTest, showToast,
+    handleSignContract, handleExtendTest, handleDriverPickedUp, handleChangeCompany, showToast,
   } = useCycleActions({
     userId: user?.id,
     companies,
@@ -487,6 +489,7 @@ export default function ProdajalecDashboard() {
                   }}
                   onExtendTest={handleExtendTest}
                   onRequestDriverPickup={handleRequestDriverPickup}
+                  onDriverPickedUp={handleDriverPickedUp}
                   onMarkAsDirty={handleMarkAsDirty}
                   onMarkContractSigned={async () => {
                     await markContractSigned.mutateAsync({ cycleId: selectedCycle.id });
@@ -505,6 +508,9 @@ export default function ProdajalecDashboard() {
                       lastContactId: selectedCycle.contact_id,
                     });
                     setModalType('selectAvailableMat');
+                  }}
+                  onChangeCompany={() => {
+                    setModalType('putOnTest');
                   }}
                   onViewCompany={() => {
                     setShowModal(false);
@@ -647,8 +653,34 @@ export default function ProdajalecDashboard() {
       <CompanySelectModal
         companies={companies || []}
         isOpen={showCompanySelectModal}
-        onClose={() => setShowCompanySelectModal(false)}
-        onSelect={(company) => {
+        onClose={() => {
+          setShowCompanySelectModal(false);
+          // Počisti change flow če je bil aktiven
+          if (formData.changeCycleIds) {
+            setFormData({});
+          }
+        }}
+        onSelect={async (company) => {
+          // Če je aktiven "spremeni podjetje" flow
+          if (formData.changeCycleIds && company) {
+            const cycleIds = formData.changeCycleIds as string[];
+            try {
+              const { supabase } = await import('@/integrations/supabase/client');
+              for (const cycleId of cycleIds) {
+                await supabase
+                  .from('cycles')
+                  .update({ company_id: company.id })
+                  .eq('id', cycleId);
+              }
+              showToast(`✅ Podjetje spremenjeno na ${company.display_name || company.name}`);
+            } catch {
+              showToast('Napaka pri zamenjavi podjetja', 'destructive');
+            }
+            setFormData({});
+            setShowCompanySelectModal(false);
+            return;
+          }
+
           if (company) {
             setFormData({
               ...formData,
@@ -674,7 +706,10 @@ export default function ProdajalecDashboard() {
             setSelectedCompanyForMats(null);
           }}
           companyName={selectedCompanyForMats.companyName}
+          companyId={selectedCompanyForMats.companyId}
           companyAddress={selectedCompanyForMats.companyAddress}
+          contactPhone={selectedCompanyForMats.contactPhone}
+          contactName={selectedCompanyForMats.contactName}
           cycles={selectedCompanyForMats.cycles}
           onSignContracts={(signedIds, action, remainingIds) =>
             handleCompanyMatsAction('sign', { signedCycleIds: signedIds, remainingAction: action, remainingCycleIds: remainingIds })
@@ -682,7 +717,29 @@ export default function ProdajalecDashboard() {
           onPickupAll={(cycleIds) => handleCompanyMatsAction('pickup', { cycleIds })}
           onExtendAll={(cycleIds) => handleCompanyMatsAction('extend', { cycleIds })}
           onRemoveAll={(cycleIds) => handleCompanyMatsAction('remove', { cycleIds })}
-          isLoading={batchSignContracts.isPending || batchPickupSelf.isPending || batchExtendTest.isPending || batchRemove.isPending}
+          onDriverPickupAll={async (cycleIds) => {
+            for (const id of cycleIds) {
+              await updateStatus.mutateAsync({ cycleId: id, newStatus: 'waiting_driver', userId: user?.id || '' });
+            }
+            showToast('✅ Naročeno za šoferja');
+          }}
+          onDriverPickedUpAll={async (cycleIds) => {
+            for (const id of cycleIds) {
+              await updateStatus.mutateAsync({ cycleId: id, newStatus: 'dirty', userId: user?.id || '' });
+            }
+            showToast('✅ Pobral šofer - vse označeno');
+          }}
+          onViewCompany={(companyId) => {
+            setShowCompanyMatsModal(false);
+            navigate(`/contacts?company=${companyId}`);
+          }}
+          onChangeCompany={async (cycleIds) => {
+            // Zapri ukrep modal in odpri company select
+            setShowCompanyMatsModal(false);
+            setFormData({ changeCycleIds: cycleIds });
+            setShowCompanySelectModal(true);
+          }}
+          isLoading={batchSignContracts.isPending || batchPickupSelf.isPending || batchExtendTest.isPending || batchRemove.isPending || updateStatus.isPending}
         />
       )}
     </div>

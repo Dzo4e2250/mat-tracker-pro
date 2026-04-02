@@ -16,6 +16,8 @@ interface CompanyMatsData {
   companyId: string;
   companyName: string;
   companyAddress?: string;
+  contactPhone?: string;
+  contactName?: string;
   cycles: CycleWithRelations[];
 }
 
@@ -669,12 +671,17 @@ export default function HomeView({
                 currentTime={currentTime}
                 onToggle={() => onToggleCompany(companyId)}
                 onCycleClick={onCycleClick}
-                onShowMats={() => onShowCompanyMats({
-                  companyId,
-                  companyName: companyCycles[0]?.company?.display_name || companyCycles[0]?.company?.name || 'Neznano podjetje',
-                  companyAddress: companyCycles[0]?.company?.address_city,
-                  cycles: companyCycles,
-                })}
+                onShowMats={() => {
+                  const contact = companyCycles[0]?.contact;
+                  onShowCompanyMats({
+                    companyId,
+                    companyName: companyCycles[0]?.company?.display_name || companyCycles[0]?.company?.name || 'Neznano podjetje',
+                    companyAddress: companyCycles[0]?.company?.address_city,
+                    contactPhone: contact?.phone || undefined,
+                    contactName: contact ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : undefined,
+                    cycles: companyCycles,
+                  });
+                }}
               />
             ))}
 

@@ -25,6 +25,28 @@ export type ContactWithCompany = Contact & {
   company?: Company;
 };
 
+// Helper: batch large arrays into chunks to avoid URL length limits
+async function batchedIn<T>(
+  queryFn: (ids: string[]) => Promise<{ data: T[] | null; error: any }>,
+  ids: string[],
+  batchSize = 30,
+): Promise<T[]> {
+  if (ids.length <= batchSize) {
+    const { data, error } = await queryFn(ids);
+    if (error) throw error;
+    return data || [];
+  }
+
+  const results: T[] = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const { data, error } = await queryFn(batch);
+    if (error) throw error;
+    if (data) results.push(...data);
+  }
+  return results;
+}
+
 // Fetch all companies for a salesperson (created by them or has cycles with them)
 export function useCompanyContacts(userId?: string) {
   return useQuery({
@@ -36,80 +58,74 @@ export function useCompanyContacts(userId?: string) {
       if (!userId) return [];
 
       // Get all companies where user created them or has cycles
-      const { data: cycles, error: cyclesError } = await supabase
-        .from('cycles')
-        .select(`
-          company_id,
-          status,
-          contract_signed,
-          created_at,
-          test_start_date,
-          company:companies(*)
-        `)
-        .eq('salesperson_id', userId)
-        .not('company_id', 'is', null);
+      const [cyclesResult, createdCompaniesResult] = await Promise.all([
+        supabase
+          .from('cycles')
+          .select(`
+            company_id,
+            status,
+            contract_signed,
+            created_at,
+            test_start_date,
+            company:companies(*)
+          `)
+          .eq('salesperson_id', userId)
+          .not('company_id', 'is', null),
+        supabase
+          .from('companies')
+          .select('*')
+          .eq('created_by', userId),
+      ]);
 
-      if (cyclesError) throw cyclesError;
+      if (cyclesResult.error) throw cyclesResult.error;
+      if (createdCompaniesResult.error) throw createdCompaniesResult.error;
 
-      // Also get companies created by user (even without cycles)
-      const { data: createdCompanies, error: companiesError } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('created_by', userId);
-
-      if (companiesError) throw companiesError;
+      const cycles = cyclesResult.data;
+      const createdCompanies = createdCompaniesResult.data;
 
       // Merge and deduplicate companies
       const companyMap = new Map<string, Company>();
 
-      // Add companies from cycles
       cycles?.forEach(cycle => {
         if (cycle.company) {
           companyMap.set(cycle.company.id, cycle.company as Company);
         }
       });
 
-      // Add created companies
       createdCompanies?.forEach(company => {
         companyMap.set(company.id, company);
       });
 
-      // Get all company IDs
       const companyIds = Array.from(companyMap.keys());
 
       if (companyIds.length === 0) return [];
 
-      // Get contacts for all companies
-      const { data: contacts, error: contactsError } = await supabase
-        .from('contacts')
-        .select('*')
-        .in('company_id', companyIds);
-
-      if (contactsError) throw contactsError;
-
-      // Get sent emails to check which companies have offers sent
-      const { data: sentEmails, error: sentEmailsError } = await supabase
-        .from('sent_emails')
-        .select('company_id')
-        .in('company_id', companyIds);
-
-      if (sentEmailsError) throw sentEmailsError;
+      // Fetch contacts and sent_emails in batches to avoid URL length limits (502 on long URLs)
+      const [contacts, sentEmails] = await Promise.all([
+        batchedIn<Contact>(
+          (ids) => supabase.from('contacts').select('*').in('company_id', ids),
+          companyIds,
+        ),
+        batchedIn<{ company_id: string }>(
+          (ids) => supabase.from('sent_emails').select('company_id').in('company_id', ids),
+          companyIds,
+        ),
+      ]);
 
       // Create set of company IDs that have offers sent
       const companiesWithOffers = new Set(
-        sentEmails?.map(e => e.company_id).filter(Boolean) || []
+        sentEmails.map(e => e.company_id).filter(Boolean)
       );
 
       // Group contacts by company and sort by created_at (newest first)
       const contactsByCompany = new Map<string, Contact[]>();
-      contacts?.forEach(contact => {
+      contacts.forEach(contact => {
         const existing = contactsByCompany.get(contact.company_id) || [];
         existing.push(contact);
         contactsByCompany.set(contact.company_id, existing);
       });
 
-      // Sort contacts within each company (newest first)
-      contactsByCompany.forEach((companyContacts, companyId) => {
+      contactsByCompany.forEach((companyContacts) => {
         companyContacts.sort((a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
@@ -135,7 +151,6 @@ export function useCompanyContacts(userId?: string) {
         const total = companyCycles.length;
         const offerSent = companiesWithOffers.has(company.id);
 
-        // Find last activity
         const sortedCycles = [...companyCycles].sort((a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
@@ -248,6 +263,7 @@ export function useCreateCompany() {
         notes?: string;
         pipeline_status?: string;
         parent_company_id?: string;
+        is_vat_payer?: boolean;
       };
       contact?: {
         first_name: string;
@@ -282,6 +298,7 @@ export function useCreateCompany() {
           notes: company.notes || null,
           pipeline_status: company.pipeline_status || null,
           parent_company_id: company.parent_company_id || null,
+          is_vat_payer: company.is_vat_payer ?? null,
           created_by: userId,
         })
         .select()

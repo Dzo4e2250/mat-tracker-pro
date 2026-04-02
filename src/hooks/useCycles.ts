@@ -101,6 +101,7 @@ export function useCreateCycle() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['qr_codes'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
     },
@@ -166,6 +167,7 @@ export function useUpdateCycleStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -239,6 +241,7 @@ export function usePutOnTest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -272,6 +275,7 @@ export function useUpdateTestStartDate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
     },
   });
 }
@@ -306,6 +310,7 @@ export function useUpdateCycleLocation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
@@ -340,6 +345,7 @@ export function useMarkContractSigned() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
   });
@@ -394,6 +400,7 @@ export function useSignContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -458,6 +465,7 @@ export function useExtendTest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -560,6 +568,7 @@ export function useBatchSignContracts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -615,6 +624,7 @@ export function useBatchPickupSelf() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -679,6 +689,7 @@ export function useBatchExtendTest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
@@ -754,6 +765,7 @@ export function useBatchRemove() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['orders', 'stats'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
     },
