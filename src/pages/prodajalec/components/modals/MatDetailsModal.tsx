@@ -404,6 +404,25 @@ export default function MatDetailsModal({
             )}
           </div>
         )}
+
+        {/* Dirty/Waiting driver - pogodba podpisana */}
+        {(cycle.status === 'dirty' || cycle.status === 'waiting_driver') && (
+          <div className="space-y-2">
+            {!cycle.contract_signed ? (
+              <button
+                onClick={handleMarkContractSignedClick}
+                disabled={isMarkingContract}
+                className="w-full bg-emerald-600 text-white py-2 rounded disabled:opacity-50"
+              >
+                {isMarkingContract ? 'Shranjevanje...' : '✍️ Pogodba podpisana'}
+              </button>
+            ) : (
+              <div className="w-full py-2 bg-green-100 text-green-800 rounded text-center text-sm">
+                ✅ Pogodba že podpisana
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div className="mt-4 space-y-2">
         {cycle.status === 'on_test' && (
