@@ -78,6 +78,7 @@ function mapCompany(company: CompanyWithContacts) {
     working_hours: (company as any).working_hours,
     delivery_instructions: (company as any).delivery_instructions,
     customer_number: (company as any).customer_number,
+    is_vat_payer: (company as any).is_vat_payer ?? null,
     contacts: mapContacts(company.contacts),
   };
 }
@@ -104,6 +105,7 @@ export function ContractModalContainer({
         address_street: parentCompanyData.address_street,
         address_postal: parentCompanyData.address_postal,
         address_city: parentCompanyData.address_city,
+        is_vat_payer: (parentCompanyData as any).is_vat_payer ?? null,
         contacts: mapContacts(parentCompanyData.contacts),
       }
     : undefined;

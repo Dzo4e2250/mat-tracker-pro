@@ -56,6 +56,7 @@ interface Company {
     signed: number;
   };
   is_in_d365?: boolean;
+  is_vat_payer?: boolean | null;
 }
 
 interface CompanyNote {
@@ -142,6 +143,7 @@ interface CompanyDetailModalProps {
   onContractSent?: () => void;
   onSelectCompany?: (companyId: string) => void;
   onToggleD365?: (isInD365: boolean) => void;
+  onToggleVatPayer?: (isVatPayer: boolean) => void;
   onOpenIzris?: () => void;
   onOpenDeliveryInfo?: () => void;
   // Desktop inline panel mode (no modal overlay)
@@ -194,6 +196,7 @@ export default function CompanyDetailModal({
   onContractSent,
   onSelectCompany,
   onToggleD365,
+  onToggleVatPayer,
   onOpenIzris,
   onOpenDeliveryInfo,
   inline = false,
@@ -352,8 +355,23 @@ export default function CompanyDetailModal({
             <div className="flex items-start justify-between">
               <div className="flex-1 space-y-2">
                 {company.tax_number && (
-                  <div className="text-sm">
-                    <span className="text-gray-500">Davčna:</span> {company.tax_number}
+                  <div className="text-sm flex items-center gap-2">
+                    <span>
+                      <span className="text-gray-500">Davčna:</span> {company.is_vat_payer ? `SI${company.tax_number.replace(/^SI/, '')}` : company.tax_number}
+                    </span>
+                    {onToggleVatPayer && (
+                      <button
+                        onClick={() => onToggleVatPayer(!company.is_vat_payer)}
+                        className={`text-xs px-1.5 py-0.5 rounded-full border transition-colors ${
+                          company.is_vat_payer
+                            ? 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100'
+                            : 'bg-gray-50 text-gray-500 border-gray-300 hover:bg-gray-100'
+                        }`}
+                        title={company.is_vat_payer ? 'DDV zavezanec — klikni za odstranitev' : 'Ni DDV zavezanec — klikni za označitev'}
+                      >
+                        {company.is_vat_payer ? 'DDV' : 'ni DDV'}
+                      </button>
+                    )}
                   </div>
                 )}
 

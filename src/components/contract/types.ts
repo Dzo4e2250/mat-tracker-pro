@@ -121,6 +121,7 @@ export interface ParentCompanyData {
   address_street: string | null;
   address_postal: string | null;
   address_city: string | null;
+  is_vat_payer?: boolean | null;
   contacts: Contact[];
 }
 

@@ -363,6 +363,7 @@ export function ContactsModals({
           onContractSent={actions.handleContractSent}
           onSelectCompany={detailHandlers.handleSelectCompany}
           onToggleD365={detailHandlers.handleToggleD365}
+          onToggleVatPayer={detailHandlers.handleToggleVatPayer}
           d365Category={modals.d365Category}
           d365Subcategory={modals.d365Subcategory}
           d365AppointmentType={modals.d365AppointmentType}

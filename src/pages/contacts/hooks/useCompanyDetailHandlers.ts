@@ -452,6 +452,37 @@ export function useCompanyDetailHandlers({
     setShowMeetingModal(false);
   }, [setShowMeetingModal]);
 
+  // Toggle DDV zavezanec status
+  const handleToggleVatPayer = useCallback(async (isVatPayer: boolean) => {
+    if (!selectedCompany) return;
+
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .update({ is_vat_payer: isVatPayer })
+        .eq('id', selectedCompany.id);
+
+      if (error) throw error;
+
+      setSelectedCompany({
+        ...selectedCompany,
+        is_vat_payer: isVatPayer,
+      } as any);
+
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-contacts'] });
+
+      toast({
+        description: isVatPayer ? 'Označeno kot DDV zavezanec' : 'Odstranjena oznaka DDV zavezanec',
+      });
+    } catch (error: any) {
+      toast({
+        description: `Napaka: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
+  }, [selectedCompany, setSelectedCompany, queryClient, toast]);
+
   // Toggle D365 CRM status
   const handleToggleD365 = useCallback(async (isInD365: boolean) => {
     if (!selectedCompany) return;
@@ -503,6 +534,7 @@ export function useCompanyDetailHandlers({
     handleMeetingSaveOnly,
     handleMeetingClose,
     handleToggleD365,
+    handleToggleVatPayer,
     ConfirmDialog,
   };
 }
