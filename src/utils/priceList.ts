@@ -83,6 +83,9 @@ export const PRICE_LIST: MatPrice[] = [
 
 // Lookup functions
 export function getPriceByCode(code: string): MatPrice | undefined {
+  // Guard: empty code would match everything via startsWith('')
+  if (!code) return undefined;
+
   // First try exact match
   const exactMatch = PRICE_LIST.find(p => p.code.toUpperCase() === code.toUpperCase());
   if (exactMatch) return exactMatch;

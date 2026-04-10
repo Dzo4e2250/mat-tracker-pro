@@ -149,14 +149,18 @@ export function OfferModalWrapper({
   const handleStandardSelect = useCallback((itemId: string, code: string) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
     const priceInfo = getPriceByCode(code);
+    // Respect per-item frequency override when computing the initial price
+    const effectiveFrequency = (item?.frequencyOverride || offerFrequency) as FrequencyKey;
     const price = item?.purpose === 'nakup'
       ? getPurchasePrice(code)
-      : getRentalPrice(code, offerFrequency as FrequencyKey);
+      : getRentalPrice(code, effectiveFrequency);
     updateOfferItem(itemId, {
       code,
       size: priceInfo?.dimensions || '',
       m2: priceInfo?.m2,
       pricePerUnit: price,
+      originalPrice: price,
+      discount: 0,
       replacementCost: item?.purpose !== 'nakup' ? getReplacementCost(code) : 0,
       name: 'predpražnik'
     }, 'najem');
@@ -170,6 +174,9 @@ export function OfferModalWrapper({
     // First check PRICE_LIST for predefined design sizes
     const priceInfo = getPriceByCode(code);
 
+    // Respect per-item frequency override when computing the initial price
+    const effectiveFrequency = (item?.frequencyOverride || offerFrequency) as FrequencyKey;
+
     let price: number;
     let replacementCost: number;
 
@@ -179,11 +186,11 @@ export function OfferModalWrapper({
       replacementCost = 0;
     } else if (priceInfo) {
       // Najem: uporabi cene iz PRICE_LIST
-      price = priceInfo.prices[offerFrequency as FrequencyKey] || 0;
+      price = priceInfo.prices[effectiveFrequency] || 0;
       replacementCost = priceInfo.odkup;
     } else {
       // Najem: fall back to m² calculation for non-standard sizes
-      price = calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      price = calculateCustomPrice(m2, effectiveFrequency);
       replacementCost = calcCustomReplacementCost(m2); // Povračilo = 90.30€/m²
     }
 
@@ -192,6 +199,8 @@ export function OfferModalWrapper({
       size: designSize?.dimensions || '',
       m2,
       pricePerUnit: price,
+      originalPrice: price,
+      discount: 0,
       replacementCost,
       name: 'predpražnik po meri'
     }, 'najem');
@@ -200,13 +209,17 @@ export function OfferModalWrapper({
   const handleNajemCustomDimensionsChange = useCallback((itemId: string, dims: string) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
     const m2 = calculateM2FromDimensions(dims);
+    // Respect per-item frequency override when computing the initial price
+    const effectiveFrequency = (item?.frequencyOverride || offerFrequency) as FrequencyKey;
     const price = item?.purpose === 'nakup'
       ? calculateCustomPurchasePrice(m2)
-      : calculateCustomPrice(m2, offerFrequency as FrequencyKey);
+      : calculateCustomPrice(m2, effectiveFrequency);
     updateOfferItem(itemId, {
       size: dims,
       m2: m2 || undefined,
       pricePerUnit: price,
+      originalPrice: price,
+      discount: 0,
       code: m2 > 0 ? `CUSTOM-${dims.replace('*', 'x')}` : '',
       replacementCost: item?.purpose !== 'nakup' ? calcCustomReplacementCost(m2) : 0, // Povračilo = 90.30€/m²
       name: 'predpražnik po meri'

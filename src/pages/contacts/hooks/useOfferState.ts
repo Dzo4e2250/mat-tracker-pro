@@ -230,6 +230,9 @@ export function useOfferState(): UseOfferStateReturn {
   const handleItemTypeChange = useCallback((itemId: string, newItemType: ItemType, type: 'nakup' | 'najem') => {
     const updates: Partial<OfferItem> = {
       itemType: newItemType, code: '', size: '', m2: 0, pricePerUnit: 0, replacementCost: 0,
+      // Reset price-derived fields so stale originalPrice/discount don't leak into the new article
+      originalPrice: 0,
+      discount: 0,
       // Standard (MBW/ERM) ni prilagojen, design/custom je
       customized: newItemType !== 'standard',
     };
@@ -513,6 +516,13 @@ export function useOfferState(): UseOfferStateReturn {
   const handleFrequencyOverride = useCallback((itemId: string, frequency: string | undefined) => {
     const item = offerItemsNajem.find(i => i.id === itemId);
     if (!item) return;
+
+    // If item has no code/dimensions yet, just store the override flag without price calc.
+    // Price will be computed when the user actually picks an article.
+    if (!item.code && !(item.itemType === 'custom' && item.m2)) {
+      updateOfferItem(itemId, { frequencyOverride: frequency }, 'najem');
+      return;
+    }
 
     // If frequency is undefined, remove override and recalculate to global
     const effectiveFrequency = frequency || offerFrequency;
