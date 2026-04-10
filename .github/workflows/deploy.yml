@@ -17,7 +17,7 @@ jobs:
       packages: write
 
     outputs:
-      image_name: ${{ steps.imgname.outputs.name }}
+      image: ${{ steps.imgname.outputs.image }}
 
     steps:
       - name: Checkout
@@ -39,13 +39,13 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           LOWER="${REPO,,}"
-          echo "name=$LOWER" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${LOWER}" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.imgname.outputs.name }}
+          images: ${{ steps.imgname.outputs.image }}
           tags: |
             type=raw,value=latest
             type=sha,format=short
@@ -63,53 +63,20 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, mat-tracker-pro]
 
     steps:
-      - name: Network diagnostics
+      - name: Deploy container
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-        run: |
-          echo "Runner public IP:"
-          curl -sS --max-time 5 https://ifconfig.me || true
-          echo
-          echo "SSH_HOST length: ${#SSH_HOST}"
-          echo "SSH_PORT length: ${#SSH_PORT}"
-          echo "TCP reachability test to SSH port (10s timeout):"
-          if timeout 10 bash -c "</dev/tcp/$SSH_HOST/$SSH_PORT" 2>&1; then
-            echo "TCP OK: port reachable"
-          else
-            echo "TCP FAIL: port NOT reachable (exit $?)"
-          fi
-          echo "Generic internet test (github.com:443):"
-          timeout 5 bash -c "</dev/tcp/github.com/443" && echo "github reachable" || echo "github unreachable"
-
-      - name: Deploy to server
-        env:
-          IMAGE: ghcr.io/${{ needs.build-and-push.outputs.image_name }}:latest
+          IMAGE: ${{ needs.build-and-push.outputs.image }}:latest
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           set -e
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          ssh -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              -o ConnectTimeout=15 \
-              -p "$SSH_PORT" \
-              "$SSH_USER@$SSH_HOST" \
-              "IMAGE='$IMAGE' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
-          set -e
-          echo "Pulling $IMAGE"
+          echo "Logging in to GHCR"
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          echo "Pulling $IMAGE"
           docker pull "$IMAGE"
 
           echo "Swapping container"
@@ -130,4 +97,6 @@ jobs:
 
           sleep 3
           docker ps --filter name=mat-tracker-pro --format '{{.Names}}: {{.Status}}'
-          REMOTE
+
+          echo "Logging out from GHCR"
+          docker logout ghcr.io || true
