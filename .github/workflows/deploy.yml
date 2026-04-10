@@ -66,39 +66,68 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Network diagnostics
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          echo "Runner public IP:"
+          curl -sS --max-time 5 https://ifconfig.me || true
+          echo
+          echo "SSH_HOST length: ${#SSH_HOST}"
+          echo "SSH_PORT length: ${#SSH_PORT}"
+          echo "TCP reachability test to SSH port (10s timeout):"
+          if timeout 10 bash -c "</dev/tcp/$SSH_HOST/$SSH_PORT" 2>&1; then
+            echo "TCP OK: port reachable"
+          else
+            echo "TCP FAIL: port NOT reachable (exit $?)"
+          fi
+          echo "Generic internet test (github.com:443):"
+          timeout 5 bash -c "</dev/tcp/github.com/443" && echo "github reachable" || echo "github unreachable"
+
       - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE: ghcr.io/${{ needs.build-and-push.outputs.image_name }}:latest
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          envs: IMAGE,GHCR_USER,GHCR_TOKEN
-          script: |
-            set -e
-            echo "Pulling $IMAGE"
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            docker pull "$IMAGE"
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-            echo "Swapping container"
-            docker stop mat-tracker-pro 2>/dev/null || true
-            docker rm mat-tracker-pro 2>/dev/null || true
-            docker run -d \
-              --name mat-tracker-pro \
-              --restart unless-stopped \
-              --network npm_npm_network \
-              --log-driver json-file \
-              --log-opt max-size=10m \
-              --log-opt max-file=3 \
-              -p 3000:80 \
-              "$IMAGE"
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -o ConnectTimeout=15 \
+              -p "$SSH_PORT" \
+              "$SSH_USER@$SSH_HOST" \
+              "IMAGE='$IMAGE' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
+          set -e
+          echo "Pulling $IMAGE"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker pull "$IMAGE"
 
-            echo "Cleaning up old images"
-            docker image prune -f
+          echo "Swapping container"
+          docker stop mat-tracker-pro 2>/dev/null || true
+          docker rm mat-tracker-pro 2>/dev/null || true
+          docker run -d \
+            --name mat-tracker-pro \
+            --restart unless-stopped \
+            --network npm_npm_network \
+            --log-driver json-file \
+            --log-opt max-size=10m \
+            --log-opt max-file=3 \
+            -p 3000:80 \
+            "$IMAGE"
 
-            sleep 3
-            docker ps --filter name=mat-tracker-pro --format '{{.Names}}: {{.Status}}'
+          echo "Cleaning up old images"
+          docker image prune -f
+
+          sleep 3
+          docker ps --filter name=mat-tracker-pro --format '{{.Names}}: {{.Status}}'
+          REMOTE
