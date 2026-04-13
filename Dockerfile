@@ -21,6 +21,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build args for Vite env vars (embedded at build time)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_BILLIONMAIL_URL
+ARG VITE_BILLIONMAIL_HOSTNAME
+ARG VITE_DB_SCHEMA
+ARG VITE_APP_URL
+ARG VITE_ORS_API_KEY
+ARG VITE_SENTRY_DSN
+
 # Copy package files
 COPY package*.json ./
 

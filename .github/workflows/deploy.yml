@@ -60,6 +60,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+          build-args: |
+            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            VITE_BILLIONMAIL_URL=${{ secrets.VITE_BILLIONMAIL_URL }}
+            VITE_BILLIONMAIL_HOSTNAME=${{ secrets.VITE_BILLIONMAIL_HOSTNAME }}
+            VITE_DB_SCHEMA=${{ secrets.VITE_DB_SCHEMA }}
+            VITE_APP_URL=${{ secrets.VITE_APP_URL }}
+            VITE_ORS_API_KEY=${{ secrets.VITE_ORS_API_KEY }}
+            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
 
   deploy:
     needs: build-and-push
