@@ -236,7 +236,7 @@ export default function UrgentReminders({
               </button>
               {/* Odpri */}
               <button
-                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                onClick={() => onOpenCompany(reminder.company?.id || reminder.company_id || '')}
                 className="px-3 py-2 bg-white border border-orange-300 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-100"
               >
                 Odpri
@@ -312,7 +312,7 @@ export default function UrgentReminders({
               </button>
               {/* Odpri */}
               <button
-                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                onClick={() => onOpenCompany(reminder.company?.id || reminder.company_id || '')}
                 className="px-3 py-2 bg-white border border-yellow-400 text-yellow-700 rounded-lg text-sm font-medium hover:bg-yellow-100"
               >
                 Odpri
@@ -427,7 +427,7 @@ export default function UrgentReminders({
                 </button>
               )}
               <button
-                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                onClick={() => onOpenCompany(reminder.company?.id || reminder.company_id || '')}
                 className="px-3 py-2 bg-white border border-purple-300 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100"
               >
                 Odpri
@@ -545,7 +545,7 @@ export default function UrgentReminders({
                 <Check size={16} />
               </button>
               <button
-                onClick={() => reminder.company && onOpenCompany(reminder.company.id)}
+                onClick={() => onOpenCompany(reminder.company?.id || reminder.company_id || '')}
                 className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
               >
                 Odpri
