@@ -593,10 +593,9 @@ Lep pozdrav,
           <TodaySection
             todayTasks={notesHook.todayTasks}
             onCompanyClick={(companyId) => {
+              modals.setSelectedCompanyId(companyId);
               const company = companies?.find(c => c.id === companyId);
-              if (company) {
-                modals.selectCompany(company);
-              }
+              if (company) modals.setSelectedCompany(company);
             }}
             onMarkDone={(noteId, content) => notesHook.markDeadlineDone.mutate({ noteId, content })}
             onPostpone={(noteId, content, newDate) => notesHook.updateNoteDeadline.mutate({ noteId, content, newDate })}
